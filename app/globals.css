@@ -1849,6 +1849,40 @@ button.publicButton {
   min-height: 74px;
 }
 
+.subdomainInput {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #e1e4eb;
+  border-radius: 12px;
+  background: #f3f4f8;
+}
+
+.profileSheetFields .subdomainInput input {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.subdomainInput span {
+  flex: 0 0 auto;
+  padding: 0 14px 0 4px;
+  color: #757a85;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.subdomainPreview {
+  display: block;
+  margin-top: 7px;
+  overflow: hidden;
+  color: #757a85;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .profileSaveButton {
   min-height: 50px;
   margin-top: 4px;

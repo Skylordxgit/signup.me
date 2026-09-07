@@ -1686,6 +1686,9 @@ function ProfileEditorSheet({
   const [bio, setBio] = useState(page.bio);
   const [layout, setLayout] = useState(page.theme.profileLayout ?? "hero");
   const [changing, setChanging] = useState<"cover" | "photo" | null>(null);
+  const subdomainValue = slugify(slug) || "your-page";
+  const subdomainUrl = publicSubdomainUrl(subdomainValue);
+  const baseDomain = new URL(publicSubdomainUrl("website")).host.replace(/^website\./, "");
 
   function save() {
     onSave({
@@ -1724,8 +1727,12 @@ function ProfileEditorSheet({
           <Field label="Website name *">
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
-          <Field label="Public URL *">
-            <input value={slug} onChange={(event) => setSlug(event.target.value)} />
+          <Field label="Your subdomain *">
+            <div className="subdomainInput">
+              <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
+              <span>.{baseDomain}</span>
+            </div>
+            <small className="subdomainPreview">{subdomainUrl}</small>
           </Field>
           {layout !== "avatar" && layout !== "none" && (
             <MediaChangeRow label="Cover" preview={cover} active={changing === "cover"} onChange={() => setChanging(changing === "cover" ? null : "cover")}>
