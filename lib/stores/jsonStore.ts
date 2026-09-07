@@ -92,10 +92,7 @@ export async function createPage(input: {
     uniqueVisitors: 0,
     createdAt: timestamp,
     updatedAt: timestamp,
-    blocks: [emptyBlock(id, "whatsapp", 1), emptyBlock(id, "website", 2)].map((block, index) => ({
-      ...block,
-      id: block.id + index,
-    })),
+    blocks: [],
   };
 
   db.pages.push(page);

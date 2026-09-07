@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
   ArrowLeft,
   BarChart3,
   Bell,
@@ -18,6 +19,7 @@ import {
   FormInput,
   GalleryVerticalEnd,
   Globe2,
+  Hand,
   ImageIcon,
   LayoutPanelTop,
   Link2,
@@ -71,6 +73,7 @@ export function AdminDashboard() {
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
   const [profileEditorRequested, setProfileEditorRequested] = useState(false);
   const [hasSelectedBlock, setHasSelectedBlock] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [pendingPagePatch, setPendingPagePatch] = useState<Partial<SmartPage> | null>(null);
   const [pendingBlockPatches, setPendingBlockPatches] = useState<Record<number, Partial<PageBlock>>>({});
   const [appOrigin] = useState(() => (typeof window === "undefined" ? "" : window.location.origin));
@@ -151,7 +154,8 @@ export function AdminDashboard() {
     });
     setNewPageOpen(false);
     setActivePage(page);
-    setAdminMode("detail");
+    setAdminMode("editor");
+    setOnboardingOpen(true);
     await refreshPages();
   }
 
@@ -477,6 +481,7 @@ export function AdminDashboard() {
               profileEditorRequested={profileEditorRequested}
               onProfileEditorDismiss={() => setProfileEditorRequested(false)}
               onBlockSelectionChange={setHasSelectedBlock}
+              onAddFirstBlock={() => setBlockPickerOpen(true)}
             />
           </div>
 
@@ -522,6 +527,8 @@ export function AdminDashboard() {
               onChange={(theme) => editPage({ theme })}
             />
           )}
+
+          {onboardingOpen && <EditorOnboarding onClose={() => setOnboardingOpen(false)} />}
         </section>
       </main>
     );
@@ -1127,6 +1134,65 @@ function ThemeEditorSheet({
   );
 }
 
+const onboardingSlides: { title: string; description: string; icon: LucideIcon }[] = [
+  {
+    title: "Add block",
+    description: "Build your website with simple blocks. Click on + to add new block.",
+    icon: Plus,
+  },
+  {
+    title: "Edit block",
+    description: "You can edit, duplicate, hide or delete block. Just click on it to see options.",
+    icon: Pencil,
+  },
+  {
+    title: "Publish & Share",
+    description: "Publish your website in any time to share link with the world.",
+    icon: Share2,
+  },
+];
+
+function EditorOnboarding({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const slide = onboardingSlides[step];
+  const isFirst = step === 0;
+  const isLast = step === onboardingSlides.length - 1;
+
+  return (
+    <div className="onboardingBackdrop" role="dialog" aria-modal="true" aria-label={slide.title}>
+      <button
+        type="button"
+        className="onboardingNavButton"
+        aria-label={isFirst ? "Skip tutorial" : "Back"}
+        onClick={() => (isFirst ? onClose() : setStep((value) => value - 1))}
+      >
+        {isFirst ? <X /> : <ArrowLeft />}
+      </button>
+
+      <div className="onboardingBody">
+        <div className="onboardingIcon">
+          <slide.icon size={30} />
+        </div>
+        <h2>{slide.title}</h2>
+        <p>{slide.description}</p>
+        <div className="onboardingDots">
+          {onboardingSlides.map((item, index) => (
+            <span key={item.title} className={index === step ? "onboardingDotActive" : "onboardingDot"} />
+          ))}
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="onboardingPrimaryButton"
+        onClick={() => (isLast ? onClose() : setStep((value) => value + 1))}
+      >
+        {isLast ? "Get started" : "Got it"}
+      </button>
+    </div>
+  );
+}
+
 function EditablePublicCanvas({
   onDeleteBlock,
   onDuplicateBlock,
@@ -1137,6 +1203,7 @@ function EditablePublicCanvas({
   onProfileEditorDismiss,
   profileEditorRequested,
   onBlockSelectionChange,
+  onAddFirstBlock,
   page,
 }: {
   onDeleteBlock: (blockId: number) => void;
@@ -1148,17 +1215,53 @@ function EditablePublicCanvas({
   onProfileEditorDismiss: () => void;
   profileEditorRequested: boolean;
   onBlockSelectionChange: (selected: boolean) => void;
+  onAddFirstBlock: () => void;
   page: SmartPage;
 }) {
   const blocks = [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder);
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<number | null>(null);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [emptyCtaDismissed, setEmptyCtaDismissed] = useState(false);
   const selectedBlock = blocks.find((block) => block.id === selectedBlockId) ?? null;
   const editingBlock = blocks.find((block) => block.id === editingBlockId) ?? null;
   const selectedIndex = selectedBlock ? blocks.findIndex((block) => block.id === selectedBlock.id) : -1;
 
   const isProfileEditorOpen = profileEditorOpen || profileEditorRequested;
+
+  if (blocks.length === 0) {
+    return (
+      <div className="canvasEmptyState">
+        <h2>Start building your website</h2>
+        <p>Press the button below to add your first block</p>
+        <ArrowDown className="canvasEmptyArrow" aria-hidden="true" />
+        {!emptyCtaDismissed && (
+          <button type="button" className="canvasEmptyCta" onClick={onAddFirstBlock}>
+            <Hand size={16} aria-hidden="true" />
+            Create free website
+            <span
+              className="canvasEmptyCtaClose"
+              role="button"
+              tabIndex={0}
+              aria-label="Dismiss"
+              onClick={(event) => {
+                event.stopPropagation();
+                setEmptyCtaDismissed(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.stopPropagation();
+                event.preventDefault();
+                setEmptyCtaDismissed(true);
+              }}
+            >
+              <X size={14} />
+            </span>
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="homepagePreviewWrap">

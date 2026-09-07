@@ -715,6 +715,149 @@ textarea {
   box-shadow: 0 18px 50px rgba(17, 24, 39, 0.09);
 }
 
+.canvasEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 480px;
+  height: 100%;
+  padding: 40px 24px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #1f2024 0%, #0b0b0c 100%);
+  color: #ffffff;
+  text-align: center;
+}
+
+.canvasEmptyState h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.canvasEmptyState p {
+  margin: 0;
+  max-width: 260px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.canvasEmptyArrow {
+  margin-top: 44px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.canvasEmptyCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 10px 8px 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #16171b;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.canvasEmptyCtaClose {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.08);
+  color: #16171b;
+}
+
+.onboardingBackdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px 30px;
+  background: #f4f5f7;
+}
+
+.onboardingNavButton {
+  align-self: flex-start;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: #23252b;
+}
+
+.onboardingBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.onboardingIcon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #2563eb;
+  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.1);
+}
+
+.onboardingBody h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #1c1d22;
+}
+
+.onboardingBody p {
+  margin: 0;
+  max-width: 320px;
+  color: #6b6d76;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.onboardingDots {
+  display: flex;
+  gap: 6px;
+  margin-top: 20px;
+}
+
+.onboardingDot,
+.onboardingDotActive {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.16);
+}
+
+.onboardingDotActive {
+  background: #2563eb;
+}
+
+.onboardingPrimaryButton {
+  min-height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 800;
+}
+
 .editorDock {
   position: sticky;
   bottom: 12px;

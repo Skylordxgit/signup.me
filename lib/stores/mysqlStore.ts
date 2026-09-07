@@ -186,50 +186,22 @@ export async function createPage(input: {
   };
   const integrations = { metaPixelId: "", gtmId: "" };
 
-  const pageId = await withTransaction(async (query) => {
-    const result = await query<{ insertId: number }>(
-      `INSERT INTO pages (name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
-       VALUES (?, ?, ?, ?, ?, '', 'published', ?, ?, ?, 0, 0)`,
-      [
-        input.name.trim(),
-        slug,
-        input.title.trim() || input.name.trim(),
-        input.bio.trim(),
-        input.profileImage.trim(),
-        JSON.stringify(defaultTheme),
-        JSON.stringify(seo),
-        JSON.stringify(integrations),
-      ],
-    );
-    const newPageId = result.insertId;
+  const result = await mysqlQuery<{ insertId: number }>(
+    `INSERT INTO pages (name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
+     VALUES (?, ?, ?, ?, ?, '', 'published', ?, ?, ?, 0, 0)`,
+    [
+      input.name.trim(),
+      slug,
+      input.title.trim() || input.name.trim(),
+      input.bio.trim(),
+      input.profileImage.trim(),
+      JSON.stringify(defaultTheme),
+      JSON.stringify(seo),
+      JSON.stringify(integrations),
+    ],
+  );
 
-    const blocks = [emptyBlock(newPageId, "whatsapp", 1), emptyBlock(newPageId, "website", 2)];
-    for (const block of blocks) {
-      await query(
-        `INSERT INTO page_blocks (page_id, type, title, subtitle, url, icon, phone, message, image_url, video_url, settings, sort_order, is_active, clicks)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-        [
-          newPageId,
-          block.type,
-          block.title,
-          block.subtitle,
-          block.url,
-          block.icon,
-          block.phone,
-          block.message,
-          block.imageUrl,
-          block.videoUrl,
-          JSON.stringify(block.settings),
-          block.sortOrder,
-          block.isActive,
-        ],
-      );
-    }
-
-    return newPageId;
-  });
-
-  const page = await loadPage(pageId);
+  const page = await loadPage(result.insertId);
   if (!page) throw new Error("Failed to create page");
   return page;
 }
