@@ -344,16 +344,7 @@ export function AdminDashboard() {
 
             {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} onLogout={logout} />}
 
-            {newPageOpen && (
-              <form className="mobileCreatePanel" onSubmit={createPage}>
-                <input name="name" placeholder="Page name, e.g. MIK Solutions" required />
-                <input name="slug" placeholder="URL slug, e.g. mik" required />
-                <input name="title" placeholder="Profile heading" required />
-                <textarea name="bio" placeholder="Short bio or description" required />
-                <input name="profileImage" placeholder="Profile image URL" />
-                <button type="submit">Create and publish</button>
-              </form>
-            )}
+            {newPageOpen && <CreateWebsiteSheet onClose={() => setNewPageOpen(false)} onSubmit={createPage} />}
 
             <div className="websiteList">
               {filteredPages.map((page) => (
@@ -1189,6 +1180,52 @@ function EditorOnboarding({ onClose }: { onClose: () => void }) {
       >
         {isLast ? "Get started" : "Got it"}
       </button>
+    </div>
+  );
+}
+
+function CreateWebsiteSheet({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <div className="createWebsiteBackdrop" role="dialog" aria-modal="true" aria-labelledby="create-website-title">
+      <form className="createWebsiteSheet" onSubmit={onSubmit}>
+        <header className="sheetHeader">
+          <button type="button" className="iconButton" aria-label="Close create website" onClick={onClose}>
+            <X />
+          </button>
+          <h2 id="create-website-title">Create new website</h2>
+          <span aria-hidden="true" />
+        </header>
+        <p className="createWebsiteIntro">Set up the basics now. You can customize every detail in the editor.</p>
+        <label>
+          Website name
+          <input name="name" placeholder="e.g. MIK Solutions" autoFocus required />
+        </label>
+        <label>
+          Public URL
+          <input name="slug" placeholder="e.g. mik-solutions" required />
+        </label>
+        <label>
+          Profile heading
+          <input name="title" placeholder="The title visitors will see" required />
+        </label>
+        <label>
+          Short description
+          <textarea name="bio" placeholder="Tell visitors what this page is for" required />
+        </label>
+        <label>
+          Profile image URL <span className="fieldOptional">Optional</span>
+          <input name="profileImage" placeholder="https://..." type="url" />
+        </label>
+        <button className="createWebsiteSubmit" type="submit">
+          <Plus aria-hidden="true" /> Create and publish
+        </button>
+      </form>
     </div>
   );
 }
