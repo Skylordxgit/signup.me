@@ -162,6 +162,23 @@ export function AdminDashboard() {
     await refreshPages();
   }
 
+  async function createInstantPage() {
+    const page = await api<SmartPage>("/api/pages", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Untitled Website",
+        slug: `untitled-${Date.now()}`,
+        title: "Untitled Website",
+        bio: "",
+        profileImage: "",
+      }),
+    });
+    setActivePage(page);
+    setAdminMode("editor");
+    setOnboardingOpen(true);
+    await refreshPages();
+  }
+
   async function addBlock(type: BlockType, patch: Partial<PageBlock> = {}) {
     if (!activePage) return;
     const block = await api<PageBlock>(`/api/pages/${activePage.id}/blocks`, {
@@ -347,8 +364,6 @@ export function AdminDashboard() {
 
             {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} onLogout={logout} />}
 
-            {newPageOpen && <CreateWebsiteSheet onClose={() => setNewPageOpen(false)} onSubmit={createPage} />}
-
             <div className="websiteList">
               {filteredPages.map((page) => (
                 <button type="button" className="websiteCard" key={page.id} onClick={() => loadPage(page.id)}>
@@ -360,7 +375,7 @@ export function AdminDashboard() {
                 </button>
               ))}
 
-              <button type="button" className="websiteCard featureCard" onClick={() => setNewPageOpen(true)}>
+              <button type="button" className="websiteCard featureCard" onClick={() => void createInstantPage()}>
                 <div>
                   <strong>Pages & analytics</strong>
                   <span>Create, publish, and track every link page.</span>
@@ -369,7 +384,7 @@ export function AdminDashboard() {
               </button>
             </div>
 
-            <button type="button" className="createWebsiteButton" onClick={() => setNewPageOpen((value) => !value)}>
+            <button type="button" className="createWebsiteButton" onClick={() => void createInstantPage()}>
               <Plus /> Create new website
             </button>
           </div>
@@ -1189,54 +1204,6 @@ function EditorOnboarding({ onClose }: { onClose: () => void }) {
   );
 }
 
-function CreateWebsiteSheet({
-  onClose,
-  onSubmit,
-}: {
-  onClose: () => void;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-}) {
-  return (
-    <div className="createWebsiteBackdrop" role="dialog" aria-modal="true" aria-labelledby="create-website-title">
-      <form className="createWebsiteSheet" onSubmit={onSubmit}>
-        <header className="sheetHeader">
-          <button type="button" className="iconButton" aria-label="Close create website" onClick={onClose}>
-            <X />
-          </button>
-          <h2 id="create-website-title">Create new website</h2>
-          <span aria-hidden="true" />
-        </header>
-        <p className="createWebsiteIntro">Set up the basics now. You can customize every detail in the editor.</p>
-        <label>
-          Website name
-          <input name="name" placeholder="e.g. MIK Solutions" autoFocus required />
-        </label>
-        <label>
-          Public URL
-          <input name="slug" placeholder="e.g. mik-solutions" required />
-        </label>
-        <label>
-          Profile heading
-          <input name="title" placeholder="The title visitors will see" required />
-        </label>
-        <label>
-          Short description
-          <textarea name="bio" placeholder="Tell visitors what this page is for" required />
-        </label>
-        <label>
-          <span>
-            Profile image URL <span className="fieldOptional">Optional</span>
-          </span>
-          <input name="profileImage" placeholder="https://..." type="url" />
-        </label>
-        <button className="createWebsiteSubmit" type="submit">
-          <Plus aria-hidden="true" /> Create and publish
-        </button>
-      </form>
-    </div>
-  );
-}
-
 function EditablePublicCanvas({
   onDeleteBlock,
   onDuplicateBlock,
@@ -1507,6 +1474,8 @@ function ProfileEditorSheet({
 }) {
   const [cover, setCover] = useState(page.theme.backgroundImage);
   const [photo, setPhoto] = useState(page.profileImage);
+  const [name, setName] = useState(page.name);
+  const [slug, setSlug] = useState(page.slug);
   const [title, setTitle] = useState(page.title);
   const [bio, setBio] = useState(page.bio);
   const [changing, setChanging] = useState<"cover" | "photo" | null>(null);
@@ -1514,7 +1483,9 @@ function ProfileEditorSheet({
   function save() {
     onSave({
       bio,
+      name,
       profileImage: photo,
+      slug: slugify(slug),
       theme: { ...page.theme, backgroundImage: cover },
       title,
     });
@@ -1541,6 +1512,12 @@ function ProfileEditorSheet({
         </div>
 
         <div className="profileSheetFields">
+          <Field label="Website name *">
+            <input value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field label="Public URL *">
+            <input value={slug} onChange={(event) => setSlug(event.target.value)} />
+          </Field>
           <MediaChangeRow label="Cover" preview={cover} active={changing === "cover"} onChange={() => setChanging(changing === "cover" ? null : "cover")}>
             <input value={cover} aria-label="Cover image URL" placeholder="Cover image URL" onChange={(event) => setCover(event.target.value)} />
           </MediaChangeRow>
