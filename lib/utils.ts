@@ -114,6 +114,31 @@ export function publicPageUrl(slug: string) {
   return `${base.replace(/\/$/, "")}/${slug}`;
 }
 
+export type ParsedBlockIcon =
+  | { kind: "none" }
+  | { kind: "emoji"; value: string }
+  | { kind: "image"; src: string }
+  | { kind: "key"; key: string }
+  | { kind: "empty" };
+
+export function parseBlockIcon(icon: string): ParsedBlockIcon {
+  if (!icon) return { kind: "empty" };
+  if (icon === "none") return { kind: "none" };
+  if (icon.startsWith("emoji:")) return { kind: "emoji", value: icon.slice("emoji:".length) };
+  if (/^https?:\/\//.test(icon) || icon.startsWith("data:")) return { kind: "image", src: icon };
+  return { kind: "key", key: icon };
+}
+
+export function readableTextColor(hex: string) {
+  const clean = hex.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(clean)) return "#ffffff";
+  const r = Number.parseInt(clean.slice(0, 2), 16);
+  const g = Number.parseInt(clean.slice(2, 4), 16);
+  const b = Number.parseInt(clean.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? "#111827" : "#ffffff";
+}
+
 export function emptyBlock(pageId: number, type: BlockType, sortOrder: number): PageBlock {
   const timestamp = nowIso();
   const isVideo = type === "video";

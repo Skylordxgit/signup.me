@@ -12,6 +12,7 @@ import {
   Circle,
   CircleDot,
   CircleHelp,
+  CircleOff,
   ClipboardCopy,
   CopyPlus,
   CreditCard,
@@ -23,6 +24,7 @@ import {
   Globe2,
   GripVertical,
   Hand,
+  Heart,
   ImageIcon,
   LayoutPanelTop,
   Link2,
@@ -47,6 +49,10 @@ import {
   Send,
   Settings,
   Share2,
+  ShoppingBag,
+  Smile,
+  Sparkles,
+  Star,
   Timer,
   Trash2,
   Type,
@@ -58,7 +64,7 @@ import {
 } from "lucide-react";
 import { PublicPage } from "@/components/PublicPage";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
-import { blockTypes, slugify, themePresets } from "@/lib/utils";
+import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } from "@/lib/utils";
 
 type EditorTab = "content" | "blocks" | "design" | "seo" | "integrations" | "analytics";
 type AdminMode = "list" | "detail" | "editor";
@@ -76,6 +82,7 @@ export function AdminDashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
   const [decorationOpen, setDecorationOpen] = useState(false);
+  const [addLinkFlowOpen, setAddLinkFlowOpen] = useState(false);
   const [profileEditorRequested, setProfileEditorRequested] = useState(false);
   const [hasSelectedBlock, setHasSelectedBlock] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -519,7 +526,21 @@ export function AdminDashboard() {
                 setBlockPickerOpen(false);
                 setProfileEditorRequested(true);
               }}
+              onAddLink={() => {
+                setBlockPickerOpen(false);
+                setAddLinkFlowOpen(true);
+              }}
               onSelect={addBlock}
+            />
+          )}
+
+          {addLinkFlowOpen && (
+            <AddLinkSheet
+              onClose={() => setAddLinkFlowOpen(false)}
+              onCreate={(patch) => {
+                setAddLinkFlowOpen(false);
+                void addBlock("link", patch);
+              }}
             />
           )}
 
@@ -825,10 +846,10 @@ export function AdminDashboard() {
   );
 }
 
-const pickerOptions: Array<{ label: string; icon: LucideIcon; type?: BlockType; patch?: Partial<PageBlock>; profile?: boolean }> = [
+const pickerOptions: Array<{ label: string; icon: LucideIcon; type?: BlockType; patch?: Partial<PageBlock>; profile?: boolean; linkFlow?: boolean }> = [
   { label: "Profile", icon: LayoutPanelTop, profile: true },
   { label: "Text", icon: Type, type: "text", patch: { title: "Add your text here" } },
-  { label: "Links", icon: Link2, type: "link" },
+  { label: "Links", icon: Link2, type: "link", linkFlow: true },
   { label: "Form", icon: FormInput, type: "email", patch: { title: "Contact us", subtitle: "Send an enquiry" } },
   { label: "Messengers", icon: MessageCircle, type: "whatsapp" },
   { label: "Socials", icon: Share2, type: "socials" },
@@ -847,10 +868,12 @@ const pickerOptions: Array<{ label: string; icon: LucideIcon; type?: BlockType; 
 ];
 
 function BlockPickerSheet({
+  onAddLink,
   onClose,
   onProfile,
   onSelect,
 }: {
+  onAddLink: () => void;
   onClose: () => void;
   onProfile: () => void;
   onSelect: (type: BlockType, patch?: Partial<PageBlock>) => void;
@@ -869,7 +892,11 @@ function BlockPickerSheet({
               type="button"
               className="blockPickerOption"
               key={option.label}
-              onClick={() => (option.profile ? onProfile() : option.type && onSelect(option.type, option.patch))}
+              onClick={() => {
+                if (option.profile) return onProfile();
+                if (option.linkFlow) return onAddLink();
+                if (option.type) onSelect(option.type, option.patch);
+              }}
             >
               <span className="blockPickerIcon"><option.icon /></span>
               <strong>{option.label}</strong>
@@ -1553,13 +1580,17 @@ function EditableCanvasBlock({
     );
   }
 
+  const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
+  const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
+
   return (
     <button
       type="button"
       className={`canvasLinkButton canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
+      style={buttonStyle}
       onClick={onSelect}
     >
-      <span className="canvasBlockIcon">{canvasIcon(block.type)}</span>
+      <span className="canvasBlockIcon">{resolveIconElement(block.icon, block.type)}</span>
       <div>
         <strong>{block.title || "Untitled link"}</strong>
         {block.subtitle && <small>{block.subtitle}</small>}
@@ -1677,8 +1708,11 @@ function LinkEditSheet({
   onSave: (patch: Partial<PageBlock>) => void;
 }) {
   const [draft, setDraft] = useState(block);
+  const [buttonColor, setButtonColor] = useState(typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "");
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const isPhoneAction = draft.type === "whatsapp" || draft.type === "phone";
   const isVideo = draft.type === "video";
+  const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
 
   function save() {
     onSave({
@@ -1686,6 +1720,7 @@ function LinkEditSheet({
       isActive: draft.isActive,
       message: draft.message,
       phone: draft.phone,
+      settings: { ...draft.settings, buttonColor },
       subtitle: draft.subtitle,
       title: draft.title,
       url: isVideo ? draft.videoUrl || draft.url : draft.url,
@@ -1710,20 +1745,22 @@ function LinkEditSheet({
           {isVideo ? (
             <PlayableVideo src={draft.videoUrl || draft.url} title={draft.title || "Video"} />
           ) : (
-            <div className="canvasLinkButton">
-              <span className="canvasBlockIcon">{canvasIcon(draft.type)}</span>
+            <div className="canvasLinkButton" style={buttonStyle}>
+              <span className="canvasBlockIcon">{resolveIconElement(draft.icon, draft.type)}</span>
               <strong>{draft.title || "Untitled link"}</strong>
             </div>
           )}
         </div>
 
         <div className="sheetFields">
-          <Field label="Icon">
-            <div className="iconChooser">
-              <span>{canvasIcon(draft.type)}</span>
-              <button type="button">Choose icon</button>
-            </div>
-          </Field>
+          {!isVideo && (
+            <Field label="Icon">
+              <div className="iconChooser">
+                <span>{resolveIconElement(draft.icon, draft.type)}</span>
+                <button type="button" onClick={() => setIconPickerOpen(true)}>Choose icon</button>
+              </div>
+            </Field>
+          )}
           <Field label={isVideo ? "Video title" : "Link title"}>
             <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
           </Field>
@@ -1761,6 +1798,11 @@ function LinkEditSheet({
               <input value={draft.message} onChange={(event) => setDraft({ ...draft, message: event.target.value })} />
             </Field>
           )}
+          {!isVideo && (
+            <Field label="Button color">
+              <ColorSwatchPicker value={buttonColor} onChange={setButtonColor} />
+            </Field>
+          )}
           <label className="sheetToggle">
             <input
               type="checkbox"
@@ -1771,6 +1813,248 @@ function LinkEditSheet({
           </label>
         </div>
       </section>
+
+      {iconPickerOpen && (
+        <IconPickerSheet
+          onClose={() => setIconPickerOpen(false)}
+          onSelect={(value) => {
+            setDraft({ ...draft, icon: value });
+            setIconPickerOpen(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const colorSwatchPresets = ["#111827", "#2563eb", "#059669", "#dc2626", "#7c3aed", "#ea580c", "#0891b2", "#ffffff"];
+
+function ColorSwatchPicker({ onChange, value }: { onChange: (value: string) => void; value: string }) {
+  return (
+    <div className="colorSwatchRow">
+      {colorSwatchPresets.map((color) => (
+        <button
+          type="button"
+          key={color}
+          className={`colorSwatch ${value === color ? "colorSwatchActive" : ""}`}
+          style={{ background: color }}
+          aria-label={`Use ${color}`}
+          onClick={() => onChange(color)}
+        />
+      ))}
+      <input
+        type="color"
+        className="colorSwatchCustom"
+        value={value || "#111827"}
+        aria-label="Custom button color"
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {value && (
+        <button type="button" className="colorSwatchClear" onClick={() => onChange("")}>
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
+type IconPickerView = "menu" | "icons" | "emoji" | "image";
+
+function IconPickerSheet({ onClose, onSelect }: { onClose: () => void; onSelect: (icon: string) => void }) {
+  const [view, setView] = useState<IconPickerView>("menu");
+  const [imageUrl, setImageUrl] = useState("");
+
+  if (view === "menu") {
+    return (
+      <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Choose icon">
+        <section className="settingsSheet">
+          <header className="settingsHeader">
+            <button type="button" aria-label="Close icon picker" onClick={onClose}><X /></button>
+            <h2>Icon</h2>
+            <span aria-hidden="true" />
+          </header>
+          <div className="settingsList">
+            <button type="button" className="settingsRow" onClick={() => setView("icons")}>
+              <span className="settingsIcon"><Sparkles /></span>
+              <strong>Icons</strong>
+            </button>
+            <button type="button" className="settingsRow" onClick={() => setView("emoji")}>
+              <span className="settingsIcon"><Smile /></span>
+              <strong>Emoji</strong>
+            </button>
+            <button type="button" className="settingsRow" onClick={() => setView("image")}>
+              <span className="settingsIcon"><ImageIcon /></span>
+              <strong>Custom image</strong>
+            </button>
+            <button type="button" className="settingsRow" onClick={() => onSelect("none")}>
+              <span className="settingsIcon"><CircleOff /></span>
+              <strong>No icon</strong>
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (view === "icons") {
+    return (
+      <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Choose an icon">
+        <section className="settingsSheet">
+          <header className="settingsHeader">
+            <button type="button" aria-label="Back" onClick={() => setView("menu")}><ArrowLeft /></button>
+            <h2>Icons</h2>
+            <span aria-hidden="true" />
+          </header>
+          <div className="iconGrid">
+            {curatedIconOptions.map((option) => (
+              <button type="button" key={option.key} className="iconGridButton" aria-label={option.label} onClick={() => onSelect(option.key)}>
+                <option.icon aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (view === "emoji") {
+    return (
+      <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Choose an emoji">
+        <section className="settingsSheet">
+          <header className="settingsHeader">
+            <button type="button" aria-label="Back" onClick={() => setView("menu")}><ArrowLeft /></button>
+            <h2>Emoji</h2>
+            <span aria-hidden="true" />
+          </header>
+          <div className="iconGrid">
+            {commonEmoji.map((emoji) => (
+              <button type="button" key={emoji} className="iconGridButton emojiGridButton" onClick={() => onSelect(`emoji:${emoji}`)}>
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Custom image icon">
+      <section className="settingsSheet">
+        <header className="settingsHeader">
+          <button type="button" aria-label="Back" onClick={() => setView("menu")}><ArrowLeft /></button>
+          <h2>Custom image</h2>
+          <span aria-hidden="true" />
+        </header>
+        <div className="decorationFields">
+          <Field label="Image URL">
+            <input value={imageUrl} placeholder="https://..." onChange={(event) => setImageUrl(event.target.value)} />
+          </Field>
+          <button type="button" className="onboardingPrimaryButton" disabled={!imageUrl} onClick={() => onSelect(imageUrl)}>
+            Use image
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type AddLinkStep = "intro" | "form";
+
+function AddLinkSheet({ onClose, onCreate }: { onClose: () => void; onCreate: (patch: Partial<PageBlock>) => void }) {
+  const [step, setStep] = useState<AddLinkStep>("intro");
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [icon, setIcon] = useState("");
+  const [buttonColor, setButtonColor] = useState("");
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+
+  const previewIcon = resolveIconElement(icon, "link");
+  const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
+
+  function handleAdd() {
+    const patch: Partial<PageBlock> = { title: title || "Untitled link", url };
+    if (icon) patch.icon = icon;
+    if (buttonColor) patch.settings = { buttonColor };
+    onCreate(patch);
+  }
+
+  if (step === "intro") {
+    return (
+      <div className="linkSheetBackdrop">
+        <section className="linkEditSheet" aria-label="Add link">
+          <header className="linkSheetHeader">
+            <button type="button" aria-label="Close" onClick={onClose}><X /></button>
+            <h2>Links</h2>
+            <span aria-hidden="true" />
+          </header>
+
+          <div className="sheetPreview">
+            <div className="canvasLinkButton" style={buttonStyle}>
+              <span className="canvasBlockIcon">{previewIcon}</span>
+              <strong>{title || "Link title"}</strong>
+            </div>
+          </div>
+
+          <div className="sheetFields">
+            <button type="button" className="addLinkPrimaryButton" onClick={() => setStep("form")}>
+              <Plus aria-hidden="true" /> Add Link
+            </button>
+            <Field label="Button color">
+              <ColorSwatchPicker value={buttonColor} onChange={setButtonColor} />
+            </Field>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="linkSheetBackdrop">
+      <section className="linkEditSheet" aria-label="Add link">
+        <header className="linkSheetHeader">
+          <button type="button" aria-label="Back to link options" onClick={() => setStep("intro")}><ArrowLeft /></button>
+          <h2>Link</h2>
+          <button type="button" onClick={handleAdd}>Add</button>
+        </header>
+
+        <div className="sheetPreview">
+          <div className="canvasLinkButton" style={buttonStyle}>
+            <span className="canvasBlockIcon">{previewIcon}</span>
+            <strong>{title || "Untitled link"}</strong>
+          </div>
+        </div>
+
+        <div className="sheetFields">
+          <Field label="Icon">
+            <div className="iconChooser">
+              <span>{previewIcon}</span>
+              <button type="button" onClick={() => setIconPickerOpen(true)}>Choose icon</button>
+            </div>
+          </Field>
+          <Field label="Link title">
+            <input value={title} placeholder="Enter title" onChange={(event) => setTitle(event.target.value)} />
+          </Field>
+          <Field label="Action *">
+            <select value="Open link" onChange={() => undefined}>
+              <option>Open link</option>
+            </select>
+          </Field>
+          <Field label="Link URL *">
+            <input value={url} placeholder="Enter URL" onChange={(event) => setUrl(event.target.value)} />
+          </Field>
+        </div>
+      </section>
+
+      {iconPickerOpen && (
+        <IconPickerSheet
+          onClose={() => setIconPickerOpen(false)}
+          onSelect={(value) => {
+            setIcon(value);
+            setIconPickerOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1818,20 +2102,66 @@ function videoEmbedUrl(src: string) {
 }
 
 function canvasIcon(type: PageBlock["type"]) {
-  const icons: Partial<Record<PageBlock["type"], LucideIcon>> = {
-    link: Link2,
-    website: Globe2,
-    telegram: Send,
-    whatsapp: MessageCircle,
-    email: Mail,
-    phone: Phone,
-    facebook: Globe2,
-    instagram: ImageIcon,
-    youtube: Play,
-    messenger: MessageCircle,
-  };
-  const Icon = icons[type] ?? Link2;
+  const Icon = blockTypeIcons[type] ?? Link2;
   return <Icon aria-hidden="true" />;
+}
+
+const blockTypeIcons: Partial<Record<PageBlock["type"], LucideIcon>> = {
+  link: Link2,
+  website: Globe2,
+  telegram: Send,
+  whatsapp: MessageCircle,
+  email: Mail,
+  phone: Phone,
+  facebook: Globe2,
+  instagram: ImageIcon,
+  youtube: Play,
+  messenger: MessageCircle,
+};
+
+const curatedIconOptions: { key: string; label: string; icon: LucideIcon }[] = [
+  { key: "link", label: "Link", icon: Link2 },
+  { key: "globe", label: "Globe", icon: Globe2 },
+  { key: "message", label: "Message", icon: MessageCircle },
+  { key: "mail", label: "Mail", icon: Mail },
+  { key: "phone", label: "Phone", icon: Phone },
+  { key: "send", label: "Send", icon: Send },
+  { key: "share", label: "Share", icon: Share2 },
+  { key: "map-pin", label: "Location", icon: MapPin },
+  { key: "shopping-bag", label: "Shopping", icon: ShoppingBag },
+  { key: "star", label: "Star", icon: Star },
+  { key: "heart", label: "Heart", icon: Heart },
+  { key: "music", label: "Music", icon: Music2 },
+  { key: "video", label: "Video", icon: Video },
+  { key: "image", label: "Image", icon: ImageIcon },
+  { key: "help", label: "Help", icon: CircleHelp },
+  { key: "sparkles", label: "Sparkles", icon: Sparkles },
+];
+
+const commonEmoji = [
+  "😀", "😍", "🔥", "👍", "🎉", "❤️", "⭐", "✅",
+  "📱", "💬", "📸", "🎵", "▶️", "🛍️", "📍", "✨",
+];
+
+function resolveIconElement(icon: string, fallbackType: PageBlock["type"]) {
+  const parsed = parseBlockIcon(icon);
+  if (parsed.kind === "none") return null;
+  if (parsed.kind === "emoji") return <span className="emojiIcon">{parsed.value}</span>;
+  if (parsed.kind === "image") {
+    return (
+      <img
+        key={parsed.src}
+        className="customIconImage"
+        src={parsed.src}
+        alt=""
+        onError={(event) => { event.currentTarget.style.visibility = "hidden"; }}
+      />
+    );
+  }
+  if (parsed.kind === "empty") return <ImageIcon aria-hidden="true" />;
+  const curated = curatedIconOptions.find((option) => option.key === parsed.key);
+  if (curated) return <curated.icon aria-hidden="true" />;
+  return canvasIcon(fallbackType);
 }
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {

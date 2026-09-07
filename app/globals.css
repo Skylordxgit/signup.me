@@ -2012,6 +2012,101 @@ textarea {
   min-height: 18px;
 }
 
+.emojiIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.customIconImage {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.iconGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 20px 20px 30px;
+}
+
+.iconGridButton {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 14px;
+  background: #f2f3f8;
+  color: #30323a;
+  font-size: 22px;
+}
+
+.iconGridButton:hover {
+  background: #e7edfb;
+  color: #087cff;
+}
+
+.emojiGridButton {
+  font-size: 24px;
+}
+
+.colorSwatchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.colorSwatch {
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(17, 24, 39, 0.1);
+  border-radius: 50%;
+  padding: 0;
+}
+
+.colorSwatchActive {
+  border-color: #087cff;
+  box-shadow: 0 0 0 2px rgba(8, 124, 255, 0.25);
+}
+
+.colorSwatchCustom {
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 2px;
+  border: 2px solid rgba(17, 24, 39, 0.1);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.colorSwatchClear {
+  border: 0;
+  background: transparent;
+  color: #087cff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.addLinkPrimaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 50px;
+  border: 0;
+  border-radius: 12px;
+  background: #087cff;
+  color: #ffffff;
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(8, 124, 255, 0.24);
+}
+
+.addLinkPrimaryButton:hover {
+  background: #006de8;
+}
+
 .adminShell {
   min-height: 100vh;
   display: grid;

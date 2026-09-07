@@ -2,9 +2,30 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect } from "react";
-import { ArrowUpRight, Camera, Globe2, Link2, Mail, MessageCircle, Phone, Play, Send, Share2, type LucideIcon } from "lucide-react";
+import {
+  ArrowUpRight,
+  Camera,
+  CircleHelp,
+  Globe2,
+  Heart,
+  ImageIcon,
+  Link2,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Music2,
+  Phone,
+  Play,
+  Send,
+  Share2,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Video,
+  type LucideIcon,
+} from "lucide-react";
 import type { PageBlock, SmartPage } from "@/lib/types";
-import { buildSmartUrl, publicPageUrl } from "@/lib/utils";
+import { buildSmartUrl, parseBlockIcon, publicPageUrl, readableTextColor } from "@/lib/utils";
 
 export function PublicPage({ page, preview = false }: { page: SmartPage; preview?: boolean }) {
   useEffect(() => {
@@ -104,9 +125,12 @@ function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void
     );
   }
 
+  const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
+  const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
+
   return (
-    <a className="publicButton" href={buildSmartUrl(block)} onClick={onClick} target="_blank" rel="noreferrer">
-      <span>{iconLabel(block.type)}</span>
+    <a className="publicButton" href={buildSmartUrl(block)} onClick={onClick} target="_blank" rel="noreferrer" style={buttonStyle}>
+      <span>{resolvePublicIcon(block.icon, block.type)}</span>
       <div>
         <strong>{block.title}</strong>
         {block.subtitle && <small>{block.subtitle}</small>}
@@ -116,21 +140,56 @@ function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void
   );
 }
 
-function iconLabel(type: PageBlock["type"]) {
-  const map: Partial<Record<PageBlock["type"], LucideIcon>> = {
-    whatsapp: MessageCircle,
-    telegram: Send,
-    messenger: MessageCircle,
-    instagram: Camera,
-    facebook: Globe2,
-    youtube: Play,
-    email: Mail,
-    phone: Phone,
-    website: Globe2,
-    link: Link2,
-    socials: Share2,
-  };
-  const Icon = map[type] ?? Link2;
+const blockTypeIcons: Partial<Record<PageBlock["type"], LucideIcon>> = {
+  whatsapp: MessageCircle,
+  telegram: Send,
+  messenger: MessageCircle,
+  instagram: Camera,
+  facebook: Globe2,
+  youtube: Play,
+  email: Mail,
+  phone: Phone,
+  website: Globe2,
+  link: Link2,
+  socials: Share2,
+};
+
+const curatedPublicIcons: Record<string, LucideIcon> = {
+  link: Link2,
+  globe: Globe2,
+  message: MessageCircle,
+  mail: Mail,
+  phone: Phone,
+  send: Send,
+  share: Share2,
+  "map-pin": MapPin,
+  "shopping-bag": ShoppingBag,
+  star: Star,
+  heart: Heart,
+  music: Music2,
+  video: Video,
+  image: ImageIcon,
+  help: CircleHelp,
+  sparkles: Sparkles,
+};
+
+function resolvePublicIcon(icon: string, fallbackType: PageBlock["type"]) {
+  const parsed = parseBlockIcon(icon);
+  if (parsed.kind === "none") return null;
+  if (parsed.kind === "emoji") return <span className="emojiIcon">{parsed.value}</span>;
+  if (parsed.kind === "image") {
+    return (
+      <img
+        key={parsed.src}
+        className="customIconImage"
+        src={parsed.src}
+        alt=""
+        onError={(event) => { event.currentTarget.style.visibility = "hidden"; }}
+      />
+    );
+  }
+  const key = parsed.kind === "key" ? parsed.key : "";
+  const Icon = curatedPublicIcons[key] ?? blockTypeIcons[fallbackType] ?? Link2;
   return <Icon aria-hidden="true" />;
 }
 
