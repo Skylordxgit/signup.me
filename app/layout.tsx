@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'LinkStudio Affiliate Pages',
+  title: 'NordLink - Link Page Builder',
   description:
-    'A mssg.me-style link page builder for affiliate signup pages, messenger links, products, requests, and analytics.',
+    'A Linktree-style builder made with Node.js and Next.js for link pages, offers, requests, and analytics.',
 };
 
 export default function RootLayout({

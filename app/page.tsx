@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+type LinkTone = "ink" | "paper" | "sky" | "mint" | "sun";
+type Tab = "content" | "style" | "links" | "commerce" | "insights" | "inbox";
+
 type LinkItem = {
   id: number;
   label: string;
   url: string;
-  tone: "dark" | "light" | "blue" | "green";
-  icon: string;
+  description: string;
+  tone: LinkTone;
+  clicks: number;
+  enabled: boolean;
 };
 
 type Product = {
@@ -17,128 +22,183 @@ type Product = {
   active: boolean;
 };
 
+type RequestItem = {
+  id: number;
+  title: string;
+  source: string;
+  status: "New" | "Contacted" | "Won";
+};
+
 type Profile = {
   id: number;
   name: string;
   slug: string;
   headline: string;
-  subtitle: string;
-  bannerText: string;
-  bannerSubtext: string;
-  avatarText: string;
+  bio: string;
+  location: string;
+  initials: string;
   brandColor: string;
   accentColor: string;
   backgroundUrl: string;
-  videoTitle: string;
-  videoNote: string;
+  featuredTitle: string;
+  featuredNote: string;
   published: boolean;
+  views: number;
   links: LinkItem[];
   products: Product[];
+  requests: RequestItem[];
 };
 
-const profilesSeed: Profile[] = [
+const storageKey = "nord-linktree-builder";
+
+const seedProfiles: Profile[] = [
   {
     id: 1,
     name: "Jeetbuzz Affiliate NPR",
     slug: "jeetbuzz-affiliate-npr",
     headline: "Jeetbuzz Affiliate NPR",
-    subtitle: "We Welcome Affiliates From All Over The World",
-    bannerText: "Start free. Earn lifetime commission.",
-    bannerSubtext: "One page for signup, Telegram, WhatsApp, video guides, and support.",
-    avatarText: "JA",
-    brandColor: "#10180d",
-    accentColor: "#ff9d22",
+    bio: "One tap hub for signup, Telegram updates, WhatsApp help, and commission resources.",
+    location: "Nepal partner desk",
+    initials: "JA",
+    brandColor: "#162217",
+    accentColor: "#f8a01c",
     backgroundUrl:
-      "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1400&q=80",
-    videoTitle: "Signup walkthrough",
-    videoNote: "Add your training video link or embed after launch.",
+      "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
+    featuredTitle: "Start free. Earn lifetime commission.",
+    featuredNote: "Add your onboarding video, pinned offer, or campaign note here.",
     published: true,
+    views: 4218,
     links: [
-      { id: 1, label: "Signup Link...!!!", url: "https://example.com/signup", tone: "dark", icon: "Web" },
-      { id: 2, label: "Telegram", url: "https://t.me/example", tone: "blue", icon: "TG" },
-      { id: 3, label: "WhatsApp Support", url: "https://wa.me/10000000000", tone: "green", icon: "WA" },
+      {
+        id: 1,
+        label: "Signup link",
+        url: "https://example.com/signup",
+        description: "Main partner registration",
+        tone: "ink",
+        clicks: 984,
+        enabled: true,
+      },
+      {
+        id: 2,
+        label: "Telegram channel",
+        url: "https://t.me/example",
+        description: "Daily updates and creatives",
+        tone: "sky",
+        clicks: 612,
+        enabled: true,
+      },
+      {
+        id: 3,
+        label: "WhatsApp support",
+        url: "https://wa.me/10000000000",
+        description: "Fast approval help",
+        tone: "mint",
+        clicks: 438,
+        enabled: true,
+      },
     ],
     products: [
-      { id: 1, name: "NPR Affiliate Pack", price: "Free", active: true },
+      { id: 1, name: "Affiliate starter pack", price: "Free", active: true },
       { id: 2, name: "VIP onboarding", price: "Invite only", active: true },
+    ],
+    requests: [
+      { id: 1, title: "NPR signup approval", source: "Telegram", status: "New" },
+      { id: 2, title: "Landing page copy", source: "WhatsApp", status: "Contacted" },
+      { id: 3, title: "Commission proof", source: "Direct link", status: "Won" },
     ],
   },
   {
     id: 2,
-    name: "Baji Affiliate NPR",
-    slug: "baji-affiliate-npr",
-    headline: "Baji Affiliate NPR",
-    subtitle: "50% Weekly Commission",
-    bannerText: "IPL traffic page for fast signup.",
-    bannerSubtext: "A clean mobile page for affiliate signups and messenger support.",
-    avatarText: "BA",
-    brandColor: "#263325",
-    accentColor: "#ff405e",
+    name: "Creator Stack",
+    slug: "creator-stack",
+    headline: "Mira Sol",
+    bio: "Design systems, templates, and short notes for creative operators.",
+    location: "Remote studio",
+    initials: "MS",
+    brandColor: "#23324a",
+    accentColor: "#2fb8a0",
     backgroundUrl:
-      "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?auto=format&fit=crop&w=1400&q=80",
-    videoTitle: "Signup video in Nepali",
-    videoNote: "Place your explainer or YouTube embed here.",
+      "https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1600&q=80",
+    featuredTitle: "Fresh templates every Friday.",
+    featuredNote: "Keep your highest-value offer at the top of the public page.",
     published: false,
+    views: 1694,
     links: [
-      { id: 1, label: "Signup Link.....!!!", url: "https://example.com/baji", tone: "light", icon: "Web" },
-      { id: 2, label: "Telegram", url: "https://t.me/example", tone: "blue", icon: "TG" },
-      { id: 3, label: "WhatsApp", url: "https://wa.me/10000000000", tone: "green", icon: "WA" },
+      {
+        id: 1,
+        label: "Download templates",
+        url: "https://example.com/templates",
+        description: "Free design resources",
+        tone: "sun",
+        clicks: 309,
+        enabled: true,
+      },
+      {
+        id: 2,
+        label: "Book a consult",
+        url: "https://example.com/book",
+        description: "30 minute strategy call",
+        tone: "paper",
+        clicks: 144,
+        enabled: true,
+      },
     ],
-    products: [{ id: 1, name: "Weekly commission guide", price: "Free", active: true }],
-  },
-  {
-    id: 3,
-    name: "JeetBuzz Affiliate PKR",
-    slug: "jeetbuzz-affiliate-pkr",
-    headline: "JeetBuzz Affiliate PKR",
-    subtitle: "Pakistan traffic and partner links",
-    bannerText: "All signup links in one place.",
-    bannerSubtext: "Publish a focused profile for each country or currency.",
-    avatarText: "JP",
-    brandColor: "#10180d",
-    accentColor: "#24b36b",
-    backgroundUrl:
-      "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1400&q=80",
-    videoTitle: "Partner onboarding",
-    videoNote: "Use this space for instructions, rules, or a short video.",
-    published: false,
-    links: [
-      { id: 1, label: "Signup Link", url: "https://example.com/pkr", tone: "dark", icon: "Web" },
-      { id: 2, label: "Telegram Channel", url: "https://t.me/example", tone: "blue", icon: "TG" },
-    ],
-    products: [{ id: 1, name: "PKR starter guide", price: "Free", active: true }],
+    products: [{ id: 1, name: "Template vault", price: "$29", active: true }],
+    requests: [{ id: 1, title: "Portfolio review", source: "Booking", status: "New" }],
   },
 ];
 
-const tones = {
-  dark: "linkDark",
-  light: "linkLight",
-  blue: "linkBlue",
-  green: "linkGreen",
-};
+const tabs: { id: Tab; label: string }[] = [
+  { id: "content", label: "Content" },
+  { id: "style", label: "Style" },
+  { id: "links", label: "Links" },
+  { id: "commerce", label: "Commerce" },
+  { id: "insights", label: "Insights" },
+  { id: "inbox", label: "Inbox" },
+];
+
+const linkTones: { id: LinkTone; label: string }[] = [
+  { id: "ink", label: "Ink" },
+  { id: "paper", label: "Paper" },
+  { id: "sky", label: "Sky" },
+  { id: "mint", label: "Mint" },
+  { id: "sun", label: "Sun" },
+];
 
 export default function Home() {
-  const [profiles, setProfiles] = useState<Profile[]>(profilesSeed);
-  const [activeId, setActiveId] = useState(1);
-  const [tab, setTab] = useState("edit");
-  const [views, setViews] = useState(1284);
-  const [clicks, setClicks] = useState(367);
+  const [profiles, setProfiles] = useState(seedProfiles);
+  const [activeId, setActiveId] = useState(seedProfiles[0].id);
+  const [tab, setTab] = useState<Tab>("content");
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("linkstudio-profiles");
-    if (saved) {
-      setProfiles(JSON.parse(saved));
+    const saved = window.localStorage.getItem(storageKey);
+    if (!saved) return;
+
+    try {
+      const parsed = JSON.parse(saved) as Profile[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        window.setTimeout(() => {
+          setProfiles(parsed);
+          setActiveId(parsed[0].id);
+        }, 0);
+      }
+    } catch {
+      window.localStorage.removeItem(storageKey);
     }
   }, []);
 
   useEffect(() => {
-    window.localStorage.setItem("linkstudio-profiles", JSON.stringify(profiles));
+    window.localStorage.setItem(storageKey, JSON.stringify(profiles));
   }, [profiles]);
 
   const profile = useMemo(
     () => profiles.find((item) => item.id === activeId) ?? profiles[0],
     [activeId, profiles],
   );
+
+  const activeLinks = profile.links.filter((link) => link.enabled);
+  const totalClicks = profile.links.reduce((sum, link) => sum + link.clicks, 0);
+  const clickRate = Math.max(1, Math.round((totalClicks / profile.views) * 100));
 
   function updateProfile(patch: Partial<Profile>) {
     setProfiles((current) =>
@@ -152,6 +212,45 @@ export default function Home() {
     });
   }
 
+  function updateProduct(id: number, patch: Partial<Product>) {
+    updateProfile({
+      products: profile.products.map((product) =>
+        product.id === id ? { ...product, ...patch } : product,
+      ),
+    });
+  }
+
+  function addProfile() {
+    const id = Date.now();
+    setProfiles((current) => [
+      ...current,
+      {
+        ...seedProfiles[0],
+        id,
+        name: "New link page",
+        slug: `page-${id}`,
+        headline: "New link page",
+        published: false,
+        views: 0,
+        requests: [],
+        links: [
+          {
+            id: id + 1,
+            label: "My first link",
+            url: "https://example.com",
+            description: "Add a short description",
+            tone: "ink",
+            clicks: 0,
+            enabled: true,
+          },
+        ],
+        products: [],
+      },
+    ]);
+    setActiveId(id);
+    setTab("content");
+  }
+
   function addLink() {
     updateProfile({
       links: [
@@ -160,8 +259,10 @@ export default function Home() {
           id: Date.now(),
           label: "New link",
           url: "https://example.com",
-          tone: "dark",
-          icon: "URL",
+          description: "What visitors get after tapping",
+          tone: "paper",
+          clicks: 0,
+          enabled: true,
         },
       ],
     });
@@ -176,44 +277,44 @@ export default function Home() {
     });
   }
 
-  function trackClick() {
-    setClicks((value) => value + 1);
-    setViews((value) => value + 2);
+  function trackClick(id: number) {
+    updateProfile({
+      views: profile.views + 1,
+      links: profile.links.map((link) =>
+        link.id === id ? { ...link, clicks: link.clicks + 1 } : link,
+      ),
+    });
   }
 
   return (
     <main className="appShell">
+      <section className="topBar" aria-label="Workspace summary">
+        <div>
+          <p>Link page builder</p>
+          <h1>Launch beautiful bio pages without code.</h1>
+        </div>
+        <div className="topActions">
+          <span>{profile.published ? "Published" : "Draft"}</span>
+          <button type="button" onClick={() => updateProfile({ published: !profile.published })}>
+            {profile.published ? "Unpublish" : "Publish"}
+          </button>
+        </div>
+      </section>
+
       <section className="workspace">
-        <aside className="siteList" aria-label="Websites">
+        <aside className="sidebar" aria-label="Link pages">
           <div className="brand">
-            <div className="brandMark">LS</div>
-            <span>LinkStudio</span>
+            <div className="brandMark">NL</div>
+            <div>
+              <strong>NordLink</strong>
+              <span>Node + Next builder</span>
+            </div>
           </div>
-          <div className="listHeader">
-            <h1>My Websites</h1>
-            <button
-              type="button"
-              aria-label="Create new website"
-              onClick={() => {
-                const id = Date.now();
-                setProfiles((current) => [
-                  ...current,
-                  {
-                    ...profilesSeed[0],
-                    id,
-                    name: "New Affiliate Page",
-                    headline: "New Affiliate Page",
-                    slug: `page-${id}`,
-                    published: false,
-                  },
-                ]);
-                setActiveId(id);
-                setTab("edit");
-              }}
-            >
-              +
-            </button>
-          </div>
+
+          <button type="button" className="newPageButton" onClick={addProfile}>
+            + New page
+          </button>
+
           <div className="profileCards">
             {profiles.map((item) => (
               <button
@@ -222,228 +323,309 @@ export default function Home() {
                 key={item.id}
                 onClick={() => setActiveId(item.id)}
               >
+                <span>{item.initials}</span>
                 <strong>{item.name}</strong>
-                <span>{item.slug}.linkstudio.local</span>
-                <em>{item.published ? "Published" : "Not published"}</em>
+                <small>{item.slug}.nordlink.app</small>
+                <em>{item.published ? "Live" : "Draft"}</em>
               </button>
             ))}
           </div>
         </aside>
 
-        <section className="phoneWrap" aria-label="Public link page preview">
-          <div className="phoneTop">
-            <span>{profile.slug}.linkstudio.local</span>
-            <button type="button" onClick={() => updateProfile({ published: !profile.published })}>
-              {profile.published ? "Unpublish" : "Publish"}
+        <section className="previewPanel" aria-label="Live public page preview">
+          <div className="previewToolbar">
+            <span>{profile.slug}.nordlink.app</span>
+            <button type="button" onClick={() => updateProfile({ views: profile.views + 1 })}>
+              Preview visit
             </button>
           </div>
-          <div className="phone">
+
+          <article className="phone" style={{ "--brand": profile.brandColor, "--accent": profile.accentColor } as React.CSSProperties}>
             <div
-              className="hero"
+              className="publicHero"
               style={{
-                backgroundImage: `linear-gradient(90deg, ${profile.brandColor}f2, ${profile.brandColor}b8), url(${profile.backgroundUrl})`,
+                backgroundImage: `linear-gradient(160deg, ${profile.brandColor}f7 0%, ${profile.brandColor}bf 54%, ${profile.accentColor}9e 100%), url(${profile.backgroundUrl})`,
               }}
             >
-              <div className="heroMock">
-                <span>50%</span>
-                <small>weekly commission</small>
+              <div className="publicNav">
+                <span>{profile.published ? "Live" : "Draft"}</span>
+                <span>{profile.location}</span>
               </div>
-              <div>
-                <p>Affiliate hub</p>
-                <h2>{profile.bannerText}</h2>
-                <span>{profile.bannerSubtext}</span>
-              </div>
+              <div className="avatar">{profile.initials}</div>
+              <h2>{profile.headline}</h2>
+              <p>{profile.bio}</p>
             </div>
-            <div className="identity">
-              <div className="avatar" style={{ backgroundColor: profile.brandColor }}>
-                {profile.avatarText}
-              </div>
-              <div>
-                <h2>{profile.headline}</h2>
-                <p>{profile.subtitle}</p>
-              </div>
+
+            <div className="featured">
+              <span>Featured</span>
+              <strong>{profile.featuredTitle}</strong>
+              <p>{profile.featuredNote}</p>
             </div>
+
             <div className="publicLinks">
-              {profile.links.map((link) => (
+              {activeLinks.map((link) => (
                 <a
-                  key={link.id}
-                  className={tones[link.tone]}
+                  className={`publicLink ${link.tone}`}
                   href={link.url}
-                  onClick={trackClick}
+                  key={link.id}
+                  onClick={() => trackClick(link.id)}
                   target="_blank"
+                  rel="noreferrer"
                 >
-                  <span>{link.icon}</span>
-                  <strong>{link.label}</strong>
+                  <span>{link.label.slice(0, 2).toUpperCase()}</span>
+                  <div>
+                    <strong>{link.label}</strong>
+                    <small>{link.description}</small>
+                  </div>
+                  <em>↗</em>
                 </a>
               ))}
             </div>
-            <div className="videoBlock">
-              <div>
-                <span className="play">▶</span>
-                <h3>{profile.videoTitle}</h3>
-                <p>{profile.videoNote}</p>
-              </div>
-            </div>
-            <div className="productStrip">
+
+            <div className="storeStrip">
               {profile.products
-                .filter((item) => item.active)
-                .map((item) => (
-                  <div key={item.id}>
-                    <strong>{item.name}</strong>
-                    <span>{item.price}</span>
+                .filter((product) => product.active)
+                .map((product) => (
+                  <div key={product.id}>
+                    <span>{product.name}</span>
+                    <strong>{product.price}</strong>
                   </div>
                 ))}
             </div>
-          </div>
+          </article>
         </section>
 
-        <section className="adminPanel" aria-label="Admin panel">
-          <header>
-            <button type="button" className="backButton" aria-label="Back to websites">
-              ‹
-            </button>
+        <section className="editorPanel" aria-label="Page editor">
+          <header className="editorHeader">
             <div>
+              <p>Editing</p>
               <h2>{profile.name}</h2>
-              <span>{profile.published ? "Live page" : "Draft page"}</span>
             </div>
-            <button
-              type="button"
-              className="publishButton"
-              onClick={() => updateProfile({ published: !profile.published })}
-            >
+            <button type="button" onClick={() => updateProfile({ published: !profile.published })}>
               {profile.published ? "Live" : "Publish"}
             </button>
           </header>
 
-          <nav className="tabs" aria-label="Admin sections">
-            {["edit", "audience", "analytics", "requests", "products", "settings"].map((item) => (
+          <nav className="tabs" aria-label="Editor tabs">
+            {tabs.map((item) => (
               <button
                 type="button"
-                className={tab === item ? "active" : ""}
-                key={item}
-                onClick={() => setTab(item)}
+                className={tab === item.id ? "active" : ""}
+                key={item.id}
+                onClick={() => setTab(item.id)}
               >
-                {item}
+                {item.label}
               </button>
             ))}
           </nav>
 
-          {tab === "edit" && (
-            <div className="panelStack">
-              <label>
-                Page title
-                <input value={profile.headline} onChange={(event) => updateProfile({ headline: event.target.value, name: event.target.value })} />
-              </label>
-              <label>
-                Subtitle
-                <input value={profile.subtitle} onChange={(event) => updateProfile({ subtitle: event.target.value })} />
-              </label>
-              <label>
-                Banner headline
-                <textarea value={profile.bannerText} onChange={(event) => updateProfile({ bannerText: event.target.value })} />
-              </label>
+          {tab === "content" && (
+            <div className="formStack">
+              <Field label="Page name">
+                <input
+                  value={profile.name}
+                  onChange={(event) =>
+                    updateProfile({ name: event.target.value, headline: event.target.value })
+                  }
+                />
+              </Field>
+              <Field label="Bio">
+                <textarea value={profile.bio} onChange={(event) => updateProfile({ bio: event.target.value })} />
+              </Field>
+              <Field label="Location or audience">
+                <input value={profile.location} onChange={(event) => updateProfile({ location: event.target.value })} />
+              </Field>
+              <Field label="Featured headline">
+                <input
+                  value={profile.featuredTitle}
+                  onChange={(event) => updateProfile({ featuredTitle: event.target.value })}
+                />
+              </Field>
+              <Field label="Featured note">
+                <textarea
+                  value={profile.featuredNote}
+                  onChange={(event) => updateProfile({ featuredNote: event.target.value })}
+                />
+              </Field>
+            </div>
+          )}
+
+          {tab === "style" && (
+            <div className="formStack">
+              <Field label="Slug">
+                <input
+                  value={profile.slug}
+                  onChange={(event) =>
+                    updateProfile({
+                      slug: event.target.value
+                        .toLowerCase()
+                        .trim()
+                        .replace(/[^a-z0-9]+/g, "-")
+                        .replace(/(^-|-$)/g, ""),
+                    })
+                  }
+                />
+              </Field>
+              <div className="colorGrid">
+                <Field label="Brand color">
+                  <input
+                    type="color"
+                    value={profile.brandColor}
+                    onChange={(event) => updateProfile({ brandColor: event.target.value })}
+                  />
+                </Field>
+                <Field label="Accent color">
+                  <input
+                    type="color"
+                    value={profile.accentColor}
+                    onChange={(event) => updateProfile({ accentColor: event.target.value })}
+                  />
+                </Field>
+                <Field label="Initials">
+                  <input
+                    maxLength={3}
+                    value={profile.initials}
+                    onChange={(event) => updateProfile({ initials: event.target.value.toUpperCase() })}
+                  />
+                </Field>
+              </div>
+              <Field label="Hero image URL">
+                <input
+                  value={profile.backgroundUrl}
+                  onChange={(event) => updateProfile({ backgroundUrl: event.target.value })}
+                />
+              </Field>
+            </div>
+          )}
+
+          {tab === "links" && (
+            <div className="formStack">
               <div className="sectionTitle">
                 <h3>Links</h3>
-                <button type="button" onClick={addLink}>Add link</button>
+                <button type="button" onClick={addLink}>
+                  Add link
+                </button>
               </div>
               {profile.links.map((link) => (
                 <div className="linkEditor" key={link.id}>
-                  <input value={link.icon} aria-label="Link icon label" onChange={(event) => updateLink(link.id, { icon: event.target.value })} />
-                  <input value={link.label} aria-label="Link label" onChange={(event) => updateLink(link.id, { label: event.target.value })} />
-                  <select value={link.tone} aria-label="Link style" onChange={(event) => updateLink(link.id, { tone: event.target.value as LinkItem["tone"] })}>
-                    <option value="dark">Dark</option>
-                    <option value="light">Light</option>
-                    <option value="blue">Blue</option>
-                    <option value="green">Green</option>
+                  <div className="linkEditorTop">
+                    <label className="switch">
+                      <input
+                        type="checkbox"
+                        checked={link.enabled}
+                        onChange={(event) => updateLink(link.id, { enabled: event.target.checked })}
+                      />
+                      <span />
+                    </label>
+                    <strong>{link.clicks.toLocaleString()} clicks</strong>
+                  </div>
+                  <input
+                    aria-label="Link label"
+                    value={link.label}
+                    onChange={(event) => updateLink(link.id, { label: event.target.value })}
+                  />
+                  <input
+                    aria-label="Link URL"
+                    value={link.url}
+                    onChange={(event) => updateLink(link.id, { url: event.target.value })}
+                  />
+                  <input
+                    aria-label="Link description"
+                    value={link.description}
+                    onChange={(event) => updateLink(link.id, { description: event.target.value })}
+                  />
+                  <select
+                    aria-label="Link style"
+                    value={link.tone}
+                    onChange={(event) => updateLink(link.id, { tone: event.target.value as LinkTone })}
+                  >
+                    {linkTones.map((tone) => (
+                      <option value={tone.id} key={tone.id}>
+                        {tone.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               ))}
             </div>
           )}
 
-          {tab === "audience" && (
-            <div className="metricGrid">
-              <Metric label="Subscribers" value="2,418" />
-              <Metric label="Countries" value="11" />
-              <Metric label="Returning users" value="42%" />
-              <Metric label="Top source" value="Telegram" />
+          {tab === "commerce" && (
+            <div className="formStack">
+              <div className="sectionTitle">
+                <h3>Offers</h3>
+                <button type="button" onClick={addProduct}>
+                  Add offer
+                </button>
+              </div>
+              {profile.products.map((product) => (
+                <div className="productEditor" key={product.id}>
+                  <label className="switch">
+                    <input
+                      type="checkbox"
+                      checked={product.active}
+                      onChange={(event) => updateProduct(product.id, { active: event.target.checked })}
+                    />
+                    <span />
+                  </label>
+                  <input
+                    aria-label="Offer name"
+                    value={product.name}
+                    onChange={(event) => updateProduct(product.id, { name: event.target.value })}
+                  />
+                  <input
+                    aria-label="Offer price"
+                    value={product.price}
+                    onChange={(event) => updateProduct(product.id, { price: event.target.value })}
+                  />
+                </div>
+              ))}
             </div>
           )}
 
-          {tab === "analytics" && (
-            <div className="analytics">
-              <Metric label="Profile views" value={views.toLocaleString()} />
-              <Metric label="Link clicks" value={clicks.toLocaleString()} />
-              <Metric label="Click rate" value={`${Math.round((clicks / views) * 100)}%`} />
-              <div className="chart" aria-label="Seven day click chart">
-                {[44, 62, 57, 78, 71, 86, 96].map((height, index) => (
+          {tab === "insights" && (
+            <div className="insights">
+              <Metric label="Views" value={profile.views.toLocaleString()} />
+              <Metric label="Clicks" value={totalClicks.toLocaleString()} />
+              <Metric label="Click rate" value={`${clickRate}%`} />
+              <Metric label="Live links" value={activeLinks.length.toString()} />
+              <div className="chart" aria-label="Weekly engagement chart">
+                {[42, 64, 48, 77, 59, 88, 72].map((height, index) => (
                   <span key={index} style={{ height: `${height}%` }} />
                 ))}
               </div>
             </div>
           )}
 
-          {tab === "requests" && (
+          {tab === "inbox" && (
             <div className="requests">
-              {["NPR signup approval", "Telegram access", "Commission proof"].map((item, index) => (
-                <div key={item}>
-                  <strong>{item}</strong>
-                  <span>{index + 3} waiting</span>
-                  <button type="button">Review</button>
+              {profile.requests.map((request) => (
+                <div key={request.id}>
+                  <strong>{request.title}</strong>
+                  <span>{request.source}</span>
+                  <em>{request.status}</em>
                 </div>
               ))}
-            </div>
-          )}
-
-          {tab === "products" && (
-            <div className="panelStack">
-              <div className="sectionTitle">
-                <h3>Products</h3>
-                <button type="button" onClick={addProduct}>Add product</button>
-              </div>
-              {profile.products.map((product) => (
-                <label className="productEditor" key={product.id}>
-                  <input
-                    type="checkbox"
-                    checked={product.active}
-                    onChange={(event) =>
-                      updateProfile({
-                        products: profile.products.map((item) =>
-                          item.id === product.id ? { ...item, active: event.target.checked } : item,
-                        ),
-                      })
-                    }
-                  />
-                  <span>{product.name}</span>
-                  <em>{product.price}</em>
-                </label>
-              ))}
-            </div>
-          )}
-
-          {tab === "settings" && (
-            <div className="panelStack">
-              <label>
-                Slug
-                <input value={profile.slug} onChange={(event) => updateProfile({ slug: event.target.value.toLowerCase().replaceAll(" ", "-") })} />
-              </label>
-              <label>
-                Brand color
-                <input type="color" value={profile.brandColor} onChange={(event) => updateProfile({ brandColor: event.target.value })} />
-              </label>
-              <label>
-                Accent color
-                <input type="color" value={profile.accentColor} onChange={(event) => updateProfile({ accentColor: event.target.value })} />
-              </label>
-              <label>
-                Hero image URL
-                <input value={profile.backgroundUrl} onChange={(event) => updateProfile({ backgroundUrl: event.target.value })} />
-              </label>
+              {profile.requests.length === 0 && (
+                <div className="emptyState">
+                  <strong>No requests yet</strong>
+                  <span>Visitor requests will appear here once the page is live.</span>
+                </div>
+              )}
             </div>
           )}
         </section>
       </section>
     </main>
+  );
+}
+
+function Field({ children, label }: { children: React.ReactNode; label: string }) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      {children}
+    </label>
   );
 }
 
