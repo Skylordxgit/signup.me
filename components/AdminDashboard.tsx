@@ -9,6 +9,8 @@ import {
   Bell,
   Blocks,
   ChevronRight,
+  Circle,
+  CircleDot,
   CircleHelp,
   ClipboardCopy,
   CopyPlus,
@@ -19,6 +21,7 @@ import {
   FormInput,
   GalleryVerticalEnd,
   Globe2,
+  GripVertical,
   Hand,
   ImageIcon,
   LayoutPanelTop,
@@ -1151,35 +1154,37 @@ function EditorOnboarding({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="onboardingBackdrop" role="dialog" aria-modal="true" aria-label={slide.title}>
-      <button
-        type="button"
-        className="onboardingNavButton"
-        aria-label={isFirst ? "Skip tutorial" : "Back"}
-        onClick={() => (isFirst ? onClose() : setStep((value) => value - 1))}
-      >
-        {isFirst ? <X /> : <ArrowLeft />}
-      </button>
+      <div className="onboardingCard">
+        <button
+          type="button"
+          className="onboardingNavButton"
+          aria-label={isFirst ? "Skip tutorial" : "Back"}
+          onClick={() => (isFirst ? onClose() : setStep((value) => value - 1))}
+        >
+          {isFirst ? <X /> : <ArrowLeft />}
+        </button>
 
-      <div className="onboardingBody">
-        <div className="onboardingIcon">
-          <slide.icon size={30} />
+        <div className="onboardingBody">
+          <div className="onboardingIcon">
+            <slide.icon size={30} />
+          </div>
+          <h2>{slide.title}</h2>
+          <p>{slide.description}</p>
+          <div className="onboardingDots">
+            {onboardingSlides.map((item, index) => (
+              <span key={item.title} className={index === step ? "onboardingDotActive" : "onboardingDot"} />
+            ))}
+          </div>
         </div>
-        <h2>{slide.title}</h2>
-        <p>{slide.description}</p>
-        <div className="onboardingDots">
-          {onboardingSlides.map((item, index) => (
-            <span key={item.title} className={index === step ? "onboardingDotActive" : "onboardingDot"} />
-          ))}
-        </div>
+
+        <button
+          type="button"
+          className="onboardingPrimaryButton"
+          onClick={() => (isLast ? onClose() : setStep((value) => value + 1))}
+        >
+          {isLast ? "Get started" : "Got it"}
+        </button>
       </div>
-
-      <button
-        type="button"
-        className="onboardingPrimaryButton"
-        onClick={() => (isLast ? onClose() : setStep((value) => value + 1))}
-      >
-        {isLast ? "Get started" : "Got it"}
-      </button>
     </div>
   );
 }
@@ -1219,7 +1224,9 @@ function CreateWebsiteSheet({
           <textarea name="bio" placeholder="Tell visitors what this page is for" required />
         </label>
         <label>
-          Profile image URL <span className="fieldOptional">Optional</span>
+          <span>
+            Profile image URL <span className="fieldOptional">Optional</span>
+          </span>
           <input name="profileImage" placeholder="https://..." type="url" />
         </label>
         <button className="createWebsiteSubmit" type="submit">
@@ -1266,6 +1273,12 @@ function EditablePublicCanvas({
 
   const isProfileEditorOpen = profileEditorOpen || profileEditorRequested;
 
+  function openProfileEditor() {
+    setSelectedBlockId(null);
+    onBlockSelectionChange(false);
+    setProfileEditorOpen(true);
+  }
+
   if (blocks.length === 0) {
     return (
       <div className="canvasEmptyState">
@@ -1303,14 +1316,18 @@ function EditablePublicCanvas({
   return (
     <div className="homepagePreviewWrap">
       <div className="homepagePreview">
-        <button type="button" className="editRow editableProfile" aria-label="Edit profile and banner" onClick={() => setProfileEditorOpen(true)}>
-          <span className="leftHandle">○</span>
+        <button type="button" className="editRow editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
+          <span className="leftHandle" aria-hidden="true">
+            <Circle />
+          </span>
           <div className="bannerPreview" style={{ backgroundImage: `url(${page.theme.backgroundImage})` }} />
-          <span className="rightHandle">=</span>
+          <span className="rightHandle" aria-hidden="true">
+            <GripVertical />
+          </span>
         </button>
 
-        <button type="button" className="profileEditBlock editableProfile" aria-label="Edit profile and banner" onClick={() => setProfileEditorOpen(true)}>
-          <img src={page.profileImage} alt="" />
+        <button type="button" className="profileEditBlock editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
+          <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
           <div>
             <strong>{page.title}</strong>
             <p>{page.bio}</p>
@@ -1330,7 +1347,7 @@ function EditablePublicCanvas({
                   onBlockSelectionChange(true);
                 }}
               >
-                {selected ? "●" : "○"}
+                {selected ? <CircleDot aria-hidden="true" /> : <Circle aria-hidden="true" />}
               </button>
               <EditableCanvasBlock
                 block={block}
@@ -1340,7 +1357,9 @@ function EditablePublicCanvas({
                   onBlockSelectionChange(true);
                 }}
               />
-              <span className="rightHandle">=</span>
+              <span className="rightHandle" aria-hidden="true">
+                <GripVertical />
+              </span>
             </div>
           );
         })}
@@ -1513,7 +1532,7 @@ function ProfileEditorSheet({
         <div className="profileSheetPreview">
           <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
           <div className="profileSheetIdentity">
-            <img src={photo} alt="" />
+            <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
             <div>
               <strong>{title || "Your name"}</strong>
               <p>{bio || "Add a short description"}</p>
@@ -1557,7 +1576,7 @@ function MediaChangeRow({
   return (
     <div className="mediaChangeGroup">
       <div className="mediaChangeRow">
-        <img src={preview} alt="" />
+        <img key={preview} src={preview} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
         <strong>{label}</strong>
         <button type="button" onClick={onChange}>Change</button>
       </div>

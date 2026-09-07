@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: 'NordLink - Link Page Builder',
   description:
     'A Linktree-style builder made with Node.js and Next.js for link pages, offers, requests, and analytics.',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

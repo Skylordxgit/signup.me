@@ -58,7 +58,7 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
       <section className="publicCard">
         <div className="publicBanner" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
         <header className="publicProfile">
-          <img src={page.profileImage} alt="" />
+          <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
           <h1>{page.title}</h1>
           <p>{page.bio}</p>
         </header>
@@ -84,7 +84,17 @@ function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void
   if (block.type === "heading") return <h2 className="publicHeading">{block.title}</h2>;
   if (block.type === "text") return <p className="publicText">{block.subtitle || block.title}</p>;
   if (block.type === "divider") return <hr className="publicDivider" />;
-  if (block.type === "image") return <img className="publicImage" src={block.imageUrl || block.url} alt={block.title} />;
+  if (block.type === "image") {
+    return (
+      <img
+        key={block.imageUrl || block.url}
+        className="publicImage"
+        src={block.imageUrl || block.url}
+        alt={block.title}
+        onError={(event) => { event.currentTarget.style.visibility = "hidden"; }}
+      />
+    );
+  }
   if (block.type === "video") {
     return (
       <div className="publicVideo">
