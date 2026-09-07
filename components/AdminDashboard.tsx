@@ -65,6 +65,7 @@ import {
 import { PublicPage } from "@/components/PublicPage";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
 import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } from "@/lib/utils";
+import { publicSubdomainUrl } from "@/lib/subdomains";
 
 type EditorTab = "content" | "blocks" | "design" | "seo" | "integrations" | "analytics";
 type AdminMode = "list" | "detail" | "editor";
@@ -127,7 +128,15 @@ export function AdminDashboard() {
   }
 
   function publicUrl(slug: string) {
-    return `${appOrigin || ""}/${slug}` || `/${slug}`;
+    return publicSubdomainUrl(slug, appOrigin);
+  }
+
+  function publicHost(slug: string) {
+    try {
+      return new URL(publicUrl(slug)).host;
+    } catch {
+      return `${slug}.localhost`;
+    }
   }
 
   function editPage(patch: Partial<SmartPage>) {
@@ -378,7 +387,7 @@ export function AdminDashboard() {
                 <button type="button" className="websiteCard" key={page.id} onClick={() => loadPage(page.id)}>
                   <div>
                     <strong>{page.name}</strong>
-                    <span>{page.slug}.smartlink.local</span>
+                    <span>{publicHost(page.slug)}</span>
                   </div>
                   <ChevronRight aria-hidden="true" />
                 </button>
@@ -417,7 +426,7 @@ export function AdminDashboard() {
             </button>
           </header>
 
-          <div className="detailUrl">{activePage.slug}.smartlink.local</div>
+          <div className="detailUrl">{publicHost(activePage.slug)}</div>
 
           <div className="quickActions">
             <button type="button" onClick={() => navigator.clipboard?.writeText(publicUrl(activePage.slug))}>

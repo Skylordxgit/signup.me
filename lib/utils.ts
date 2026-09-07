@@ -1,4 +1,5 @@
 import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "./types";
+import { publicSubdomainUrl } from "./subdomains";
 
 export const blockTypes: { value: BlockType; label: string }[] = [
   { value: "link", label: "Link Button" },
@@ -110,8 +111,7 @@ export function buildSmartUrl(block: PageBlock) {
 }
 
 export function publicPageUrl(slug: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  return `${base.replace(/\/$/, "")}/${slug}`;
+  return publicSubdomainUrl(slug);
 }
 
 export type ParsedBlockIcon =

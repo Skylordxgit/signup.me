@@ -49,7 +49,7 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   }
 
   const theme = page.theme;
-  const pageUrl = publicPageUrl(page.slug);
+  const pageUrl = typeof window === "undefined" ? publicPageUrl(page.slug) : window.location.href;
   const activeBlocks = page.blocks.filter((block) => block.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
   const buttonBackground = withAlpha(theme.buttonBackground, theme.buttonTransparency / 100);
 
