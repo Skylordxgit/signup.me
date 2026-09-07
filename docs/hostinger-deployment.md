@@ -51,10 +51,17 @@ npm run build
 npm run start
 ```
 
+`npm run start` reads the `PORT` environment variable (falling back to 3000), which matches how Hostinger's Node.js hosting assigns a port to your app — no extra configuration needed.
+
 ## Backups
 
 Schedule regular MySQL backups from Hostinger, especially before editing schema or importing data. Keep uploaded media in a separate folder or object storage location and back that up separately from the database.
 
 ## Current Storage Note
 
-The app includes a JSON file fallback for local development when `DATABASE_URL` is not set. For production, configure MySQL and import `docs/schema.sql`.
+The app automatically switches its data store based on whether `DATABASE_URL` is set:
+
+- **Not set** (local development): pages, blocks, and analytics are read from and written to `data/db.json`.
+- **Set** (production): all reads/writes go through MySQL (`lib/stores/mysqlStore.ts`) against the tables in `docs/schema.sql`. Import that schema before setting `DATABASE_URL` in Hostinger, or the app will fail on first query.
+
+Both implementations share the same interface (`lib/store.ts`), so no route or component code needs to change between environments.

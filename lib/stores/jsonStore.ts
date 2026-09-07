@@ -1,0 +1,339 @@
+import { promises as fs } from "fs";
+import path from "path";
+import type { AnalyticsReport, BlockType, PageBlock, PageStatus, SmartPage } from "../types";
+import { defaultTheme, seedPages } from "../defaults";
+import { detectDevice, emptyBlock, isValidSlug, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
+
+type DatabaseShape = {
+  pages: SmartPage[];
+  pageViews: { id: number; pageId: number; date: string; device: string; referrer: string; visitorKey: string }[];
+  linkClicks: { id: number; pageId: number; blockId: number; date: string; device: string; referrer: string }[];
+};
+
+const dataFile = path.join(process.cwd(), "data", "db.json");
+
+async function readJsonDb(): Promise<DatabaseShape> {
+  try {
+    const file = await fs.readFile(dataFile, "utf8");
+    return JSON.parse(file) as DatabaseShape;
+  } catch {
+    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [] };
+    await writeJsonDb(initial);
+    return initial;
+  }
+}
+
+async function writeJsonDb(db: DatabaseShape) {
+  await fs.mkdir(path.dirname(dataFile), { recursive: true });
+  await fs.writeFile(dataFile, JSON.stringify(db, null, 2));
+}
+
+function nextId(items: { id: number }[]) {
+  return Math.max(0, ...items.map((item) => item.id)) + 1;
+}
+
+function sortBlocks(page: SmartPage) {
+  return { ...page, blocks: [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder) };
+}
+
+export async function listPages() {
+  const db = await readJsonDb();
+  return db.pages.map((page) => summarizePage(page));
+}
+
+export async function getPageById(id: number) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.id === id);
+  return page ? sortBlocks(page) : null;
+}
+
+export async function getPublicPageBySlug(slug: string) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.slug === slug && item.status === "published");
+  return page ? sortBlocks(page) : null;
+}
+
+export async function createPage(input: {
+  name: string;
+  slug: string;
+  title: string;
+  bio: string;
+  profileImage: string;
+}) {
+  const db = await readJsonDb();
+  const slug = slugify(input.slug || input.name);
+
+  if (!isValidSlug(slug)) throw new Error("Invalid slug");
+  if (db.pages.some((page) => page.slug === slug)) throw new Error("Slug already exists");
+  if (input.profileImage && !isValidUrl(input.profileImage)) throw new Error("Invalid profile image URL");
+
+  const timestamp = nowIso();
+  const id = nextId(db.pages);
+  const page: SmartPage = {
+    id,
+    name: input.name.trim(),
+    slug,
+    title: input.title.trim() || input.name.trim(),
+    bio: input.bio.trim(),
+    profileImage: input.profileImage.trim(),
+    logoImage: "",
+    status: "published",
+    theme: defaultTheme,
+    seo: {
+      seoTitle: `${input.title || input.name} - Official Links`,
+      metaDescription: input.bio.trim(),
+      socialTitle: input.title || input.name,
+      socialDescription: input.bio.trim(),
+      ogImage: "",
+      favicon: "",
+    },
+    integrations: { metaPixelId: "", gtmId: "" },
+    views: 0,
+    uniqueVisitors: 0,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    blocks: [emptyBlock(id, "whatsapp", 1), emptyBlock(id, "website", 2)],
+  };
+
+  db.pages.push(page);
+  await writeJsonDb(db);
+  return sortBlocks(page);
+}
+
+export async function updatePage(id: number, patch: Partial<SmartPage>) {
+  const db = await readJsonDb();
+  const index = db.pages.findIndex((page) => page.id === id);
+  if (index === -1) return null;
+
+  const nextSlug = patch.slug ? slugify(patch.slug) : db.pages[index].slug;
+  if (!isValidSlug(nextSlug)) throw new Error("Invalid slug");
+  if (db.pages.some((page) => page.id !== id && page.slug === nextSlug)) throw new Error("Slug already exists");
+
+  const status = patch.status as PageStatus | undefined;
+  if (status && !["published", "draft", "disabled"].includes(status)) throw new Error("Invalid status");
+
+  db.pages[index] = {
+    ...db.pages[index],
+    ...patch,
+    slug: nextSlug,
+    updatedAt: nowIso(),
+    blocks: patch.blocks ?? db.pages[index].blocks,
+  };
+
+  await writeJsonDb(db);
+  return sortBlocks(db.pages[index]);
+}
+
+export async function deletePage(id: number) {
+  const db = await readJsonDb();
+  const before = db.pages.length;
+  db.pages = db.pages.filter((page) => page.id !== id);
+  await writeJsonDb(db);
+  return db.pages.length !== before;
+}
+
+export async function duplicatePage(id: number) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.id === id);
+  if (!page) return null;
+
+  const timestamp = nowIso();
+  const newId = nextId(db.pages);
+  const duplicateSlugBase = `${page.slug}-copy`;
+  let duplicateSlug = duplicateSlugBase;
+  let suffix = 2;
+  while (db.pages.some((item) => item.slug === duplicateSlug)) {
+    duplicateSlug = `${duplicateSlugBase}-${suffix}`;
+    suffix += 1;
+  }
+
+  const duplicate: SmartPage = {
+    ...page,
+    id: newId,
+    name: `${page.name} Copy`,
+    slug: duplicateSlug,
+    status: "draft",
+    views: 0,
+    uniqueVisitors: 0,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    blocks: page.blocks.map((block, index) => ({
+      ...block,
+      id: Date.now() + index,
+      pageId: newId,
+      clicks: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    })),
+  };
+
+  db.pages.push(duplicate);
+  await writeJsonDb(db);
+  return sortBlocks(duplicate);
+}
+
+export async function createBlock(pageId: number, type: BlockType) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.id === pageId);
+  if (!page) return null;
+
+  const block = emptyBlock(pageId, type, page.blocks.length + 1);
+  page.blocks.push(block);
+  page.updatedAt = nowIso();
+  await writeJsonDb(db);
+  return block;
+}
+
+export async function updateBlock(id: number, patch: Partial<PageBlock>) {
+  const db = await readJsonDb();
+  for (const page of db.pages) {
+    const index = page.blocks.findIndex((block) => block.id === id);
+    if (index === -1) continue;
+
+    if (patch.url && !isValidUrl(patch.url) && !patch.url.includes("@") && !patch.url.startsWith("@")) {
+      throw new Error("Invalid URL");
+    }
+
+    page.blocks[index] = { ...page.blocks[index], ...patch, updatedAt: nowIso() };
+    page.updatedAt = nowIso();
+    await writeJsonDb(db);
+    return page.blocks[index];
+  }
+  return null;
+}
+
+export async function deleteBlock(id: number) {
+  const db = await readJsonDb();
+  for (const page of db.pages) {
+    const before = page.blocks.length;
+    page.blocks = page.blocks.filter((block) => block.id !== id);
+    if (page.blocks.length !== before) {
+      page.blocks = page.blocks.map((block, index) => ({ ...block, sortOrder: index + 1 }));
+      page.updatedAt = nowIso();
+      await writeJsonDb(db);
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function duplicateBlock(id: number) {
+  const db = await readJsonDb();
+  for (const page of db.pages) {
+    const block = page.blocks.find((item) => item.id === id);
+    if (!block) continue;
+
+    const duplicate: PageBlock = {
+      ...block,
+      id: Date.now(),
+      title: `${block.title} Copy`,
+      sortOrder: block.sortOrder + 1,
+      clicks: 0,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    page.blocks.splice(block.sortOrder, 0, duplicate);
+    page.blocks = page.blocks.map((item, index) => ({ ...item, sortOrder: index + 1 }));
+    page.updatedAt = nowIso();
+    await writeJsonDb(db);
+    return duplicate;
+  }
+  return null;
+}
+
+export async function reorderBlocks(pageId: number, blockIds: number[]) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.id === pageId);
+  if (!page) return null;
+  if (blockIds.length !== page.blocks.length) throw new Error("Invalid block order");
+
+  page.blocks = blockIds.map((blockId, index) => {
+    const block = page.blocks.find((item) => item.id === blockId);
+    if (!block) throw new Error("Invalid block order");
+    return { ...block, sortOrder: index + 1 };
+  });
+  page.updatedAt = nowIso();
+  await writeJsonDb(db);
+  return sortBlocks(page);
+}
+
+export async function trackView(slug: string, userAgent: string, referrer: string | null, visitorKey: string) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.slug === slug && item.status === "published");
+  if (!page) return null;
+
+  page.views += 1;
+  if (!db.pageViews.some((view) => view.pageId === page.id && view.visitorKey === visitorKey)) {
+    page.uniqueVisitors += 1;
+  }
+  db.pageViews.push({
+    id: nextId(db.pageViews),
+    pageId: page.id,
+    date: nowIso(),
+    device: detectDevice(userAgent),
+    referrer: safeReferrer(referrer),
+    visitorKey,
+  });
+  await writeJsonDb(db);
+  return { ok: true };
+}
+
+export async function trackClick(pageId: number, blockId: number, userAgent: string, referrer: string | null) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.id === pageId);
+  const block = page?.blocks.find((item) => item.id === blockId);
+  if (!page || !block) return null;
+
+  block.clicks += 1;
+  db.linkClicks.push({
+    id: nextId(db.linkClicks),
+    pageId,
+    blockId,
+    date: nowIso(),
+    device: detectDevice(userAgent),
+    referrer: safeReferrer(referrer),
+  });
+  await writeJsonDb(db);
+  return { ok: true };
+}
+
+export async function analyticsForPage(pageId: number): Promise<AnalyticsReport | null> {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.id === pageId);
+  if (!page) return null;
+
+  const clicks = page.blocks.reduce((sum, block) => sum + block.clicks, 0);
+  const days = Array.from({ length: 30 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (29 - index));
+    return date.toISOString().slice(0, 10);
+  });
+
+  return {
+    views: page.views,
+    uniqueVisitors: page.uniqueVisitors,
+    clicks,
+    ctr: page.views ? Number(((clicks / page.views) * 100).toFixed(1)) : 0,
+    topBlocks: [...page.blocks]
+      .sort((a, b) => b.clicks - a.clicks)
+      .slice(0, 5)
+      .map((block) => ({ id: block.id, title: block.title, clicks: block.clicks })),
+    daily: days.map((date) => ({
+      date,
+      views: db.pageViews.filter((view) => view.pageId === pageId && view.date.startsWith(date)).length,
+      clicks: db.linkClicks.filter((click) => click.pageId === pageId && click.date.startsWith(date)).length,
+    })),
+    devices: ["mobile", "desktop", "tablet"].map((device) => ({
+      device,
+      count: db.pageViews.filter((view) => view.pageId === pageId && view.device === device).length,
+    })),
+    referrers: Object.entries(
+      db.pageViews
+        .filter((view) => view.pageId === pageId)
+        .reduce<Record<string, number>>((acc, view) => {
+          acc[view.referrer] = (acc[view.referrer] ?? 0) + 1;
+          return acc;
+        }, {}),
+    ).map(([referrer, count]) => ({ referrer, count })),
+  };
+}

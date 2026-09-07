@@ -16,6 +16,33 @@ export function mysqlPool() {
 }
 
 export async function mysqlQuery<T>(sql: string, values: unknown[] = []) {
-  const [rows] = await mysqlPool().execute(sql, values);
+  const [rows] = await mysqlPool().execute<mysql.RowDataPacket[] & mysql.ResultSetHeader[]>(
+    sql,
+    values as (string | number | boolean | Buffer | null)[],
+  );
   return rows as T;
+}
+
+export type TransactionQuery = <R>(sql: string, values?: unknown[]) => Promise<R>;
+
+export async function withTransaction<T>(handler: (query: TransactionQuery) => Promise<T>) {
+  const connection = await mysqlPool().getConnection();
+  try {
+    await connection.beginTransaction();
+    const query = async <R>(sql: string, values: unknown[] = []) => {
+      const [rows] = await connection.execute<mysql.RowDataPacket[] & mysql.ResultSetHeader[]>(
+        sql,
+        values as (string | number | boolean | Buffer | null)[],
+      );
+      return rows as R;
+    };
+    const result = await handler(query);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 }
