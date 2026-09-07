@@ -375,10 +375,6 @@ export function AdminDashboard() {
               <Plus /> Create new website
             </button>
           </div>
-
-          <button type="button" className="helpBubble" aria-label="Open support chat">
-            <MessageCircle />
-          </button>
         </section>
       </main>
     );
