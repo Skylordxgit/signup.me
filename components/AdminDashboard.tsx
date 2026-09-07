@@ -1445,8 +1445,19 @@ function EditablePublicCanvas({
         } as CSSProperties
       }
     >
-      <div className="editorThemeBackdrop" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
-      <div className="homepagePreview editorThemeCard">
+      <PublicPage
+        page={page}
+        preview
+        editable
+        selectedBlockId={selectedBlockId}
+        onProfileSelect={openProfileEditor}
+        onBlockSelect={(blockId) => {
+          setSelectedBlockId(blockId);
+          onBlockSelectionChange(true);
+        }}
+      />
+
+      <div className="homepagePreview editorThemeCard editorLegacyControls">
         <button type="button" className="editRow editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
           <span className="leftHandle" aria-hidden="true">
             <Circle />

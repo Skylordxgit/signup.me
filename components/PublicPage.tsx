@@ -27,7 +27,21 @@ import {
 import type { PageBlock, SmartPage } from "@/lib/types";
 import { buildSmartUrl, parseBlockIcon, publicPageUrl, readableTextColor } from "@/lib/utils";
 
-export function PublicPage({ page, preview = false }: { page: SmartPage; preview?: boolean }) {
+export function PublicPage({
+  page,
+  preview = false,
+  editable = false,
+  selectedBlockId = null,
+  onBlockSelect,
+  onProfileSelect,
+}: {
+  page: SmartPage;
+  preview?: boolean;
+  editable?: boolean;
+  selectedBlockId?: number | null;
+  onBlockSelect?: (blockId: number) => void;
+  onProfileSelect?: () => void;
+}) {
   useEffect(() => {
     if (preview) return;
     const visitorKey = window.localStorage.getItem("smartlink_visitor") || crypto.randomUUID();
@@ -78,7 +92,15 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
       <div className="publicBackdrop" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
       <section className="publicCard">
         <div className="publicBanner" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
-        <header className="publicProfile">
+        <header
+          className={`publicProfile ${editable ? "editablePublicProfile" : ""}`}
+          role={editable ? "button" : undefined}
+          tabIndex={editable ? 0 : undefined}
+          onClick={editable ? onProfileSelect : undefined}
+          onKeyDown={editable ? (event) => {
+            if (event.key === "Enter" || event.key === " ") onProfileSelect?.();
+          } : undefined}
+        >
           <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
           <h1>{page.title}</h1>
           <p>{page.bio}</p>
@@ -86,7 +108,14 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
 
         <div className="blockStack">
           {activeBlocks.map((block) => (
-            <PublicBlock block={block} key={block.id} onClick={() => track(block)} />
+            <PublicBlock
+              block={block}
+              editable={editable}
+              key={block.id}
+              onClick={() => track(block)}
+              onSelect={() => onBlockSelect?.(block.id)}
+              selected={selectedBlockId === block.id}
+            />
           ))}
         </div>
 
@@ -101,7 +130,19 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   );
 }
 
-function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void }) {
+function PublicBlock({
+  block,
+  editable,
+  onClick,
+  onSelect,
+  selected,
+}: {
+  block: PageBlock;
+  editable: boolean;
+  onClick: () => void;
+  onSelect: () => void;
+  selected: boolean;
+}) {
   if (block.type === "heading") return <h2 className="publicHeading">{block.title}</h2>;
   if (block.type === "text") return <p className="publicText">{block.subtitle || block.title}</p>;
   if (block.type === "divider") return <hr className="publicDivider" />;
@@ -118,7 +159,15 @@ function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void
   }
   if (block.type === "video") {
     return (
-      <div className="publicVideo">
+      <div
+        className={`publicVideo ${editable ? "editablePublicBlock" : ""} ${selected ? "editorPublicSelected" : ""}`}
+        onClick={editable ? onSelect : undefined}
+        onKeyDown={editable ? (event) => {
+          if (event.key === "Enter" || event.key === " ") onSelect();
+        } : undefined}
+        role={editable ? "button" : undefined}
+        tabIndex={editable ? 0 : undefined}
+      >
         <PublicPlayableVideo src={block.videoUrl || block.url} title={block.title || "Video"} />
         <strong>{block.title || "Watch video"}</strong>
       </div>
@@ -127,6 +176,24 @@ function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void
 
   const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
   const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
+
+  if (editable) {
+    return (
+      <button
+        className={`publicButton editablePublicBlock ${selected ? "editorPublicSelected" : ""}`}
+        onClick={onSelect}
+        style={buttonStyle}
+        type="button"
+      >
+        <span>{resolvePublicIcon(block.icon, block.type)}</span>
+        <div>
+          <strong>{block.title}</strong>
+          {block.subtitle && <small>{block.subtitle}</small>}
+        </div>
+        <ArrowUpRight aria-hidden="true" />
+      </button>
+    );
+  }
 
   return (
     <a className="publicButton" href={buildSmartUrl(block)} onClick={onClick} target="_blank" rel="noreferrer" style={buttonStyle}>

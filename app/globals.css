@@ -1409,6 +1409,46 @@ textarea {
   color: inherit;
 }
 
+/* In edit mode the visitor renderer is used directly, so preview and live page cannot drift. */
+.homepageCanvas:has(.homepagePreviewWrap) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.homepagePreviewWrap.editorThemePreview {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.editorLegacyControls {
+  display: none;
+}
+
+.editablePublicProfile,
+.editablePublicBlock {
+  cursor: pointer;
+}
+
+.editablePublicProfile:focus-visible,
+.editablePublicBlock:focus-visible {
+  outline: 2px solid #087cff;
+  outline-offset: 4px;
+}
+
+button.publicButton {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+}
+
+.editorPublicSelected {
+  outline: 2px solid #087cff;
+  outline-offset: 4px;
+}
+
 .editRow {
   display: grid;
   grid-template-columns: 18px 1fr 26px;
