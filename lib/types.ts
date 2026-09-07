@@ -17,15 +17,37 @@ export type BlockType =
   | "socials";
 
 export type PageStatus = "published" | "draft" | "disabled";
+
+/** Presets still stored on pages created before the theme library existed. */
+export type LegacyThemePreset = "glass-dark" | "purple-glass" | "midnight" | "gradient" | "neon-glass";
+
 export type ThemePreset =
+  | LegacyThemePreset
   | "glass-light"
-  | "glass-dark"
-  | "purple-glass"
-  | "midnight"
+  | "midnight-glass"
+  | "aurora"
   | "minimal-white"
-  | "gradient"
-  | "neon-glass"
+  | "minimal-dark"
+  | "purple-glow"
+  | "ocean-glass"
+  | "sunset"
+  | "gradient-mesh"
+  | "professional"
+  | "neon"
+  | "soft-pastel"
   | "custom";
+
+export type ButtonStyle =
+  | "glass"
+  | "solid"
+  | "soft"
+  | "outline"
+  | "pill"
+  | "minimal"
+  | "elevated"
+  | "neon";
+
+export type SurfaceStyle = "glass" | "glass-dark" | "solid" | "plain" | "plain-dark";
 
 export type ThemeSettings = {
   preset: ThemePreset;
@@ -45,6 +67,9 @@ export type ThemeSettings = {
   shadow: number;
   font: "inter" | "system" | "serif" | "mono";
   spacing: number;
+  /* Optional: pages saved before these existed fall back to their theme. */
+  buttonStyle?: ButtonStyle;
+  surface?: SurfaceStyle;
 };
 
 export type SeoSettings = {

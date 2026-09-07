@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bell,
   Blocks,
+  Check,
   ChevronRight,
   Circle,
   CircleDot,
@@ -65,6 +66,14 @@ import {
 import { PublicPage } from "@/components/PublicPage";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
 import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } from "@/lib/utils";
+import {
+  applyThemeDefinition,
+  resolveButtonStyle,
+  themeCssVariables,
+  themeDefinition,
+  themeLibrary,
+} from "@/lib/themes";
+import { PhoneFrame } from "./PhoneFrame";
 
 type EditorTab = "content" | "blocks" | "design" | "seo" | "integrations" | "analytics";
 type AdminMode = "list" | "detail" | "editor";
@@ -348,9 +357,11 @@ export function AdminDashboard() {
 
   if (!activePage || adminMode === "list") {
     return (
-      <main className="websiteShell">
-        <section className="websitePhone">
-          <div className="upgradeBar">
+      <PhoneFrame
+        label="My websites"
+        overlays={settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} onLogout={logout} />}
+      >
+        <div className="upgradeBar">
             <button type="button" aria-label="Dismiss upgrade message">
               <X />
             </button>
@@ -371,8 +382,6 @@ export function AdminDashboard() {
           <div className="websiteContent">
             <h1>My Websites</h1>
 
-            {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} onLogout={logout} />}
-
             <div className="websiteList">
               {filteredPages.map((page) => (
                 <button type="button" className="websiteCard" key={page.id} onClick={() => loadPage(page.id)}>
@@ -389,8 +398,7 @@ export function AdminDashboard() {
               <Plus /> Create new website
             </button>
           </div>
-        </section>
-      </main>
+      </PhoneFrame>
     );
   }
 
@@ -405,8 +413,8 @@ export function AdminDashboard() {
     ];
 
     return (
-      <main className="websiteShell detailShell">
-        <section className="websitePhone detailPhone">
+      <PhoneFrame label={activePage.name}>
+        <div className="detailScreen">
           <header className="detailHeader">
             <button type="button" aria-label="Back to websites" onClick={() => setAdminMode("list")}>
               <ArrowLeft />
@@ -460,15 +468,63 @@ export function AdminDashboard() {
               </button>
             ))}
           </nav>
-        </section>
-      </main>
+        </div>
+      </PhoneFrame>
     );
   }
 
   if (adminMode === "editor") {
     return (
-      <main className="homepageEditorShell">
-        <section className="homepageEditor">
+      <PhoneFrame
+        label={`${activePage.name} editor`}
+        overlays={
+          <>
+            {blockPickerOpen && (
+              <BlockPickerSheet
+                onClose={() => setBlockPickerOpen(false)}
+                onProfile={() => {
+                  setBlockPickerOpen(false);
+                  setProfileEditorRequested(true);
+                }}
+                onAddLink={() => {
+                  setBlockPickerOpen(false);
+                  setAddLinkFlowOpen(true);
+                }}
+                onSelect={addBlock}
+              />
+            )}
+
+            {addLinkFlowOpen && (
+              <AddLinkSheet
+                onClose={() => setAddLinkFlowOpen(false)}
+                onCreate={(patch) => {
+                  setAddLinkFlowOpen(false);
+                  void addBlock("link", patch);
+                }}
+              />
+            )}
+
+            {themeEditorOpen && (
+              <ThemeEditorSheet
+                page={activePage}
+                onClose={() => setThemeEditorOpen(false)}
+                onChange={(theme) => editPage({ theme })}
+              />
+            )}
+
+            {decorationOpen && (
+              <PageDecorationSheet
+                page={activePage}
+                onClose={() => setDecorationOpen(false)}
+                onChange={(theme) => editPage({ theme })}
+              />
+            )}
+
+            {onboardingOpen && <EditorOnboarding onClose={() => setOnboardingOpen(false)} />}
+          </>
+        }
+      >
+        <div className="homepageEditor">
           <header className="homepageEditorTop">
             <button type="button" aria-label="Back to website menu" onClick={() => setAdminMode("detail")}>
               <ArrowLeft />
@@ -518,51 +574,8 @@ export function AdminDashboard() {
               </button>
             </nav>
           )}
-
-          {blockPickerOpen && (
-            <BlockPickerSheet
-              onClose={() => setBlockPickerOpen(false)}
-              onProfile={() => {
-                setBlockPickerOpen(false);
-                setProfileEditorRequested(true);
-              }}
-              onAddLink={() => {
-                setBlockPickerOpen(false);
-                setAddLinkFlowOpen(true);
-              }}
-              onSelect={addBlock}
-            />
-          )}
-
-          {addLinkFlowOpen && (
-            <AddLinkSheet
-              onClose={() => setAddLinkFlowOpen(false)}
-              onCreate={(patch) => {
-                setAddLinkFlowOpen(false);
-                void addBlock("link", patch);
-              }}
-            />
-          )}
-
-          {themeEditorOpen && (
-            <ThemeEditorSheet
-              page={activePage}
-              onClose={() => setThemeEditorOpen(false)}
-              onChange={(theme) => editPage({ theme })}
-            />
-          )}
-
-          {decorationOpen && (
-            <PageDecorationSheet
-              page={activePage}
-              onClose={() => setDecorationOpen(false)}
-              onChange={(theme) => editPage({ theme })}
-            />
-          )}
-
-          {onboardingOpen && <EditorOnboarding onClose={() => setOnboardingOpen(false)} />}
-        </section>
-      </main>
+        </div>
+      </PhoneFrame>
     );
   }
 
@@ -1233,15 +1246,7 @@ function PageDecorationSheet({
           <span aria-hidden="true" />
         </header>
         <div className="decorationFields">
-          {view === "theme" && (
-            <Field label="Theme preset">
-              <select value={theme.preset} onChange={(event) => update({ preset: event.target.value as SmartPage["theme"]["preset"] })}>
-                {themePresets.map((preset) => (
-                  <option key={preset.value} value={preset.value}>{preset.label}</option>
-                ))}
-              </select>
-            </Field>
-          )}
+          {view === "theme" && <ThemeGallery onSelect={onChange} theme={theme} />}
           {view === "backgroundColor" && (
             <div className="appearanceColorGrid">
               <Field label="Background">
@@ -1271,6 +1276,67 @@ function PageDecorationSheet({
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Theme cards render a miniature of the real page — background, card surface and
+ * button treatment — so the theme is recognisable before it is applied.
+ */
+function ThemeGallery({
+  onSelect,
+  theme,
+}: {
+  onSelect: (theme: SmartPage["theme"]) => void;
+  theme: SmartPage["theme"];
+}) {
+  const activeId = themeDefinition(theme.preset)?.id;
+
+  return (
+    <div className="themeGallery">
+      {themeLibrary.map((item) => {
+        const preview = item.settings;
+        const isActive = activeId === item.id;
+        return (
+          <button
+            type="button"
+            key={item.id}
+            className={`themeCard ${isActive ? "themeCardActive" : ""}`}
+            aria-pressed={isActive}
+            onClick={() => onSelect(applyThemeDefinition(item))}
+          >
+            <span
+              className={`themeSwatch surface-${preview.surface}`}
+              style={{
+                backgroundImage: `linear-gradient(135deg, ${preview.gradientFrom}, ${preview.gradientTo})`,
+              }}
+            >
+              <span className="themeSwatchAvatar" style={{ background: preview.headingColor, opacity: 0.9 }} />
+              <span className="themeSwatchLine" style={{ background: preview.headingColor }} />
+              <span className="themeSwatchLine themeSwatchLineShort" style={{ background: preview.textColor }} />
+              {[0, 1].map((row) => (
+                <span
+                  key={row}
+                  className={`themeSwatchButton buttonStyle-${preview.buttonStyle}`}
+                  style={{
+                    background: preview.buttonBackground,
+                    borderColor: preview.buttonBorderColor,
+                    borderRadius: Math.min(preview.buttonRadius, 12),
+                  }}
+                />
+              ))}
+            </span>
+            <strong>{item.label}</strong>
+            <small>{item.description}</small>
+            {isActive && (
+              <span className="themeCardCheck" aria-hidden="true">
+                <Check />
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1413,7 +1479,7 @@ function EditablePublicCanvas({
   }
 
   return (
-    <div className="homepagePreviewWrap">
+    <div className="homepagePreviewWrap" style={themeCssVariables(page.theme)}>
       <div className="homepagePreview">
         <button type="button" className="editRow editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
           <span className="leftHandle" aria-hidden="true">
@@ -1426,7 +1492,7 @@ function EditablePublicCanvas({
         </button>
 
         <button type="button" className="profileEditBlock editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
-          <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
+          <CanvasAvatar name={page.title || page.name} src={page.profileImage} />
           <div>
             <strong>{page.title}</strong>
             <p>{page.bio}</p>
@@ -1450,6 +1516,7 @@ function EditablePublicCanvas({
               </button>
               <EditableCanvasBlock
                 block={block}
+                buttonStyle={resolveButtonStyle(page.theme)}
                 selected={selected}
                 onSelect={() => {
                   setSelectedBlockId(block.id);
@@ -1541,12 +1608,32 @@ function EditablePublicCanvas({
   );
 }
 
+/** Mirrors the public page's initials fallback so the canvas matches it. */
+function CanvasAvatar({ name, src }: { name: string; src: string }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  if (!src || failed) {
+    return <span className="canvasAvatarFallback">{initials || "?"}</span>;
+  }
+
+  return <img key={src} src={src} alt="" onError={() => setFailed(true)} />;
+}
+
 function EditableCanvasBlock({
   block,
+  buttonStyle,
   onSelect,
   selected,
 }: {
   block: PageBlock;
+  buttonStyle: string;
   onSelect: () => void;
   selected: boolean;
 }) {
@@ -1581,13 +1668,13 @@ function EditableCanvasBlock({
   }
 
   const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
-  const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
+  const colorOverride = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
 
   return (
     <button
       type="button"
-      className={`canvasLinkButton canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
-      style={buttonStyle}
+      className={`canvasLinkButton buttonStyle-${buttonStyle} canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
+      style={colorOverride}
       onClick={onSelect}
     >
       <span className="canvasBlockIcon">{resolveIconElement(block.icon, block.type)}</span>

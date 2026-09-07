@@ -9,6 +9,19 @@
   --ink: #111827;
   --blue: #2563eb;
   --teal: #0f9f8f;
+
+  /* The one phone frame. Every builder section and every overlay sheet sizes
+     itself from these, so switching sections cannot change the frame. */
+  --phone-w: 400px;
+  --phone-h: min(848px, calc(100dvh - 40px));
+  --phone-radius: 30px;
+}
+
+@media (max-width: 520px) {
+  :root {
+    --phone-h: 100dvh;
+    --phone-radius: 0px;
+  }
 }
 
 @theme inline {
@@ -345,27 +358,56 @@ textarea {
   text-align: center;
 }
 
-.websiteShell {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 26px 14px;
-  background: #f6f7fb;
+.phoneStage {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 14px;
+  background: #eceef4;
 }
 
-.websitePhone {
+.phoneDevice {
   position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  width: min(100%, 390px);
-  min-height: 720px;
-  border-radius: 16px;
+  width: min(100%, var(--phone-w));
+  height: var(--phone-h);
+  border-radius: var(--phone-radius);
   background: linear-gradient(180deg, #f6f6f8 0%, #ffffff 45%);
   box-shadow: 0 20px 54px rgba(17, 24, 39, 0.12);
 }
 
+/* The scrolling viewport inside the frame. min-height:0 lets it shrink so the
+   frame keeps its height instead of being stretched by tall content. */
+.phoneScreen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Nothing inside the phone may be wider than the phone. Sections still wrap
+   and truncate on their own; this is the backstop that keeps a single long
+   word from widening the whole frame. */
+.phoneScreen > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 520px) {
+  .phoneStage {
+    padding: 0;
+  }
+}
+
 .upgradeBar {
   display: grid;
-  grid-template-columns: 20px 1fr auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 52px;
@@ -375,8 +417,8 @@ textarea {
 }
 
 .upgradeBar button {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -386,9 +428,10 @@ textarea {
 }
 
 .upgradeBar strong {
-  max-width: 240px;
+  min-width: 0;
   font-size: 13px;
-  line-height: 1.2;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .upgradeBar span {
@@ -466,7 +509,7 @@ textarea {
 
 .websiteCard {
   display: grid;
-  grid-template-columns: 1fr 22px;
+  grid-template-columns: minmax(0, 1fr) 22px;
   gap: 10px;
   width: 100%;
   min-height: 76px;
@@ -486,11 +529,14 @@ textarea {
 .websiteCard strong,
 .websiteCard span {
   display: block;
+  min-width: 0;
+  /* Long site names and slugs wrap instead of widening the card. */
+  overflow-wrap: anywhere;
 }
 
 .websiteCard strong {
   font-size: 20px;
-  line-height: 1.05;
+  line-height: 1.2;
 }
 
 .websiteCard span {
@@ -533,20 +579,14 @@ textarea {
   margin: 32px auto 0;
 }
 
-.detailShell {
-  place-items: start center;
-}
-
-.detailPhone {
-  min-height: 700px;
-  padding: 0 14px 58px;
+.detailScreen {
+  padding: 0 14px 24px;
   background: #f7f7fa;
-  box-shadow: 0 18px 54px rgba(17, 24, 39, 0.1);
 }
 
 .detailHeader {
   display: grid;
-  grid-template-columns: 34px 1fr auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 18px 0 14px;
@@ -568,14 +608,17 @@ textarea {
 
 .detailHeader h1 {
   margin: 0;
+  min-width: 0;
   color: #2b2d34;
-  font-size: 25px;
-  line-height: 1.05;
+  font-size: clamp(18px, 5.5vw, 25px);
+  line-height: 1.2;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .outlinePill {
-  min-width: 98px;
+  flex: none;
+  min-width: 88px;
   min-height: 42px;
   border: 1.5px solid #0b7cff !important;
   border-radius: 14px;
@@ -588,7 +631,8 @@ textarea {
   align-items: center;
   min-height: 50px;
   margin-bottom: 10px;
-  padding: 0 14px;
+  padding: 12px 14px;
+  overflow-wrap: anywhere;
   border-radius: 13px;
   background: #ffffff;
   color: #30323a;
@@ -665,21 +709,18 @@ textarea {
   line-height: 1;
 }
 
-.homepageEditorShell {
-  min-height: 100vh;
-  display: grid;
-  place-items: start center;
-  padding: 16px 12px;
-  background: #f6f7fb;
-}
-
 .homepageEditor {
-  width: min(100%, 390px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 12px 0;
+  background: #f6f7fb;
 }
 
 .homepageEditorTop {
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 10px;
   margin-bottom: 18px;
@@ -704,9 +745,10 @@ textarea {
 }
 
 .homepageCanvas {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: max(540px, calc(100dvh - 210px));
   padding: 12px 10px 22px;
   background: #ffffff;
   box-shadow: 0 18px 50px rgba(17, 24, 39, 0.09);
@@ -772,7 +814,7 @@ textarea {
 }
 
 .onboardingBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 90;
   inset: 0;
   display: grid;
@@ -781,7 +823,7 @@ textarea {
 }
 
 .onboardingCard {
-  width: min(100%, 430px);
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -866,15 +908,14 @@ textarea {
 
 .editorDock {
   position: sticky;
-  bottom: 12px;
+  bottom: 0;
   z-index: 10;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: end;
   min-height: 76px;
-  margin: 0 -4px 16px;
+  margin: 0 -12px;
   padding: 10px 8px 8px;
-  border-radius: 0 0 18px 18px;
   background: rgba(247, 248, 251, 0.96);
   box-shadow: 0 -12px 30px rgba(17, 24, 39, 0.07);
   backdrop-filter: blur(12px);
@@ -915,15 +956,15 @@ textarea {
 }
 
 .blockPickerBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 50;
   inset: 0;
   background: #ffffff;
 }
 
 .blockPickerSheet {
-  width: min(100%, 430px);
-  min-height: 100vh;
+  width: 100%;
+  min-height: 100%;
   margin: 0 auto;
   overflow: auto;
   background: #ffffff;
@@ -1005,7 +1046,7 @@ textarea {
 }
 
 .settingsBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 60;
   inset: 0;
   display: flex;
@@ -1015,8 +1056,8 @@ textarea {
 }
 
 .settingsSheet {
-  width: min(100%, 430px);
-  max-height: 92vh;
+  width: 100%;
+  max-height: 100%;
   overflow: auto;
   border-radius: 22px 22px 0 0;
   background: #ffffff;
@@ -1112,6 +1153,108 @@ textarea {
 .decorationFields input:not([type="color"]) {
   border: 0;
   background: #f3f4f8;
+}
+
+/* Theme gallery */
+.themeGallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.themeCard {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 8px 8px 12px;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: #f3f4f8;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.themeCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.themeCardActive {
+  border-color: #2563eb;
+  background: #e8f0fe;
+}
+
+.themeCard strong {
+  color: #1f2430;
+  font-size: 13px;
+  font-weight: 800;
+  /* Long theme names must wrap inside the card, never spill out of it. */
+  overflow-wrap: anywhere;
+}
+
+.themeCard small {
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.themeCardCheck {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.themeCardCheck svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Miniature of the real page, so the card reads as the theme it applies. */
+.themeSwatch {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  height: 96px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.themeSwatchAvatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.themeSwatchLine {
+  width: 54px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.themeSwatchLineShort {
+  width: 34px;
+  height: 3px;
+  opacity: 0.75;
+  margin-bottom: 3px;
+}
+
+.themeSwatchButton {
+  width: 100%;
+  height: 11px;
+  border: 1px solid transparent;
+  border-radius: 6px;
 }
 
 .accountForm {
@@ -1251,25 +1394,42 @@ textarea {
   font-weight: 800;
 }
 
+/* The canvas paints the live theme so the builder shows the real page. */
 .homepagePreviewWrap {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  /* Bleeds over the canvas padding so the theme background reaches the edges. */
+  margin: -12px -10px -22px;
+  padding: 12px 10px 22px;
+  overflow-x: clip;
+  background-image: linear-gradient(135deg, var(--from, #f8fafc), var(--to, #e2e8f0));
 }
 
 .homepagePreview {
   display: grid;
-  gap: 8px;
+  gap: var(--spacing, 10px);
   padding-bottom: 96px;
+}
+
+.homepagePreview {
+  /* Handle column + gap. Blocks sit between these, so anything outside an
+     .editRow (the profile) uses the same insets and stays aligned. */
+  --row-inset-left: 28px;
+  --row-inset-right: 36px;
 }
 
 .editRow {
   display: grid;
-  grid-template-columns: 18px 1fr 26px;
+  grid-template-columns: 18px minmax(0, 1fr) 26px;
   align-items: center;
   gap: 10px;
 }
 
+/* No explicit width: these are grid children and already stretch. Forcing
+   width:100% here fought .profileEditBlock's side margins and pushed the
+   profile past the right edge of the phone. */
 .editableProfile {
-  width: 100%;
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -1341,14 +1501,15 @@ textarea {
 
 .profileEditBlock {
   display: grid;
-  grid-template-columns: 82px 1fr;
+  grid-template-columns: 82px minmax(0, 1fr);
   align-items: start;
   gap: 16px;
-  margin: -22px 24px 16px;
+  margin: -22px var(--row-inset-right) 16px var(--row-inset-left);
   padding: 0;
 }
 
-.profileEditBlock img {
+.profileEditBlock img,
+.canvasAvatarFallback {
   width: 82px;
   height: 82px;
   border: 5px solid #ffffff;
@@ -1358,6 +1519,14 @@ textarea {
   box-shadow: 0 10px 24px rgba(17, 24, 39, 0.14);
 }
 
+.canvasAvatarFallback {
+  display: grid;
+  place-items: center;
+  color: #4b5563;
+  font-size: 26px;
+  font-weight: 800;
+}
+
 .profileEditBlock strong,
 .profileEditBlock p {
   display: block;
@@ -1365,7 +1534,7 @@ textarea {
 }
 
 .profileSheetBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 60;
   inset: 0;
   overflow-y: auto;
@@ -1373,7 +1542,7 @@ textarea {
 }
 
 .appearanceSheetBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 60;
   inset: 0;
   display: grid;
@@ -1382,8 +1551,8 @@ textarea {
 }
 
 .appearanceSheet {
-  width: min(100%, 430px);
-  max-height: min(88vh, 680px);
+  width: 100%;
+  max-height: 100%;
   overflow: auto;
   border-radius: 18px 18px 0 0;
   background: #ffffff;
@@ -1443,8 +1612,8 @@ textarea {
 }
 
 .profileEditSheet {
-  width: min(100%, 430px);
-  min-height: 100vh;
+  width: 100%;
+  min-height: 100%;
   margin: 0 auto;
   overflow: auto;
   background: #ffffff;
@@ -1600,10 +1769,12 @@ textarea {
   font-size: 16px;
 }
 
+/* Follows the theme so the name stays readable on dark backgrounds. */
 .profileEditBlock strong {
-  color: #000000;
+  color: var(--heading, #000000);
   font-size: 20px;
-  line-height: 1.05;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .profileEditBlock > div {
@@ -1613,21 +1784,22 @@ textarea {
 
 .profileEditBlock p {
   margin-top: 5px;
-  color: #3f4148;
+  color: var(--text, #3f4148);
   font-size: 14px;
-  line-height: 1.35;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
+/* Layout only: the .buttonStyle-* class supplies background, border and shadow
+   so the canvas button matches the public page exactly. */
 .canvasLinkButton {
   display: grid;
-  grid-template-columns: 36px 1fr;
+  grid-template-columns: 36px minmax(0, 1fr);
   gap: 9px;
   align-items: center;
-  min-height: 62px;
-  border: 0;
-  border-radius: 14px;
-  background: #000000;
-  color: #ffffff;
+  min-height: 56px;
+  border-radius: var(--button-radius, 14px);
+  color: var(--button-text, #ffffff);
   padding: 12px;
   text-align: left;
 }
@@ -1646,22 +1818,24 @@ textarea {
 .canvasLinkButton strong,
 .canvasLinkButton small {
   display: block;
+  min-width: 0;
 }
 
+/* Long titles wrap rather than truncate - no information is hidden. */
 .canvasLinkButton strong {
-  overflow: hidden;
-  font-size: 16px;
-  line-height: 1.1;
+  font-size: 15px;
+  line-height: 1.25;
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .canvasLinkButton small {
   margin-top: 4px;
-  color: rgba(255, 255, 255, 0.68);
+  opacity: 0.72;
   font-size: 12px;
+  line-height: 1.35;
   text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .canvasBlockIcon {
@@ -1755,8 +1929,9 @@ textarea {
   gap: 7px;
   padding: 12px;
   border-radius: 14px;
-  background: #f3f4f6;
-  color: #111827;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--heading, #111827);
+  overflow-wrap: anywhere;
 }
 
 .inlineToggle {
@@ -1891,7 +2066,7 @@ textarea {
 }
 
 .linkSheetBackdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 50;
   display: grid;
@@ -1901,7 +2076,7 @@ textarea {
 
 .linkEditSheet {
   overflow: hidden;
-  width: min(100%, 430px);
+  width: 100%;
   max-height: min(92vh, 680px);
   border-radius: 18px 18px 0 0;
   background: #ffffff;
@@ -2537,10 +2712,12 @@ textarea {
 
 .publicExperience {
   position: relative;
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
-  place-items: center;
-  padding: 26px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-content: center;
+  padding: 26px 16px;
   overflow: hidden;
   background:
     radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.18), transparent 18rem),
@@ -2561,7 +2738,10 @@ textarea {
 
 .publicCard {
   position: relative;
-  width: min(100%, 430px);
+  /* min-width:0 lets the card shrink below its content's min-content width,
+     so a long unbroken URL cannot push it outside the viewport. */
+  min-width: 0;
+  width: min(100%, var(--phone-w));
   display: grid;
   gap: var(--spacing);
   padding: 14px 14px 24px;
@@ -2574,7 +2754,7 @@ textarea {
 }
 
 .publicBanner {
-  min-height: 175px;
+  min-height: 148px;
   border-radius: 20px;
   background-color: rgba(255, 255, 255, 0.12);
   background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
@@ -2582,52 +2762,137 @@ textarea {
   background-size: cover;
 }
 
-.glass-dark .publicCard,
-.midnight .publicCard,
-.neon-glass .publicCard {
+/* Card surface treatments, shared by the theme swatches and the real page. */
+.surface-glass {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.surface-glass-dark {
   background: rgba(15, 23, 42, 0.34);
+  border-color: rgba(148, 163, 184, 0.24);
 }
 
-.minimal-white.publicExperience {
-  background: #f8fafc;
-  color: #111827;
+.surface-solid {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(15, 23, 42, 0.08);
+  backdrop-filter: none;
 }
 
-.minimal-white .publicCard {
-  background: rgba(255, 255, 255, 0.88);
-  color: #111827;
+.surface-plain {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.surface-plain-dark {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* Button treatments. Each keeps a >=52px touch target via .publicButton. */
+.buttonStyle-glass {
+  background: var(--button-bg-glass);
+  border: 1px solid var(--button-border);
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
+.buttonStyle-solid {
+  background: var(--button-bg);
+  border: 1px solid transparent;
+}
+
+.buttonStyle-soft {
+  background: var(--button-bg-glass);
+  border: 1px solid transparent;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.buttonStyle-outline {
+  background: transparent;
+  border: 1.5px solid var(--button-border);
+  box-shadow: none;
+}
+
+.buttonStyle-pill {
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+}
+
+.buttonStyle-minimal {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--button-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.buttonStyle-elevated {
+  background: var(--button-bg);
+  border: 1px solid transparent;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.32);
+}
+
+.buttonStyle-neon {
+  background: transparent;
+  border: 1.5px solid var(--button-bg);
+  color: var(--button-bg);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15), 0 0 22px rgba(34, 211, 238, 0.35);
 }
 
 .publicProfile {
   text-align: center;
-  margin-top: -58px;
+  /* Pulls the avatar up to straddle the banner edge. */
+  margin-top: -50px;
+  margin-bottom: 4px;
 }
 
-.publicProfile img {
-  display: block;
+.publicAvatar {
+  display: grid;
+  place-items: center;
   margin-inline: auto;
-  width: 104px;
-  height: 104px;
+  width: 96px;
+  height: 96px;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.16);
   border: 4px solid rgba(255, 255, 255, 0.7);
-  border-radius: 30px;
+  border-radius: 28px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
 }
 
+/* Initials stand in for a missing or broken avatar. */
+.publicAvatarFallback {
+  background: color-mix(in srgb, var(--button-bg, #ffffff), transparent 20%);
+  color: var(--button-text, #111827);
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
 .publicProfile h1 {
-  margin: 12px 0 8px;
+  margin: 14px 0 6px;
   color: var(--heading);
-  font-size: 31px;
-  line-height: 1.04;
-  letter-spacing: 0;
+  /* Scales down on narrow frames so a long name stays on two lines at most. */
+  font-size: clamp(22px, 7.2vw, 29px);
+  line-height: 1.16;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .publicProfile p {
-  margin: 0;
+  margin: 0 auto;
+  max-width: 32ch;
   color: color-mix(in srgb, var(--text), transparent 18%);
-  font-weight: 700;
-  line-height: 1.48;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
 .blockStack {
@@ -2635,24 +2900,29 @@ textarea {
   gap: var(--spacing);
 }
 
+/* Layout only. Background, border and shadow come from the .buttonStyle-*
+   class so a theme can restyle buttons without fighting this rule. */
 .publicButton,
 .publicVideo {
   display: grid;
-  grid-template-columns: 48px 1fr 24px;
+  grid-template-columns: 48px minmax(0, 1fr) 24px;
   align-items: center;
   gap: 12px;
-  min-height: 70px;
+  min-height: 64px;
   padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: var(--button-radius);
-  background: var(--button-bg-glass);
   color: var(--button-text);
   text-decoration: none;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
   transition:
     transform 180ms ease,
     box-shadow 180ms ease;
+}
+
+.publicVideo {
+  border: 1px solid var(--button-border);
+  background: var(--button-bg-glass);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
+  backdrop-filter: blur(calc(var(--glass) * 1px));
 }
 
 .publicButton:hover,
@@ -2677,15 +2947,23 @@ textarea {
   font-weight: 950;
 }
 
+/* Long titles and bare URLs must wrap inside the button, never widen it. */
 .publicButton strong,
 .publicButton small {
   display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.publicButton strong {
+  line-height: 1.25;
 }
 
 .publicButton small {
   margin-top: 3px;
   opacity: 0.72;
   font-weight: 750;
+  line-height: 1.35;
 }
 
 .publicButton em {
@@ -2697,12 +2975,15 @@ textarea {
   margin: 8px 0 0;
   color: var(--heading);
   font-size: 22px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .publicText {
   margin: 0;
   line-height: 1.5;
-  font-weight: 700;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .publicDivider {
@@ -2725,11 +3006,13 @@ textarea {
 
 .publicFooter {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
-  gap: 14px;
+  gap: 8px 14px;
   color: color-mix(in srgb, var(--text), transparent 20%);
   font-size: 13px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .publicFooter a {
@@ -2805,17 +3088,6 @@ textarea {
 }
 
 @media (max-width: 560px) {
-  .websiteShell {
-    padding: 0;
-    place-items: stretch;
-  }
-
-  .websitePhone {
-    width: 100%;
-    min-height: 100vh;
-    border-radius: 0;
-  }
-
   .upgradeBar {
     min-height: 64px;
   }
@@ -2895,10 +3167,6 @@ button:hover:not(:disabled) {
   filter: brightness(0.98);
 }
 
-.websitePhone {
-  min-height: min(760px, calc(100vh - 52px));
-}
-
 .upgradeBar button,
 .menuButton,
 .homepageEditorTop button,
@@ -2963,14 +3231,6 @@ button:hover:not(:disabled) {
 
 .detailMenu > button > svg {
   justify-self: end;
-}
-
-.homepageEditorShell {
-  padding: 24px 16px 40px;
-}
-
-.homepageEditor {
-  width: min(100%, 430px);
 }
 
 .homepageCanvas {
@@ -3075,10 +3335,6 @@ button:hover:not(:disabled) {
 }
 
 @media (min-width: 561px) {
-  .websiteShell {
-    padding: 32px 24px;
-  }
-
   .profileSheetBackdrop,
   .blockPickerBackdrop,
   .appearanceSheetBackdrop {
@@ -3123,21 +3379,12 @@ button:hover:not(:disabled) {
 }
 
 @media (max-width: 560px) {
-  .homepageEditorShell {
-    padding: 12px 0 28px;
-  }
-
-  .homepageEditor {
-    width: 100%;
-  }
-
   .homepageEditorTop {
     padding: 0 12px;
     margin-bottom: 12px;
   }
 
   .homepageCanvas {
-    min-height: max(520px, calc(100dvh - 184px));
     border-inline: 0;
     border-radius: 0;
   }

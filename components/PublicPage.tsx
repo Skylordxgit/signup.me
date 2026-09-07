@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Camera,
@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { PageBlock, SmartPage } from "@/lib/types";
 import { buildSmartUrl, parseBlockIcon, publicPageUrl, readableTextColor } from "@/lib/utils";
+import { resolveButtonStyle, resolveSurface, themeCssVariables } from "@/lib/themes";
 
 export function PublicPage({ page, preview = false }: { page: SmartPage; preview?: boolean }) {
   useEffect(() => {
@@ -51,42 +52,25 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   const theme = page.theme;
   const pageUrl = publicPageUrl(page.slug);
   const activeBlocks = page.blocks.filter((block) => block.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
-  const buttonBackground = withAlpha(theme.buttonBackground, theme.buttonTransparency / 100);
+  const buttonStyle = resolveButtonStyle(theme);
+  const surface = resolveSurface(theme);
 
   return (
-    <main
-      className={`publicExperience ${theme.preset}`}
-      style={
-        {
-          "--from": theme.gradientFrom,
-          "--to": theme.gradientTo,
-          "--bg": theme.backgroundColor,
-          "--glass": theme.glassBlur,
-          "--button-bg": theme.buttonBackground,
-          "--button-bg-glass": buttonBackground,
-          "--button-text": theme.buttonTextColor,
-          "--button-border": theme.buttonBorderColor,
-          "--button-radius": `${theme.buttonRadius}px`,
-          "--button-alpha": `${theme.buttonTransparency / 100}`,
-          "--shadow": `0 ${Math.max(10, theme.shadow)}px ${Math.max(24, theme.shadow * 2)}px rgba(15, 23, 42, 0.22)`,
-          "--spacing": `${theme.spacing}px`,
-          "--heading": theme.headingColor,
-          "--text": theme.textColor,
-        } as React.CSSProperties
-      }
-    >
-      <div className="publicBackdrop" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
-      <section className="publicCard">
-        <div className="publicBanner" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
+    <main className={`publicExperience ${theme.preset}`} style={themeCssVariables(theme)}>
+      {theme.backgroundImage && (
+        <div className="publicBackdrop" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
+      )}
+      <section className={`publicCard surface-${surface}`}>
+        <div className="publicBanner" style={theme.backgroundImage ? { backgroundImage: `url(${theme.backgroundImage})` } : undefined} />
         <header className="publicProfile">
-          <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
+          <ProfileAvatar name={page.title || page.name} src={page.profileImage} />
           <h1>{page.title}</h1>
-          <p>{page.bio}</p>
+          {page.bio && <p>{page.bio}</p>}
         </header>
 
         <div className="blockStack">
           {activeBlocks.map((block) => (
-            <PublicBlock block={block} key={block.id} onClick={() => track(block)} />
+            <PublicBlock block={block} buttonStyle={buttonStyle} key={block.id} onClick={() => track(block)} />
           ))}
         </div>
 
@@ -101,7 +85,35 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   );
 }
 
-function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void }) {
+/** Falls back to initials so a missing or broken avatar never leaves a hole. */
+function ProfileAvatar({ name, src }: { name: string; src: string }) {
+  const [failed, setFailed] = useState(false);
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
+
+  if (!src || failed) {
+    return <div className="publicAvatar publicAvatarFallback">{initials || "?"}</div>;
+  }
+
+  return (
+    <img className="publicAvatar" key={src} src={src} alt="" onError={() => setFailed(true)} />
+  );
+}
+
+function PublicBlock({
+  block,
+  buttonStyle,
+  onClick,
+}: {
+  block: PageBlock;
+  buttonStyle: string;
+  onClick: () => void;
+}) {
   if (block.type === "heading") return <h2 className="publicHeading">{block.title}</h2>;
   if (block.type === "text") return <p className="publicText">{block.subtitle || block.title}</p>;
   if (block.type === "divider") return <hr className="publicDivider" />;
@@ -126,10 +138,17 @@ function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void
   }
 
   const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
-  const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
+  const colorOverride = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
 
   return (
-    <a className="publicButton" href={buildSmartUrl(block)} onClick={onClick} target="_blank" rel="noreferrer" style={buttonStyle}>
+    <a
+      className={`publicButton buttonStyle-${buttonStyle}`}
+      href={buildSmartUrl(block)}
+      onClick={onClick}
+      target="_blank"
+      rel="noreferrer"
+      style={colorOverride}
+    >
       <span>{resolvePublicIcon(block.icon, block.type)}</span>
       <div>
         <strong>{block.title}</strong>
@@ -193,14 +212,6 @@ function resolvePublicIcon(icon: string, fallbackType: PageBlock["type"]) {
   return <Icon aria-hidden="true" />;
 }
 
-function withAlpha(hex: string, alpha: number) {
-  const clean = hex.replace("#", "");
-  if (!/^[0-9a-f]{6}$/i.test(clean)) return hex;
-  const r = Number.parseInt(clean.slice(0, 2), 16);
-  const g = Number.parseInt(clean.slice(2, 4), 16);
-  const b = Number.parseInt(clean.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0.15, alpha))})`;
-}
 
 function PublicPlayableVideo({ src, title }: { src: string; title: string }) {
   const embed = publicVideoEmbedUrl(src);
