@@ -191,6 +191,159 @@ textarea {
   font-weight: 800;
 }
 
+.authShell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  gap: 22px;
+  padding: 24px;
+  background: #f4f5f7;
+}
+
+.authBrandRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #16171b;
+  font-size: 20px;
+}
+
+.authBrandMark {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: #16171b;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.authCard {
+  width: min(100%, 400px);
+  padding: 34px 30px;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(17, 24, 39, 0.1);
+}
+
+.authCard h1 {
+  margin: 0 0 26px;
+  color: #1c1d22;
+  font-size: 26px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.authOptions {
+  display: grid;
+  gap: 12px;
+}
+
+.authOptionButton {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.authOptionIcon {
+  display: grid;
+  place-items: center;
+}
+
+.authOptionGoogle {
+  background: #d5583a;
+  color: #ffffff;
+}
+
+.authOptionApple {
+  background: #16171b;
+  color: #ffffff;
+}
+
+.authOptionEmail {
+  border-color: rgba(17, 24, 39, 0.14);
+  background: #ffffff;
+  color: #1c1d22;
+}
+
+.authOptionIconLight {
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 3px;
+}
+
+.authOptionIconDark,
+.authOptionIconOutline {
+  color: currentColor;
+}
+
+.authNotice {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.authFooter {
+  margin: 22px 0 0;
+  color: #767a85;
+  font-size: 14px;
+  text-align: center;
+}
+
+.authLink {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #2563eb;
+  font-size: inherit;
+  font-weight: 800;
+}
+
+.authEmailForm {
+  display: grid;
+  gap: 12px;
+}
+
+.authEmailForm button[type="submit"] {
+  min-height: 48px;
+  border: 0;
+  border-radius: 14px;
+  background: #16171b;
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.authEmailForm .formError {
+  color: #dc2626;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.authBackLink {
+  justify-self: center;
+}
+
+.authEmailForm small {
+  color: #9a9ca3;
+  font-weight: 700;
+  text-align: center;
+}
+
 .websiteShell {
   min-height: 100vh;
   display: grid;
