@@ -1102,6 +1102,18 @@ textarea {
   line-height: 1.5;
 }
 
+.decorationFields {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 30px;
+}
+
+.decorationFields select,
+.decorationFields input:not([type="color"]) {
+  border: 0;
+  background: #f3f4f8;
+}
+
 .accountForm {
   display: grid;
   gap: 18px;

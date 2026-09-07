@@ -37,6 +37,7 @@ import {
   MoveDown,
   MoveUp,
   Package,
+  Paintbrush,
   Palette,
   Pencil,
   Phone,
@@ -74,6 +75,7 @@ export function AdminDashboard() {
   const [blockPickerOpen, setBlockPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
+  const [decorationOpen, setDecorationOpen] = useState(false);
   const [profileEditorRequested, setProfileEditorRequested] = useState(false);
   const [hasSelectedBlock, setHasSelectedBlock] = useState(false);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -492,7 +494,7 @@ export function AdminDashboard() {
                 <span><LayoutPanelTop /></span>
                 Pages
               </button>
-              <button type="button" onClick={() => setThemeEditorOpen(true)}>
+              <button type="button" onClick={() => setDecorationOpen(true)}>
                 <span><Palette /></span>
                 Style
               </button>
@@ -525,6 +527,14 @@ export function AdminDashboard() {
             <ThemeEditorSheet
               page={activePage}
               onClose={() => setThemeEditorOpen(false)}
+              onChange={(theme) => editPage({ theme })}
+            />
+          )}
+
+          {decorationOpen && (
+            <PageDecorationSheet
+              page={activePage}
+              onClose={() => setDecorationOpen(false)}
               onChange={(theme) => editPage({ theme })}
             />
           )}
@@ -1129,6 +1139,109 @@ function ThemeEditorSheet({
           </Field>
           <Range label="Button corner radius" value={theme.buttonRadius} min={4} max={36} onChange={(buttonRadius) => update({ buttonRadius })} />
           <Range label="Content spacing" value={theme.spacing} min={6} max={26} onChange={(spacing) => update({ spacing })} />
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type DecorationView = "menu" | "theme" | "backgroundColor" | "backgroundImage" | "fonts";
+
+const decorationMenuItems: { view: DecorationView; label: string; icon: LucideIcon }[] = [
+  { view: "theme", label: "Theme", icon: Paintbrush },
+  { view: "backgroundColor", label: "Background color", icon: Palette },
+  { view: "backgroundImage", label: "Background image", icon: ImageIcon },
+  { view: "fonts", label: "Fonts", icon: Type },
+];
+
+const fontOptions: { value: SmartPage["theme"]["font"]; label: string }[] = [
+  { value: "inter", label: "Inter" },
+  { value: "system", label: "System" },
+  { value: "serif", label: "Serif" },
+  { value: "mono", label: "Monospace" },
+];
+
+function PageDecorationSheet({
+  onChange,
+  onClose,
+  page,
+}: {
+  onChange: (theme: SmartPage["theme"]) => void;
+  onClose: () => void;
+  page: SmartPage;
+}) {
+  const [view, setView] = useState<DecorationView>("menu");
+  const theme = page.theme;
+  const update = (patch: Partial<SmartPage["theme"]>) => onChange({ ...theme, ...patch });
+  const viewTitle = decorationMenuItems.find((item) => item.view === view)?.label ?? "Page decoration";
+
+  if (view === "menu") {
+    return (
+      <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Page decoration">
+        <section className="settingsSheet">
+          <header className="settingsHeader">
+            <button type="button" aria-label="Close page decoration" onClick={onClose}><X /></button>
+            <h2>Page decoration</h2>
+            <span aria-hidden="true" />
+          </header>
+          <div className="settingsList">
+            {decorationMenuItems.map((item) => (
+              <button type="button" className="settingsRow" key={item.view} onClick={() => setView(item.view)}>
+                <span className="settingsIcon"><item.icon /></span>
+                <strong>{item.label}</strong>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label={viewTitle}>
+      <section className="settingsSheet">
+        <header className="settingsHeader">
+          <button type="button" aria-label="Close page decoration" onClick={onClose}><X /></button>
+          <h2>{viewTitle}</h2>
+          <span aria-hidden="true" />
+        </header>
+        <div className="decorationFields">
+          {view === "theme" && (
+            <Field label="Theme preset">
+              <select value={theme.preset} onChange={(event) => update({ preset: event.target.value as SmartPage["theme"]["preset"] })}>
+                {themePresets.map((preset) => (
+                  <option key={preset.value} value={preset.value}>{preset.label}</option>
+                ))}
+              </select>
+            </Field>
+          )}
+          {view === "backgroundColor" && (
+            <div className="appearanceColorGrid">
+              <Field label="Background">
+                <input type="color" value={theme.backgroundColor} onChange={(event) => update({ backgroundColor: event.target.value })} />
+              </Field>
+              <Field label="Accent">
+                <input type="color" value={theme.gradientTo} onChange={(event) => update({ gradientTo: event.target.value })} />
+              </Field>
+              <Field label="Button">
+                <input type="color" value={theme.buttonBackground} onChange={(event) => update({ buttonBackground: event.target.value })} />
+              </Field>
+            </div>
+          )}
+          {view === "backgroundImage" && (
+            <Field label="Background image URL">
+              <input value={theme.backgroundImage} onChange={(event) => update({ backgroundImage: event.target.value })} />
+            </Field>
+          )}
+          {view === "fonts" && (
+            <Field label="Font">
+              <select value={theme.font} onChange={(event) => update({ font: event.target.value as SmartPage["theme"]["font"] })}>
+                {fontOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </Field>
+          )}
         </div>
       </section>
     </div>
