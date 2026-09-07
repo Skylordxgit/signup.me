@@ -42,6 +42,8 @@ NEXT_PUBLIC_APP_URL=
 COOKIE_SECURE=true
 ```
 
+For the supplied Hostinger database, use the database and user names exactly as created in hPanel. The database host is shown in **hPanel -> Databases -> Management**. URL-encode special characters in the password (for example, `@` becomes `%40`) before placing it in `DATABASE_URL`.
+
 Use a long random value for `SESSION_SECRET`. Never expose database credentials in frontend code.
 
 ## Build And Start
