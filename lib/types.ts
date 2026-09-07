@@ -45,6 +45,7 @@ export type ThemeSettings = {
   shadow: number;
   font: "inter" | "system" | "serif" | "mono";
   spacing: number;
+  profileLayout: "hero" | "centered" | "avatar" | "none";
 };
 
 export type SeoSettings = {

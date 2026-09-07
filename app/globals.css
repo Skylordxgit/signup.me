@@ -1669,6 +1669,12 @@ button.publicButton {
   letter-spacing: 2px;
 }
 
+.profileSheetHeader .profileHeaderSave {
+  color: #087cff;
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
 .profileSheetPreview {
   padding: 24px 24px 18px;
   border-bottom: 1px solid rgba(17, 24, 39, 0.08);
@@ -1718,6 +1724,67 @@ button.publicButton {
   color: #34373f;
   font-size: 16px;
   line-height: 1.35;
+}
+
+.profilePreview-centered .profileSheetIdentity,
+.profilePreview-avatar .profileSheetIdentity,
+.profilePreview-none .profileSheetIdentity {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  margin: -42px 24px 0;
+  text-align: center;
+}
+
+.profilePreview-centered .profileSheetIdentity img,
+.profilePreview-avatar .profileSheetIdentity img {
+  border-radius: 50%;
+}
+
+.profilePreview-centered .profileSheetIdentity > div,
+.profilePreview-avatar .profileSheetIdentity > div,
+.profilePreview-none .profileSheetIdentity > div {
+  padding-top: 0;
+}
+
+.profilePreview-avatar,
+.profilePreview-none {
+  padding-top: 30px;
+}
+
+.profilePreview-avatar .profileSheetIdentity,
+.profilePreview-none .profileSheetIdentity {
+  margin-top: 0;
+}
+
+.profileLayoutPicker {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.profileLayoutPicker button {
+  display: grid;
+  min-height: 68px;
+  place-items: center;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: #f4f5f8;
+  color: #525762;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.profileLayoutPicker button svg {
+  width: 19px;
+  height: 19px;
+}
+
+.profileLayoutPicker button.active {
+  border-color: #087cff;
+  background: #eef6ff;
+  color: #087cff;
 }
 
 .profileSheetFields {
@@ -2820,6 +2887,28 @@ button.publicButton {
   color: color-mix(in srgb, var(--text), transparent 18%);
   font-weight: 700;
   line-height: 1.48;
+}
+
+.publicProfile.profile-centered {
+  margin-top: -42px;
+}
+
+.publicProfile.profile-centered img,
+.publicProfile.profile-avatar img {
+  border-radius: 50%;
+}
+
+.publicProfile.profile-avatar,
+.publicProfile.profile-none {
+  margin-top: 0;
+}
+
+.publicProfile.profile-avatar {
+  padding-top: 10px;
+}
+
+.publicProfile.profile-none {
+  padding-top: 12px;
 }
 
 .blockStack {

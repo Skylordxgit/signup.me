@@ -20,6 +20,7 @@ export const defaultTheme: ThemeSettings = {
   shadow: 28,
   font: "inter",
   spacing: 12,
+  profileLayout: "hero",
 };
 
 export function seedPages(): SmartPage[] {

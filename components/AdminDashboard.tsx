@@ -35,7 +35,6 @@ import {
   Menu,
   MessageCircle,
   Minus,
-  MoreHorizontal,
   Music2,
   MoveDown,
   MoveUp,
@@ -1669,6 +1668,7 @@ function ProfileEditorSheet({
   const [slug, setSlug] = useState(page.slug);
   const [title, setTitle] = useState(page.title);
   const [bio, setBio] = useState(page.bio);
+  const [layout, setLayout] = useState(page.theme.profileLayout ?? "hero");
   const [changing, setChanging] = useState<"cover" | "photo" | null>(null);
 
   function save() {
@@ -1677,7 +1677,7 @@ function ProfileEditorSheet({
       name,
       profileImage: photo,
       slug: slugify(slug),
-      theme: { ...page.theme, backgroundImage: cover },
+      theme: { ...page.theme, backgroundImage: cover, profileLayout: layout },
       title,
     });
   }
@@ -1688,13 +1688,15 @@ function ProfileEditorSheet({
         <header className="profileSheetHeader">
           <button type="button" aria-label="Close profile editor" onClick={onClose}><X /></button>
           <h2>Profile</h2>
-          <button type="button" aria-label="More profile options"><MoreHorizontal /></button>
+          <button type="button" className="profileHeaderSave" onClick={save}>Save</button>
         </header>
 
-        <div className="profileSheetPreview">
-          <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
+        <div className={`profileSheetPreview profilePreview-${layout}`}>
+          {layout !== "avatar" && layout !== "none" && (
+            <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
+          )}
           <div className="profileSheetIdentity">
-            <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
+            {layout !== "none" && <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />}
             <div>
               <strong>{title || "Your name"}</strong>
               <p>{bio || "Add a short description"}</p>
@@ -1709,18 +1711,40 @@ function ProfileEditorSheet({
           <Field label="Public URL *">
             <input value={slug} onChange={(event) => setSlug(event.target.value)} />
           </Field>
-          <MediaChangeRow label="Cover" preview={cover} active={changing === "cover"} onChange={() => setChanging(changing === "cover" ? null : "cover")}>
-            <input value={cover} aria-label="Cover image URL" placeholder="Cover image URL" onChange={(event) => setCover(event.target.value)} />
-          </MediaChangeRow>
-          <MediaChangeRow label="Profile photo" preview={photo} active={changing === "photo"} onChange={() => setChanging(changing === "photo" ? null : "photo")}>
-            <input value={photo} aria-label="Profile photo URL" placeholder="Profile photo URL" onChange={(event) => setPhoto(event.target.value)} />
-          </MediaChangeRow>
+          {layout !== "avatar" && layout !== "none" && (
+            <MediaChangeRow label="Cover" preview={cover} active={changing === "cover"} onChange={() => setChanging(changing === "cover" ? null : "cover")}>
+              <input value={cover} aria-label="Cover image URL" placeholder="Cover image URL" onChange={(event) => setCover(event.target.value)} />
+            </MediaChangeRow>
+          )}
+          {layout !== "none" && (
+            <MediaChangeRow label="Profile photo" preview={photo} active={changing === "photo"} onChange={() => setChanging(changing === "photo" ? null : "photo")}>
+              <input value={photo} aria-label="Profile photo URL" placeholder="Profile photo URL" onChange={(event) => setPhoto(event.target.value)} />
+            </MediaChangeRow>
+          )}
           <Field label="Title *">
             <input value={title} onChange={(event) => setTitle(event.target.value)} />
           </Field>
           <Field label="Subtitle">
             <textarea value={bio} onChange={(event) => setBio(event.target.value)} />
           </Field>
+          <div className="profileLayoutPicker" aria-label="Header layout">
+            {[
+              { value: "hero", label: "Hero", icon: LayoutPanelTop },
+              { value: "centered", label: "Centered", icon: Circle },
+              { value: "avatar", label: "Avatar", icon: User },
+              { value: "none", label: "None", icon: Minus },
+            ].map((option) => (
+              <button
+                type="button"
+                className={layout === option.value ? "active" : ""}
+                key={option.value}
+                onClick={() => setLayout(option.value as typeof layout)}
+              >
+                <option.icon aria-hidden="true" />
+                <span>{option.label}</span>
+              </button>
+            ))}
+          </div>
           <button type="button" className="profileSaveButton" onClick={save}>Save changes</button>
         </div>
       </section>

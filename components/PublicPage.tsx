@@ -63,6 +63,7 @@ export function PublicPage({
   }
 
   const theme = page.theme;
+  const profileLayout = theme.profileLayout ?? "hero";
   const pageUrl = typeof window === "undefined" ? publicPageUrl(page.slug) : window.location.href;
   const activeBlocks = page.blocks.filter((block) => block.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
   const buttonBackground = withAlpha(theme.buttonBackground, theme.buttonTransparency / 100);
@@ -91,9 +92,11 @@ export function PublicPage({
     >
       <div className="publicBackdrop" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
       <section className="publicCard">
-        <div className="publicBanner" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
+        {profileLayout !== "avatar" && profileLayout !== "none" && (
+          <div className={`publicBanner profileBanner-${profileLayout}`} style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
+        )}
         <header
-          className={`publicProfile ${editable ? "editablePublicProfile" : ""}`}
+          className={`publicProfile profile-${profileLayout} ${editable ? "editablePublicProfile" : ""}`}
           role={editable ? "button" : undefined}
           tabIndex={editable ? 0 : undefined}
           onClick={editable ? onProfileSelect : undefined}
@@ -101,7 +104,9 @@ export function PublicPage({
             if (event.key === "Enter" || event.key === " ") onProfileSelect?.();
           } : undefined}
         >
-          <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
+          {profileLayout !== "none" && (
+            <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
+          )}
           <h1>{page.title}</h1>
           <p>{page.bio}</p>
         </header>
