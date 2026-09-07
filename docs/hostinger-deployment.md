@@ -1,0 +1,60 @@
+# Hostinger Deployment
+
+This project is built for a Node.js + Next.js app with MySQL.
+
+## Local Development
+
+1. Copy `.env.example` to `.env.local`.
+2. Use the demo login locally: `admin@example.com` / `admin123`.
+3. Run:
+
+```bash
+npm install
+npm run dev
+```
+
+## Generate An Admin Password Hash
+
+Run this locally and place the result in `ADMIN_PASSWORD_HASH`:
+
+```bash
+node -e "const { scryptSync, randomBytes } = require('crypto'); const p = process.argv[1]; const s = randomBytes(16).toString('hex'); console.log(`${s}:${scryptSync(p, s, 64).toString('hex')}`)" "your-strong-password"
+```
+
+## MySQL Setup
+
+1. Create a MySQL database in Hostinger.
+2. Import `docs/schema.sql`.
+3. Set `DATABASE_URL` in Hostinger using this format:
+
+```bash
+mysql://db_user:db_password@db_host:3306/db_name
+```
+
+## Production Environment Variables
+
+```bash
+DATABASE_URL=
+SESSION_SECRET=
+ADMIN_EMAIL=
+ADMIN_PASSWORD_HASH=
+NEXT_PUBLIC_APP_URL=
+COOKIE_SECURE=true
+```
+
+Use a long random value for `SESSION_SECRET`. Never expose database credentials in frontend code.
+
+## Build And Start
+
+```bash
+npm run build
+npm run start
+```
+
+## Backups
+
+Schedule regular MySQL backups from Hostinger, especially before editing schema or importing data. Keep uploaded media in a separate folder or object storage location and back that up separately from the database.
+
+## Current Storage Note
+
+The app includes a JSON file fallback for local development when `DATABASE_URL` is not set. For production, configure MySQL and import `docs/schema.sql`.
