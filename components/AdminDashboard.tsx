@@ -1,10 +1,11 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   ArrowDown,
   ArrowLeft,
+  ArrowUpRight,
   BarChart3,
   Bell,
   Blocks,
@@ -1378,6 +1379,8 @@ function EditablePublicCanvas({
   const selectedBlock = blocks.find((block) => block.id === selectedBlockId) ?? null;
   const editingBlock = blocks.find((block) => block.id === editingBlockId) ?? null;
   const selectedIndex = selectedBlock ? blocks.findIndex((block) => block.id === selectedBlock.id) : -1;
+  const theme = page.theme;
+  const buttonBackground = editorWithAlpha(theme.buttonBackground, theme.buttonTransparency / 100);
 
   const isProfileEditorOpen = profileEditorOpen || profileEditorRequested;
 
@@ -1422,8 +1425,28 @@ function EditablePublicCanvas({
   }
 
   return (
-    <div className="homepagePreviewWrap">
-      <div className="homepagePreview">
+    <div
+      className={`homepagePreviewWrap editorThemePreview ${theme.preset}`}
+      style={
+        {
+          "--from": theme.gradientFrom,
+          "--to": theme.gradientTo,
+          "--bg": theme.backgroundColor,
+          "--glass": theme.glassBlur,
+          "--button-bg": theme.buttonBackground,
+          "--button-bg-glass": buttonBackground,
+          "--button-text": theme.buttonTextColor,
+          "--button-border": theme.buttonBorderColor,
+          "--button-radius": `${theme.buttonRadius}px`,
+          "--shadow": `0 ${Math.max(10, theme.shadow)}px ${Math.max(24, theme.shadow * 2)}px rgba(15, 23, 42, 0.22)`,
+          "--spacing": `${theme.spacing}px`,
+          "--heading": theme.headingColor,
+          "--text": theme.textColor,
+        } as CSSProperties
+      }
+    >
+      <div className="editorThemeBackdrop" style={{ backgroundImage: `url(${theme.backgroundImage})` }} />
+      <div className="homepagePreview editorThemeCard">
         <button type="button" className="editRow editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
           <span className="leftHandle" aria-hidden="true">
             <Circle />
@@ -1442,35 +1465,37 @@ function EditablePublicCanvas({
           </div>
         </button>
 
-        {blocks.map((block) => {
-          const selected = selectedBlockId === block.id;
-          return (
-            <div className={`editRow ${selected ? "selectedEditRow" : ""}`} key={block.id}>
-              <button
-                type="button"
-                aria-label={`Select ${block.title || block.type}`}
-                className="leftHandle selectBlockHandle"
-                onClick={() => {
-                  setSelectedBlockId(block.id);
-                  onBlockSelectionChange(true);
-                }}
-              >
-                {selected ? <CircleDot aria-hidden="true" /> : <Circle aria-hidden="true" />}
-              </button>
-              <EditableCanvasBlock
-                block={block}
-                selected={selected}
-                onSelect={() => {
-                  setSelectedBlockId(block.id);
-                  onBlockSelectionChange(true);
-                }}
-              />
-              <span className="rightHandle" aria-hidden="true">
-                <GripVertical />
-              </span>
-            </div>
-          );
-        })}
+        <div className="editorBlockStack">
+          {blocks.map((block) => {
+            const selected = selectedBlockId === block.id;
+            return (
+              <div className={`editRow ${selected ? "selectedEditRow" : ""}`} key={block.id}>
+                <button
+                  type="button"
+                  aria-label={`Select ${block.title || block.type}`}
+                  className="leftHandle selectBlockHandle"
+                  onClick={() => {
+                    setSelectedBlockId(block.id);
+                    onBlockSelectionChange(true);
+                  }}
+                >
+                  {selected ? <CircleDot aria-hidden="true" /> : <Circle aria-hidden="true" />}
+                </button>
+                <EditableCanvasBlock
+                  block={block}
+                  selected={selected}
+                  onSelect={() => {
+                    setSelectedBlockId(block.id);
+                    onBlockSelectionChange(true);
+                  }}
+                />
+                <span className="rightHandle" aria-hidden="true">
+                  <GripVertical />
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {selectedBlock && !editingBlock && (
@@ -1604,8 +1629,18 @@ function EditableCanvasBlock({
         <strong>{block.title || "Untitled link"}</strong>
         {block.subtitle && <small>{block.subtitle}</small>}
       </div>
+      <ArrowUpRight aria-hidden="true" />
     </button>
   );
+}
+
+function editorWithAlpha(hex: string, alpha: number) {
+  const clean = hex.replace("#", "");
+  if (!/^[0-9a-f]{6}$/i.test(clean)) return hex;
+  const r = Number.parseInt(clean.slice(0, 2), 16);
+  const g = Number.parseInt(clean.slice(2, 4), 16);
+  const b = Number.parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0.15, alpha))})`;
 }
 
 function ProfileEditorSheet({
