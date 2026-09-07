@@ -898,12 +898,15 @@ textarea {
 }
 
 .editorDock .addBlockDockButton {
+  display: grid;
+  place-items: center;
   width: 52px;
   height: 52px;
   min-height: 52px;
   align-self: center;
   justify-self: center;
-  margin-top: -20px;
+  margin: 0;
+  padding: 0;
   border: 2px solid #ffffff;
   border-radius: 50%;
   background: #087cff;
