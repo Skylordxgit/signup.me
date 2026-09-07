@@ -82,6 +82,7 @@ export function AdminDashboard() {
   const [blockPickerOpen, setBlockPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
+  const [websiteSettingsOpen, setWebsiteSettingsOpen] = useState(false);
   const [decorationOpen, setDecorationOpen] = useState(false);
   const [addLinkFlowOpen, setAddLinkFlowOpen] = useState(false);
   const [profileEditorRequested, setProfileEditorRequested] = useState(false);
@@ -521,7 +522,7 @@ export function AdminDashboard() {
                 <span><Eye /></span>
                 Preview
               </button>
-              <button type="button" onClick={() => setThemeEditorOpen(true)}>
+              <button type="button" onClick={() => setWebsiteSettingsOpen(true)}>
                 <span><Settings /></span>
                 Settings
               </button>
@@ -558,6 +559,17 @@ export function AdminDashboard() {
               page={activePage}
               onClose={() => setThemeEditorOpen(false)}
               onChange={(theme) => editPage({ theme })}
+            />
+          )}
+
+          {websiteSettingsOpen && (
+            <WebsiteSettingsSheet
+              page={activePage}
+              onClose={() => setWebsiteSettingsOpen(false)}
+              onSave={(patch) => {
+                savePageNow(patch);
+                setWebsiteSettingsOpen(false);
+              }}
             />
           )}
 
@@ -1127,6 +1139,53 @@ function SettingsSheet({ onClose, onLogout }: { onClose: () => void; onLogout: (
         </header>
         <div className="settingsPlaceholder">
           <p>{settingsPlaceholderCopy[view]}</p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function WebsiteSettingsSheet({
+  onClose,
+  onSave,
+  page,
+}: {
+  onClose: () => void;
+  onSave: (patch: Partial<SmartPage>) => void;
+  page: SmartPage;
+}) {
+  const [name, setName] = useState(page.name);
+  const [slug, setSlug] = useState(page.slug);
+  const subdomainValue = slugify(slug) || "your-page";
+  const subdomainUrl = publicSubdomainUrl(subdomainValue);
+  const baseDomain = new URL(publicSubdomainUrl("website")).host.replace(/^website\./, "");
+
+  return (
+    <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Website settings">
+      <section className="settingsSheet websiteSettingsSheet">
+        <header className="settingsHeader">
+          <button type="button" aria-label="Close website settings" onClick={onClose}><X /></button>
+          <h2>Website Settings</h2>
+          <button type="button" className="websiteSettingsSave" onClick={() => onSave({ name, slug: slugify(slug) })}>Save</button>
+        </header>
+        <div className="websiteSettingsFields">
+          <Field label="Website name *">
+            <input value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field label="Your subdomain *">
+            <div className="subdomainInput">
+              <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
+              <span>.{baseDomain}</span>
+            </div>
+            <small className="subdomainPreview">{subdomainUrl}</small>
+          </Field>
+          <div className="websiteStatusRow">
+            <div>
+              <strong>Publishing</strong>
+              <span>{page.status === "published" ? "Visible to visitors" : "Not visible to visitors"}</span>
+            </div>
+            <span className={`statusPill ${page.status}`}>{page.status === "published" ? "Published" : "Draft"}</span>
+          </div>
         </div>
       </section>
     </div>

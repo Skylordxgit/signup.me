@@ -1023,6 +1023,66 @@ textarea {
   box-shadow: 0 -18px 54px rgba(17, 24, 39, 0.22);
 }
 
+.websiteSettingsSheet {
+  max-width: 540px;
+}
+
+.websiteSettingsSave {
+  border: 0;
+  background: transparent;
+  color: #087cff;
+  font-weight: 800;
+}
+
+.websiteSettingsFields {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.websiteSettingsFields input {
+  border: 0;
+  border-radius: 12px;
+  background: #f3f4f8;
+  color: #2e3138;
+  font-size: 17px;
+}
+
+.websiteStatusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #f3f4f8;
+}
+
+.websiteStatusRow > div {
+  display: grid;
+  gap: 4px;
+}
+
+.websiteStatusRow span:not(.statusPill) {
+  color: #757a85;
+  font-size: 14px;
+}
+
+.statusPill {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #e6e8ed;
+  color: #505663;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.statusPill.published {
+  background: #e4f7eb;
+  color: #19733a;
+}
+
 .settingsHeader {
   position: sticky;
   top: 0;
