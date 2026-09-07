@@ -1246,6 +1246,55 @@ const decorationMenuItems: { view: DecorationView; label: string; icon: LucideIc
   { view: "fonts", label: "Fonts", icon: Type },
 ];
 
+const themeGallery: Array<{
+  id: string;
+  label: string;
+  settings: Pick<SmartPage["theme"], "preset" | "backgroundColor" | "gradientFrom" | "gradientTo" | "textColor" | "headingColor" | "buttonBackground" | "buttonTextColor" | "buttonBorderColor">;
+}> = [
+  { id: "classic-light", label: "Classic Light", settings: { preset: "minimal-white", backgroundColor: "#f8fafc", gradientFrom: "#ffffff", gradientTo: "#e9eef5", textColor: "#30333a", headingColor: "#17191e", buttonBackground: "#eef1f5", buttonTextColor: "#1f2937", buttonBorderColor: "#e5e7eb" } },
+  { id: "new-dark", label: "New Dark", settings: { preset: "glass-dark", backgroundColor: "#191b20", gradientFrom: "#333842", gradientTo: "#16181c", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#ffffff", buttonTextColor: "#20232a", buttonBorderColor: "rgba(255,255,255,.24)" } },
+  { id: "midnight", label: "Strong", settings: { preset: "midnight", backgroundColor: "#151618", gradientFrom: "#26282d", gradientTo: "#111214", textColor: "#f8fafc", headingColor: "#ffffff", buttonBackground: "#ffb55b", buttonTextColor: "#261706", buttonBorderColor: "rgba(255,181,91,.4)" } },
+  { id: "taxi", label: "Taxi", settings: { preset: "custom", backgroundColor: "#ffd934", gradientFrom: "#ffdf3d", gradientTo: "#ffcd22", textColor: "#151515", headingColor: "#111111", buttonBackground: "#050505", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(0,0,0,.25)" } },
+  { id: "pink", label: "Pink", settings: { preset: "custom", backgroundColor: "#3433bd", gradientFrom: "#3935ce", gradientTo: "#2f2dae", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#ff3f72", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(255,255,255,.2)" } },
+  { id: "neon", label: "Neon", settings: { preset: "neon-glass", backgroundColor: "#2c2744", gradientFrom: "#322e4d", gradientTo: "#271f3d", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#9431c3", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(177,76,230,.45)" } },
+  { id: "coral", label: "Coral", settings: { preset: "custom", backgroundColor: "#8bd2cf", gradientFrom: "#9bddd9", gradientTo: "#72c5c0", textColor: "#102a2b", headingColor: "#102a2b", buttonBackground: "#d6f2ee", buttonTextColor: "#183536", buttonBorderColor: "rgba(24,53,54,.12)" } },
+  { id: "purple", label: "Purple", settings: { preset: "purple-glass", backgroundColor: "#7770c6", gradientFrom: "#9994d9", gradientTo: "#6258b6", textColor: "#100c33", headingColor: "#100c33", buttonBackground: "#cbc8ee", buttonTextColor: "#19123d", buttonBorderColor: "rgba(25,18,61,.15)" } },
+  { id: "fire", label: "Fire", settings: { preset: "custom", backgroundColor: "#ff4a60", gradientFrom: "#ff5f51", gradientTo: "#ff3d71", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#8d2630", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(255,255,255,.22)" } },
+  { id: "sky", label: "Sky", settings: { preset: "gradient", backgroundColor: "#70b4e8", gradientFrom: "#8cc5f1", gradientTo: "#60a6df", textColor: "#11212f", headingColor: "#0e1d2b", buttonBackground: "#cde8ff", buttonTextColor: "#142c43", buttonBorderColor: "rgba(20,44,67,.15)" } },
+  { id: "lavender", label: "Lavender", settings: { preset: "custom", backgroundColor: "#8732dc", gradientFrom: "#a349ec", gradientTo: "#711fd3", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#4e0f9d", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(255,255,255,.2)" } },
+  { id: "cream", label: "Cream", settings: { preset: "custom", backgroundColor: "#f6e3e3", gradientFrom: "#f8e9e7", gradientTo: "#f3dcdc", textColor: "#211919", headingColor: "#161010", buttonBackground: "#050505", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(0,0,0,.2)" } },
+];
+
+function ThemeGallery({
+  activeTheme,
+  onChange,
+}: {
+  activeTheme: SmartPage["theme"];
+  onChange: (theme: SmartPage["theme"]) => void;
+}) {
+  return (
+    <div className="themeGallery" aria-label="Theme gallery">
+      {themeGallery.map((item) => {
+        const selected = activeTheme.gradientFrom === item.settings.gradientFrom && activeTheme.gradientTo === item.settings.gradientTo;
+        return (
+          <button
+            type="button"
+            className={`themeTile ${selected ? "active" : ""}`}
+            key={item.id}
+            onClick={() => onChange({ ...activeTheme, ...item.settings })}
+          >
+            <span className="themeTilePreview" style={{ background: `linear-gradient(145deg, ${item.settings.gradientFrom}, ${item.settings.gradientTo})`, color: item.settings.headingColor }}>
+              <strong>Text</strong>
+              <i style={{ background: item.settings.buttonBackground }} />
+            </span>
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 const fontOptions: { value: SmartPage["theme"]["font"]; label: string }[] = [
   { value: "inter", label: "Inter" },
   { value: "system", label: "System" },
@@ -1299,13 +1348,7 @@ function PageDecorationSheet({
         </header>
         <div className="decorationFields">
           {view === "theme" && (
-            <Field label="Theme preset">
-              <select value={theme.preset} onChange={(event) => update({ preset: event.target.value as SmartPage["theme"]["preset"] })}>
-                {themePresets.map((preset) => (
-                  <option key={preset.value} value={preset.value}>{preset.label}</option>
-                ))}
-              </select>
-            </Field>
+            <ThemeGallery activeTheme={theme} onChange={onChange} />
           )}
           {view === "backgroundColor" && (
             <div className="appearanceColorGrid">

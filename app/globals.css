@@ -1670,6 +1670,52 @@ button.publicButton {
   padding: 20px 24px 30px;
 }
 
+.themeGallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px 14px;
+  padding: 20px;
+}
+
+.themeTile {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: #30333a;
+  font-size: 14px;
+  text-align: center;
+}
+
+.themeTilePreview {
+  display: grid;
+  place-items: center;
+  gap: 18px;
+  aspect-ratio: 1 / 1.1;
+  border: 3px solid transparent;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+  font-size: 16px;
+}
+
+.themeTilePreview i {
+  display: block;
+  width: 62%;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.themeTile.active .themeTilePreview {
+  border-color: #087cff;
+  box-shadow: 0 0 0 3px rgba(8, 124, 255, 0.18), 0 8px 16px rgba(15, 23, 42, 0.12);
+}
+
+.themeTile.active > span:last-child {
+  color: #087cff;
+  font-weight: 800;
+}
+
 .appearanceFields select,
 .appearanceFields input:not([type="color"]) {
   border: 0;
