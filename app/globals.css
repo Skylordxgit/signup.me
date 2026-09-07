@@ -507,11 +507,6 @@ textarea {
   line-height: 1;
 }
 
-.featureCard {
-  border-color: #6aa4ff;
-  background: #f1f7ff;
-  box-shadow: none;
-}
 
 .mobileCreatePanel {
   display: grid;

@@ -374,14 +374,6 @@ export function AdminDashboard() {
                   <ChevronRight aria-hidden="true" />
                 </button>
               ))}
-
-              <button type="button" className="websiteCard featureCard" onClick={() => void createInstantPage()}>
-                <div>
-                  <strong>Pages & analytics</strong>
-                  <span>Create, publish, and track every link page.</span>
-                </div>
-                <ChevronRight aria-hidden="true" />
-              </button>
             </div>
 
             <button type="button" className="createWebsiteButton" onClick={() => void createInstantPage()}>
