@@ -1464,7 +1464,7 @@ function EditablePublicCanvas({
         })}
       </div>
 
-      {selectedBlock && (
+      {selectedBlock && !editingBlock && (
         <div className="selectedBlockToolbar" aria-label="Selected block actions">
           <button type="button" className="closeToolbarButton" onClick={() => {
             setSelectedBlockId(null);
