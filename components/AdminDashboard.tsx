@@ -62,8 +62,7 @@ import {
 } from "lucide-react";
 import { PublicPage } from "@/components/PublicPage";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
-import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } from "@/lib/utils";
-import { publicSubdomainUrl } from "@/lib/subdomains";
+import { blockTypes, parseBlockIcon, publicPageUrl, readableTextColor, slugify, themePresets } from "@/lib/utils";
 
 type EditorTab = "content" | "blocks" | "design" | "seo" | "integrations" | "analytics";
 type AdminMode = "list" | "detail" | "editor";
@@ -88,7 +87,6 @@ export function AdminDashboard() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [pendingPagePatch, setPendingPagePatch] = useState<Partial<SmartPage> | null>(null);
   const [pendingBlockPatches, setPendingBlockPatches] = useState<Record<number, Partial<PageBlock>>>({});
-  const [appOrigin] = useState(() => (typeof window === "undefined" ? "" : window.location.origin));
 
   const filteredPages = useMemo(
     () => pages.filter((page) => `${page.name} ${page.slug}`.toLowerCase().includes(query.toLowerCase())),
@@ -127,14 +125,15 @@ export function AdminDashboard() {
   }
 
   function publicUrl(slug: string) {
-    return publicSubdomainUrl(slug, appOrigin);
+    return publicPageUrl(slug);
   }
 
   function publicHost(slug: string) {
     try {
-      return new URL(publicUrl(slug)).host;
+      const url = new URL(publicUrl(slug));
+      return `${url.host}${url.pathname}`;
     } catch {
-      return `${slug}.localhost`;
+      return `/${slug}`;
     }
   }
 
@@ -1153,9 +1152,7 @@ function WebsiteSettingsSheet({
 }) {
   const [name, setName] = useState(page.name);
   const [slug, setSlug] = useState(page.slug);
-  const subdomainValue = slugify(slug) || "your-page";
-  const subdomainUrl = publicSubdomainUrl(subdomainValue);
-  const baseDomain = new URL(publicSubdomainUrl("website")).host.replace(/^website\./, "");
+  const pageUrl = publicPageUrl(slugify(slug) || "your-page");
 
   return (
     <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Website settings">
@@ -1169,12 +1166,9 @@ function WebsiteSettingsSheet({
           <Field label="Website name *">
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
-          <Field label="Your subdomain *">
-            <div className="subdomainInput">
-              <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
-              <span>.{baseDomain}</span>
-            </div>
-            <small className="subdomainPreview">{subdomainUrl}</small>
+          <Field label="Page URL *">
+            <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
+            <small className="subdomainPreview">{pageUrl}</small>
           </Field>
           <div className="websiteStatusRow">
             <div>
@@ -1732,9 +1726,7 @@ function ProfileEditorSheet({
   const [bio, setBio] = useState(page.bio);
   const [layout, setLayout] = useState(page.theme.profileLayout ?? "hero");
   const [changing, setChanging] = useState<"cover" | "photo" | null>(null);
-  const subdomainValue = slugify(slug) || "your-page";
-  const subdomainUrl = publicSubdomainUrl(subdomainValue);
-  const baseDomain = new URL(publicSubdomainUrl("website")).host.replace(/^website\./, "");
+  const pageUrl = publicPageUrl(slugify(slug) || "your-page");
 
   function save() {
     onSave({
@@ -1773,12 +1765,9 @@ function ProfileEditorSheet({
           <Field label="Website name *">
             <input value={name} onChange={(event) => setName(event.target.value)} />
           </Field>
-          <Field label="Your subdomain *">
-            <div className="subdomainInput">
-              <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
-              <span>.{baseDomain}</span>
-            </div>
-            <small className="subdomainPreview">{subdomainUrl}</small>
+          <Field label="Page URL *">
+            <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
+            <small className="subdomainPreview">{pageUrl}</small>
           </Field>
           {layout !== "avatar" && layout !== "none" && (
             <MediaChangeRow label="Cover" preview={cover} active={changing === "cover"} onChange={() => setChanging(changing === "cover" ? null : "cover")}>
