@@ -709,6 +709,8 @@ textarea {
 }
 
 .homepageCanvas {
+  display: flex;
+  flex-direction: column;
   min-height: max(540px, calc(100dvh - 210px));
   padding: 12px 10px 22px;
   background: #ffffff;
@@ -717,12 +719,12 @@ textarea {
 
 .canvasEmptyState {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 10px;
   min-height: 480px;
-  height: 100%;
   padding: 40px 24px;
   border-radius: 14px;
   background: linear-gradient(180deg, #1f2024 0%, #0b0b0c 100%);
