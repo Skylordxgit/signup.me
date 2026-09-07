@@ -24,10 +24,18 @@ node -e "const { scryptSync, randomBytes } = require('crypto'); const p = proces
 ## MySQL Setup
 
 1. Create a MySQL database in Hostinger.
-2. Set `DATABASE_URL` in Hostinger using this format:
+2. Set either `DATABASE_URL` or the individual database variables in Hostinger:
 
 ```bash
 mysql://db_user:db_password@db_host:3306/db_name
+```
+
+```bash
+DB_HOST=
+DB_PORT=3306
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
 ```
 
 The app creates all required tables automatically on its first MySQL request. No SQL import is needed.
@@ -36,6 +44,11 @@ The app creates all required tables automatically on its first MySQL request. No
 
 ```bash
 DATABASE_URL=
+DB_HOST=
+DB_PORT=3306
+DB_NAME=
+DB_USER=
+DB_PASSWORD=
 SESSION_SECRET=
 ADMIN_EMAIL=
 ADMIN_PASSWORD_HASH=
@@ -43,7 +56,7 @@ NEXT_PUBLIC_APP_URL=
 COOKIE_SECURE=true
 ```
 
-For the supplied Hostinger database, use the database and user names exactly as created in hPanel. The database host is shown in **hPanel -> Databases -> Management**. URL-encode special characters in the password (for example, `@` becomes `%40`) before placing it in `DATABASE_URL`.
+For the supplied Hostinger database, use the database and user names exactly as created in hPanel. The database host is shown in **hPanel -> Databases -> Management**. Individual variables take priority when both options are present. URL-encode special characters in the password (for example, `@` becomes `%40`) only when placing it in `DATABASE_URL`.
 
 Use a long random value for `SESSION_SECRET`. Never expose database credentials in frontend code.
 

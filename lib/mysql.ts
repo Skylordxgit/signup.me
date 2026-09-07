@@ -93,15 +93,36 @@ const schemaStatements = [
 ];
 
 export function hasMysqlConfig() {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(
+    process.env.DATABASE_URL
+    || (process.env.DB_HOST && process.env.DB_NAME && process.env.DB_USER && process.env.DB_PASSWORD),
+  );
 }
 
 export function mysqlPool() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not configured");
+  if (pool) return pool;
+
+  if (process.env.DB_HOST && process.env.DB_NAME && process.env.DB_USER && process.env.DB_PASSWORD) {
+    const port = Number(process.env.DB_PORT ?? "3306");
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      throw new Error("DB_PORT must be a valid TCP port");
+    }
+
+    pool = mysql.createPool({
+      host: process.env.DB_HOST,
+      port,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+    });
+    return pool;
   }
 
-  pool ??= mysql.createPool(process.env.DATABASE_URL);
+  if (!process.env.DATABASE_URL) {
+    throw new Error("Configure DATABASE_URL or DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD");
+  }
+
+  pool = mysql.createPool(process.env.DATABASE_URL);
   return pool;
 }
 
