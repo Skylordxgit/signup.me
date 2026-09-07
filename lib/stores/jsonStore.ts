@@ -92,7 +92,10 @@ export async function createPage(input: {
     uniqueVisitors: 0,
     createdAt: timestamp,
     updatedAt: timestamp,
-    blocks: [emptyBlock(id, "whatsapp", 1), emptyBlock(id, "website", 2)],
+    blocks: [emptyBlock(id, "whatsapp", 1), emptyBlock(id, "website", 2)].map((block, index) => ({
+      ...block,
+      id: block.id + index,
+    })),
   };
 
   db.pages.push(page);
@@ -205,10 +208,10 @@ export async function updateBlock(id: number, patch: Partial<PageBlock>) {
 export async function deleteBlock(id: number) {
   const db = await readJsonDb();
   for (const page of db.pages) {
-    const before = page.blocks.length;
-    page.blocks = page.blocks.filter((block) => block.id !== id);
-    if (page.blocks.length !== before) {
-      page.blocks = page.blocks.map((block, index) => ({ ...block, sortOrder: index + 1 }));
+    const index = page.blocks.findIndex((block) => block.id === id);
+    if (index !== -1) {
+      page.blocks.splice(index, 1);
+      page.blocks = page.blocks.map((block, blockIndex) => ({ ...block, sortOrder: blockIndex + 1 }));
       page.updatedAt = nowIso();
       await writeJsonDb(db);
       return true;
