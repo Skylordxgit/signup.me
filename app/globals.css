@@ -714,6 +714,241 @@ textarea {
   text-align: right;
 }
 
+.settingsBackdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.45);
+}
+
+.settingsSheet {
+  width: min(100%, 430px);
+  max-height: 92vh;
+  overflow: auto;
+  border-radius: 22px 22px 0 0;
+  background: #ffffff;
+  box-shadow: 0 -18px 54px rgba(17, 24, 39, 0.22);
+}
+
+.settingsHeader {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 50px 1fr 50px;
+  align-items: center;
+  min-height: 66px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+  background: #ffffff;
+  border-radius: 22px 22px 0 0;
+}
+
+.settingsHeader button {
+  width: 50px;
+  height: 50px;
+  border: 0;
+  background: transparent;
+  color: #30343a;
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1;
+}
+
+.settingsHeader h2 {
+  margin: 0;
+  text-align: center;
+  color: #30343a;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.settingsList {
+  display: grid;
+  gap: 12px;
+  padding: 18px 16px 30px;
+}
+
+.settingsRow {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: #f2f3f8;
+  color: #23252b;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.settingsIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #ffffff;
+  font-size: 16px;
+}
+
+.settingsRowDanger {
+  color: #dc2626;
+}
+
+.settingsRowDanger .settingsIcon {
+  color: #dc2626;
+}
+
+.settingsPlaceholder {
+  padding: 32px 20px 40px;
+  color: #4b4d54;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.accountForm {
+  display: grid;
+  gap: 18px;
+  padding: 20px 18px 34px;
+}
+
+.accountAvatarRow {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.accountAvatarPreview {
+  overflow: hidden;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #f2f3f8;
+}
+
+.accountAvatarPreview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.accountAvatarPlaceholder {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.accountAvatarRow strong {
+  color: #23252b;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.accountUploadButton {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: #087cff;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.accountField {
+  display: grid;
+  gap: 8px;
+}
+
+.accountField > span:first-child {
+  color: #6b6d76;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.accountField input {
+  min-height: 46px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: #f2f3f8;
+  color: #23252b;
+  font-size: 15px;
+}
+
+.accountFieldRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: #f2f3f8;
+  color: #23252b;
+  font-size: 15px;
+}
+
+.accountFieldRow button {
+  border: 0;
+  background: transparent;
+  color: #087cff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.accountOptionList {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f8f9fc;
+}
+
+.accountOptionList button {
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #23252b;
+  text-align: left;
+  font-size: 14px;
+}
+
+.accountOptionList button:hover {
+  background: #eef1f7;
+}
+
+.accountHint {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fff7ed;
+  color: #92400e;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.accountSaveButton {
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: #d9dbe1;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .homepagePreviewWrap {
   position: relative;
 }

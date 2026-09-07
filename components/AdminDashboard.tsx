@@ -19,6 +19,7 @@ export function AdminDashboard() {
   const [newPageOpen, setNewPageOpen] = useState(false);
   const [adminMode, setAdminMode] = useState<AdminMode>("list");
   const [blockPickerOpen, setBlockPickerOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingPagePatch, setPendingPagePatch] = useState<Partial<SmartPage> | null>(null);
   const [pendingBlockPatches, setPendingBlockPatches] = useState<Record<number, Partial<PageBlock>>>({});
   const [appOrigin] = useState(() => (typeof window === "undefined" ? "" : window.location.origin));
@@ -277,13 +278,15 @@ export function AdminDashboard() {
               <div className="handMark">SL</div>
               <strong>SmartLink</strong>
             </div>
-            <button type="button" className="menuButton" aria-label="Open menu" onClick={logout}>
+            <button type="button" className="menuButton" aria-label="Open menu" onClick={() => setSettingsOpen(true)}>
               ☰
             </button>
           </header>
 
           <div className="websiteContent">
             <h1>My Websites</h1>
+
+            {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} onLogout={logout} />}
 
             {newPageOpen && (
               <form className="mobileCreatePanel" onSubmit={createPage}>
@@ -794,6 +797,221 @@ function BlockPickerSheet({
               <em>+</em>
             </button>
           ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+type SettingsView = "menu" | "account" | "notifications" | "billing" | "privacy" | "terms";
+
+const settingsMenuItems: { view: SettingsView; label: string; icon: string }[] = [
+  { view: "account", label: "My Account", icon: "☺" },
+  { view: "notifications", label: "Notifications", icon: "◔" },
+  { view: "billing", label: "Billing", icon: "$" },
+  { view: "privacy", label: "Privacy policy", icon: "▤" },
+  { view: "terms", label: "Terms of use", icon: "▤" },
+];
+
+const settingsPlaceholderCopy: Partial<Record<SettingsView, string>> = {
+  notifications: "Notification preferences aren't available yet.",
+  billing: "Billing details aren't available yet.",
+  privacy: "Read the privacy policy at your hosting provider's documentation.",
+  terms: "Read the terms of use at your hosting provider's documentation.",
+};
+
+function SettingsSheet({ onClose, onLogout }: { onClose: () => void; onLogout: () => void }) {
+  const [view, setView] = useState<SettingsView>("menu");
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [language, setLanguage] = useState("English");
+  const [avatar, setAvatar] = useState("");
+  const [status, setStatus] = useState("Save changes");
+  const [languagePickerOpen, setLanguagePickerOpen] = useState(false);
+  const [passwordNoticeOpen, setPasswordNoticeOpen] = useState(false);
+
+  useEffect(() => {
+    if (view !== "account") return;
+    let cancelled = false;
+
+    (async () => {
+      let currentEmail = "";
+      try {
+        const response = await fetch("/api/auth/me");
+        if (response.ok) {
+          const data = (await response.json()) as { email?: string };
+          currentEmail = data.email ?? "";
+        }
+      } catch {
+        // Ignore network errors; fields stay editable with local defaults.
+      }
+      if (cancelled) return;
+
+      let saved: { name?: string; language?: string; avatar?: string } | null = null;
+      try {
+        const raw = window.localStorage.getItem("smartlink_profile");
+        saved = raw ? JSON.parse(raw) : null;
+      } catch {
+        saved = null;
+      }
+
+      setEmail(currentEmail);
+      setName(saved?.name ?? currentEmail.split("@")[0] ?? "");
+      setLanguage(saved?.language ?? "English");
+      setAvatar(saved?.avatar ?? "");
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [view]);
+
+  function pickAvatar(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setAvatar(String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+  }
+
+  function saveProfile() {
+    try {
+      window.localStorage.setItem("smartlink_profile", JSON.stringify({ name, language, avatar }));
+    } catch {
+      // Ignore storage errors (e.g. private browsing).
+    }
+    setStatus("Saved");
+    window.setTimeout(() => setStatus("Save changes"), 1500);
+  }
+
+  function deleteAccount() {
+    if (window.confirm("Delete your account? This ends your session immediately.")) {
+      onLogout();
+    }
+  }
+
+  if (view === "menu") {
+    return (
+      <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Settings">
+        <section className="settingsSheet">
+          <header className="settingsHeader">
+            <button type="button" aria-label="Close settings" onClick={onClose}>×</button>
+            <h2>Settings</h2>
+            <span aria-hidden="true" />
+          </header>
+          <div className="settingsList">
+            {settingsMenuItems.map((item) => (
+              <button type="button" className="settingsRow" key={item.view} onClick={() => setView(item.view)}>
+                <span className="settingsIcon">{item.icon}</span>
+                <strong>{item.label}</strong>
+              </button>
+            ))}
+            <button type="button" className="settingsRow" onClick={onLogout}>
+              <span className="settingsIcon">⇥</span>
+              <strong>Logout</strong>
+            </button>
+            <button type="button" className="settingsRow settingsRowDanger" onClick={deleteAccount}>
+              <span className="settingsIcon">⌫</span>
+              <strong>Delete Account</strong>
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (view === "account") {
+    return (
+      <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="My Account">
+        <section className="settingsSheet">
+          <header className="settingsHeader">
+            <button type="button" aria-label="Close" onClick={onClose}>×</button>
+            <h2>My Account</h2>
+            <span aria-hidden="true" />
+          </header>
+          <div className="accountForm">
+            <div className="accountAvatarRow">
+              <div className="accountAvatarPreview">
+                {avatar ? <img src={avatar} alt="" /> : <span className="accountAvatarPlaceholder" aria-hidden="true" />}
+              </div>
+              <strong>Avatar</strong>
+              <label className="accountUploadButton">
+                Upload
+                <input type="file" accept="image/*" onChange={pickAvatar} hidden />
+              </label>
+            </div>
+
+            <label className="accountField">
+              <span>Name</span>
+              <input value={name} onChange={(event) => setName(event.target.value)} />
+            </label>
+
+            <label className="accountField">
+              <span>Email</span>
+              <input value={email} readOnly />
+            </label>
+
+            <div className="accountField">
+              <span>Language</span>
+              <div className="accountFieldRow">
+                <span>{language}</span>
+                <button type="button" onClick={() => setLanguagePickerOpen((value) => !value)}>
+                  Change
+                </button>
+              </div>
+              {languagePickerOpen && (
+                <div className="accountOptionList">
+                  {["English", "Spanish", "French", "Hindi", "Arabic"].map((option) => (
+                    <button
+                      type="button"
+                      key={option}
+                      onClick={() => {
+                        setLanguage(option);
+                        setLanguagePickerOpen(false);
+                      }}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="accountField">
+              <span>Password</span>
+              <div className="accountFieldRow">
+                <span>••••••••••</span>
+                <button type="button" onClick={() => setPasswordNoticeOpen((value) => !value)}>
+                  Change
+                </button>
+              </div>
+              {passwordNoticeOpen && (
+                <p className="accountHint">
+                  Password is set via the ADMIN_PASSWORD_HASH environment variable on the server. Update it there to
+                  change your password.
+                </p>
+              )}
+            </div>
+
+            <button type="button" className="accountSaveButton" onClick={saveProfile}>
+              {status}
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label={settingsMenuItems.find((item) => item.view === view)?.label}>
+      <section className="settingsSheet">
+        <header className="settingsHeader">
+          <button type="button" aria-label="Close" onClick={onClose}>×</button>
+          <h2>{settingsMenuItems.find((item) => item.view === view)?.label}</h2>
+          <span aria-hidden="true" />
+        </header>
+        <div className="settingsPlaceholder">
+          <p>{settingsPlaceholderCopy[view]}</p>
         </div>
       </section>
     </div>
