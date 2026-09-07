@@ -520,6 +520,123 @@ textarea {
   padding: 12px;
 }
 
+.createWebsiteBackdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  align-items: end;
+  justify-items: center;
+  padding: 20px;
+  background: rgba(19, 23, 35, 0.46);
+  backdrop-filter: blur(6px);
+}
+
+.createWebsiteSheet {
+  width: min(100%, 460px);
+  display: grid;
+  gap: 14px;
+  max-height: min(760px, calc(100dvh - 40px));
+  overflow-y: auto;
+  padding: 18px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 20px 20px 12px 12px;
+  background: #ffffff;
+  box-shadow: 0 -16px 44px rgba(17, 24, 39, 0.22);
+}
+
+.createWebsiteSheet .sheetHeader {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  min-height: 36px;
+}
+
+.createWebsiteSheet .sheetHeader h2 {
+  margin: 0;
+  color: #20222a;
+  font-size: 20px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.createWebsiteSheet .iconButton {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #f4f5f8;
+  color: #30323a;
+}
+
+.createWebsiteIntro {
+  margin: -2px 2px 2px;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.createWebsiteSheet label {
+  display: grid;
+  gap: 7px;
+  color: #353840;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.createWebsiteSheet input,
+.createWebsiteSheet textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 13px;
+  border: 1px solid #d9dde6;
+  border-radius: 10px;
+  background: #fafbfc;
+  color: #252833;
+  font: inherit;
+  font-weight: 500;
+  outline: none;
+}
+
+.createWebsiteSheet textarea {
+  min-height: 82px;
+  resize: vertical;
+}
+
+.createWebsiteSheet input:focus,
+.createWebsiteSheet textarea:focus {
+  border-color: #087cff;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(8, 124, 255, 0.12);
+}
+
+.fieldOptional {
+  color: #8b909a;
+  font-weight: 500;
+}
+
+.createWebsiteSubmit {
+  display: inline-flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 12px;
+  background: #087cff;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  box-shadow: 0 10px 20px rgba(8, 124, 255, 0.24);
+}
+
+.createWebsiteSubmit:hover {
+  background: #006de8;
+}
+
 .mobileCreatePanel button,
 .createWebsiteButton {
   min-height: 42px;
