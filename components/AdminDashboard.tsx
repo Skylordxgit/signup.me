@@ -3,7 +3,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
-  ArrowDown,
   ArrowLeft,
   ArrowUpRight,
   BarChart3,
@@ -24,7 +23,6 @@ import {
   GalleryVerticalEnd,
   Globe2,
   GripVertical,
-  Hand,
   Heart,
   ImageIcon,
   LayoutPanelTop,
@@ -501,7 +499,6 @@ export function AdminDashboard() {
               profileEditorRequested={profileEditorRequested}
               onProfileEditorDismiss={() => setProfileEditorRequested(false)}
               onBlockSelectionChange={setHasSelectedBlock}
-              onAddFirstBlock={() => setBlockPickerOpen(true)}
             />
           </div>
 
@@ -1414,7 +1411,6 @@ function EditablePublicCanvas({
   onProfileEditorDismiss,
   profileEditorRequested,
   onBlockSelectionChange,
-  onAddFirstBlock,
   page,
 }: {
   onDeleteBlock: (blockId: number) => void;
@@ -1426,14 +1422,12 @@ function EditablePublicCanvas({
   onProfileEditorDismiss: () => void;
   profileEditorRequested: boolean;
   onBlockSelectionChange: (selected: boolean) => void;
-  onAddFirstBlock: () => void;
   page: SmartPage;
 }) {
   const blocks = [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder);
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<number | null>(null);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
-  const [emptyCtaDismissed, setEmptyCtaDismissed] = useState(false);
   const selectedBlock = blocks.find((block) => block.id === selectedBlockId) ?? null;
   const editingBlock = blocks.find((block) => block.id === editingBlockId) ?? null;
   const selectedIndex = selectedBlock ? blocks.findIndex((block) => block.id === selectedBlock.id) : -1;
@@ -1446,56 +1440,6 @@ function EditablePublicCanvas({
     setSelectedBlockId(null);
     onBlockSelectionChange(false);
     setProfileEditorOpen(true);
-  }
-
-  if (blocks.length === 0) {
-    return (
-      <>
-        <div className="canvasEmptyState">
-          <h2>Start building your website</h2>
-          <p>Press the button below to add your first block</p>
-          <ArrowDown className="canvasEmptyArrow" aria-hidden="true" />
-          {!emptyCtaDismissed && (
-            <button type="button" className="canvasEmptyCta" onClick={onAddFirstBlock}>
-              <Hand size={16} aria-hidden="true" />
-              Create free website
-              <span
-                className="canvasEmptyCtaClose"
-                role="button"
-                tabIndex={0}
-                aria-label="Dismiss"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setEmptyCtaDismissed(true);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.stopPropagation();
-                  event.preventDefault();
-                  setEmptyCtaDismissed(true);
-                }}
-              >
-                <X size={14} />
-              </span>
-            </button>
-          )}
-        </div>
-        {isProfileEditorOpen && (
-          <ProfileEditorSheet
-            page={page}
-            onClose={() => {
-              setProfileEditorOpen(false);
-              onProfileEditorDismiss();
-            }}
-            onSave={(patch) => {
-              onSaveProfile(patch);
-              setProfileEditorOpen(false);
-              onProfileEditorDismiss();
-            }}
-          />
-        )}
-      </>
-    );
   }
 
   return (
