@@ -569,6 +569,7 @@ textarea {
 }
 
 .homepageCanvas {
+  min-height: max(540px, calc(100dvh - 210px));
   padding: 12px 10px 22px;
   background: #ffffff;
   box-shadow: 0 18px 50px rgba(17, 24, 39, 0.09);
@@ -608,13 +609,13 @@ textarea {
 }
 
 .editorDock .addBlockDockButton {
-  width: 58px;
-  height: 58px;
-  min-height: 58px;
+  width: 52px;
+  height: 52px;
+  min-height: 52px;
   align-self: center;
   justify-self: center;
-  margin-top: -24px;
-  border: 3px solid #ffffff;
+  margin-top: -20px;
+  border: 2px solid #ffffff;
   border-radius: 50%;
   background: #087cff;
   box-shadow: 0 10px 24px rgba(8, 124, 255, 0.32);
@@ -825,6 +826,76 @@ textarea {
   z-index: 60;
   inset: 0;
   background: rgba(15, 23, 42, 0.42);
+}
+
+.appearanceSheetBackdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: end center;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.appearanceSheet {
+  width: min(100%, 430px);
+  max-height: min(88vh, 680px);
+  overflow: auto;
+  border-radius: 18px 18px 0 0;
+  background: #ffffff;
+  color: #2e3138;
+  box-shadow: 0 -20px 50px rgba(15, 23, 42, 0.22);
+}
+
+.appearanceSheetHeader {
+  display: grid;
+  grid-template-columns: 56px 1fr 56px;
+  align-items: center;
+  min-height: 70px;
+  border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+}
+
+.appearanceSheetHeader h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.appearanceSheetHeader button {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 0;
+  background: transparent;
+  color: #2e3138;
+}
+
+.appearanceFields {
+  display: grid;
+  gap: 16px;
+  padding: 20px 24px 30px;
+}
+
+.appearanceFields select,
+.appearanceFields input:not([type="color"]) {
+  border: 0;
+  background: #f3f4f8;
+}
+
+.appearanceColorGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.appearanceColorGrid input[type="color"] {
+  height: 46px;
+  min-height: 46px;
+  padding: 3px;
+  border-radius: 10px;
+  cursor: pointer;
 }
 
 .profileEditSheet {
@@ -1890,6 +1961,8 @@ textarea {
 }
 
 .publicProfile img {
+  display: block;
+  margin-inline: auto;
   width: 104px;
   height: 104px;
   object-fit: cover;
@@ -2152,5 +2225,330 @@ textarea {
   .publicCard {
     padding: 18px;
     border-radius: 24px;
+  }
+}
+
+/* Final UI polish: shared interaction, icon, and responsive layout rules. */
+button,
+a,
+input,
+textarea,
+select {
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+button svg,
+a svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(0.98);
+}
+
+.websitePhone {
+  min-height: min(760px, calc(100vh - 52px));
+}
+
+.upgradeBar button,
+.menuButton,
+.homepageEditorTop button,
+.detailHeader > button:first-child,
+.blockPickerHeader button,
+.profileSheetHeader button,
+.linkSheetHeader button:first-child {
+  display: grid;
+  place-items: center;
+}
+
+.upgradeBar button svg,
+.menuButton svg,
+.homepageEditorTop button svg,
+.detailHeader > button:first-child svg,
+.blockPickerHeader button svg,
+.profileSheetHeader button svg,
+.linkSheetHeader button:first-child svg {
+  width: 22px;
+  height: 22px;
+}
+
+.websiteCard > svg,
+.detailMenu > button > svg {
+  width: 20px;
+  height: 20px;
+  color: #667085;
+}
+
+.createWebsiteButton,
+.mobileCreatePanel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.createWebsiteButton svg {
+  width: 17px;
+  height: 17px;
+}
+
+.helpBubble {
+  display: grid;
+  place-items: center;
+}
+
+.helpBubble svg {
+  width: 22px;
+  height: 22px;
+}
+
+.quickActions span,
+.detailMenu span,
+.editorDock button span,
+.blockPickerIcon,
+.canvasBlockIcon,
+.publicButton > span {
+  display: grid;
+  place-items: center;
+}
+
+.quickActions span svg,
+.detailMenu span svg,
+.editorDock button span svg,
+.blockPickerIcon svg,
+.canvasBlockIcon svg,
+.publicButton > span svg {
+  width: 20px;
+  height: 20px;
+}
+
+.detailMenu > button > svg {
+  justify-self: end;
+}
+
+.homepageEditorShell {
+  padding: 24px 16px 40px;
+}
+
+.homepageEditor {
+  width: min(100%, 430px);
+}
+
+.homepageCanvas {
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  border-radius: 16px;
+}
+
+.homepagePreview {
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+.editorDock {
+  margin: 16px 0 0;
+  border: 1px solid rgba(17, 24, 39, 0.07);
+  border-radius: 14px;
+}
+
+.editorDock button {
+  border-radius: 10px;
+}
+
+.editorDock button:hover:not(.addBlockDockButton) {
+  background: rgba(8, 124, 255, 0.08);
+  color: #087cff;
+}
+
+.editorDock .addBlockDockButton svg {
+  width: 24px;
+  height: 24px;
+}
+
+.editableProfile:focus-visible .bannerPreview,
+.editableProfile:focus-visible img {
+  outline: 3px solid rgba(8, 124, 255, 0.52);
+  outline-offset: 4px;
+}
+
+.profileEditBlock strong,
+.profileEditBlock p,
+.profileSheetIdentity strong,
+.profileSheetIdentity p,
+.publicProfile h1,
+.publicProfile p,
+.publicButton strong,
+.publicButton small {
+  overflow-wrap: anywhere;
+}
+
+.blockPickerOption {
+  transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.blockPickerOption:hover {
+  background: #ebf3ff;
+  box-shadow: inset 0 0 0 1px rgba(8, 124, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.blockPickerOption > svg {
+  justify-self: end;
+  width: 21px;
+  height: 21px;
+  color: #087cff;
+}
+
+.blockPickerIcon {
+  color: #344054;
+}
+
+.blockPickerHeader button svg,
+.profileSheetHeader button svg,
+.linkSheetHeader button:first-child svg {
+  width: 24px;
+  height: 24px;
+}
+
+.selectedBlockToolbar button span svg {
+  width: 21px;
+  height: 21px;
+}
+
+.selectedBlockToolbar .closeToolbarButton svg {
+  width: 24px;
+  height: 24px;
+}
+
+.profileSheetHeader button:last-child svg {
+  width: 24px;
+  height: 24px;
+}
+
+.publicButton > svg {
+  width: 18px;
+  height: 18px;
+  opacity: 0.8;
+}
+
+.videoPlaceholder > svg {
+  width: 28px;
+  height: 28px;
+}
+
+@media (min-width: 561px) {
+  .websiteShell {
+    padding: 32px 24px;
+  }
+
+  .profileSheetBackdrop,
+  .blockPickerBackdrop,
+  .appearanceSheetBackdrop {
+    display: grid;
+    place-items: center;
+    padding: 24px;
+  }
+
+  .profileEditSheet,
+  .blockPickerSheet,
+  .appearanceSheet {
+    min-height: 0;
+    max-height: min(88vh, 760px);
+    border-radius: 18px;
+    box-shadow: 0 24px 72px rgba(15, 23, 42, 0.24);
+  }
+}
+
+@media (max-width: 860px) {
+  .adminNav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+    padding: 12px;
+  }
+
+  .adminBrand {
+    grid-column: 1 / -1;
+    margin: 0 0 4px;
+  }
+
+  .adminNav button {
+    text-align: center;
+  }
+
+  .pageManager {
+    padding: 16px;
+  }
+
+  .dashboardHeader {
+    align-items: start;
+  }
+}
+
+@media (max-width: 560px) {
+  .homepageEditorShell {
+    padding: 12px 0 28px;
+  }
+
+  .homepageEditor {
+    width: 100%;
+  }
+
+  .homepageEditorTop {
+    padding: 0 12px;
+    margin-bottom: 12px;
+  }
+
+  .homepageCanvas {
+    min-height: max(520px, calc(100dvh - 184px));
+    border-inline: 0;
+    border-radius: 0;
+  }
+
+  .editorDock {
+    position: sticky;
+    bottom: 8px;
+    z-index: 20;
+    margin: 12px 12px 0;
+  }
+
+  .profileEditBlock {
+    margin-inline: 18px;
+  }
+
+  .profileSheetPreview,
+  .profileSheetFields {
+    padding-inline: 18px;
+  }
+
+  .profileSheetIdentity {
+    grid-template-columns: 92px 1fr;
+    margin-inline: 14px;
+  }
+
+  .profileSheetIdentity img {
+    width: 92px;
+    height: 92px;
+  }
+
+  .profileSheetIdentity > div {
+    padding-top: 48px;
+  }
+
+  .profileSheetIdentity strong {
+    font-size: 21px;
+  }
+
+  .blockPickerList {
+    padding-inline: 12px;
+  }
+
+  .detailHeader h1 {
+    font-size: 22px;
+  }
+
+  .quickActions {
+    margin-inline: 20px;
   }
 }

@@ -2,6 +2,49 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
+import {
+  ArrowLeft,
+  BarChart3,
+  Blocks,
+  ChevronRight,
+  CircleHelp,
+  ClipboardCopy,
+  CopyPlus,
+  Eye,
+  EyeOff,
+  FormInput,
+  GalleryVerticalEnd,
+  Globe2,
+  ImageIcon,
+  LayoutPanelTop,
+  Link2,
+  Mail,
+  MapPin,
+  Menu,
+  MessageCircle,
+  Minus,
+  MoreHorizontal,
+  Music2,
+  MoveDown,
+  MoveUp,
+  Package,
+  Palette,
+  Pencil,
+  Phone,
+  Play,
+  Plus,
+  QrCode,
+  Send,
+  Settings,
+  Share2,
+  Timer,
+  Trash2,
+  Type,
+  UsersRound,
+  Video,
+  X,
+  type LucideIcon,
+} from "lucide-react";
 import { PublicPage } from "@/components/PublicPage";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
 import { blockTypes, slugify, themePresets } from "@/lib/utils";
@@ -19,6 +62,9 @@ export function AdminDashboard() {
   const [newPageOpen, setNewPageOpen] = useState(false);
   const [adminMode, setAdminMode] = useState<AdminMode>("list");
   const [blockPickerOpen, setBlockPickerOpen] = useState(false);
+  const [themeEditorOpen, setThemeEditorOpen] = useState(false);
+  const [profileEditorRequested, setProfileEditorRequested] = useState(false);
+  const [hasSelectedBlock, setHasSelectedBlock] = useState(false);
   const [pendingPagePatch, setPendingPagePatch] = useState<Partial<SmartPage> | null>(null);
   const [pendingBlockPatches, setPendingBlockPatches] = useState<Record<number, Partial<PageBlock>>>({});
   const [appOrigin] = useState(() => (typeof window === "undefined" ? "" : window.location.origin));
@@ -48,6 +94,7 @@ export function AdminDashboard() {
     setActivePage(page);
     setPendingPagePatch(null);
     setPendingBlockPatches({});
+    setHasSelectedBlock(false);
     setTab("content");
     setAdminMode(mode);
     void loadAnalytics(id);
@@ -266,7 +313,7 @@ export function AdminDashboard() {
         <section className="websitePhone">
           <div className="upgradeBar">
             <button type="button" aria-label="Dismiss upgrade message">
-              ×
+              <X />
             </button>
             <strong>Manage all your public smart-link pages</strong>
             <span>Admin</span>
@@ -278,7 +325,7 @@ export function AdminDashboard() {
               <strong>SmartLink</strong>
             </div>
             <button type="button" className="menuButton" aria-label="Open menu" onClick={logout}>
-              ☰
+              <Menu />
             </button>
           </header>
 
@@ -303,7 +350,7 @@ export function AdminDashboard() {
                     <strong>{page.name}</strong>
                     <span>{page.slug}.smartlink.local</span>
                   </div>
-                  <em>›</em>
+                  <ChevronRight aria-hidden="true" />
                 </button>
               ))}
 
@@ -312,17 +359,17 @@ export function AdminDashboard() {
                   <strong>Pages & analytics</strong>
                   <span>Create, publish, and track every link page.</span>
                 </div>
-                <em>›</em>
+                <ChevronRight aria-hidden="true" />
               </button>
             </div>
 
             <button type="button" className="createWebsiteButton" onClick={() => setNewPageOpen((value) => !value)}>
-              + Create new website
+              <Plus /> Create new website
             </button>
           </div>
 
           <button type="button" className="helpBubble" aria-label="Open support chat">
-            □
+            <MessageCircle />
           </button>
         </section>
       </main>
@@ -330,13 +377,13 @@ export function AdminDashboard() {
   }
 
   if (adminMode === "detail") {
-    const detailActions: { label: string; icon: string; tab: EditorTab }[] = [
-      { label: "Edit", icon: "✎", tab: "content" },
-      { label: "Audience", icon: "♚", tab: "analytics" },
-      { label: "Analytics", icon: "◔", tab: "analytics" },
-      { label: "Requests", icon: "●", tab: "integrations" },
-      { label: "Products", icon: "▣", tab: "blocks" },
-      { label: "Settings", icon: "⚙", tab: "design" },
+    const detailActions: { label: string; icon: LucideIcon; tab: EditorTab }[] = [
+      { label: "Edit", icon: Pencil, tab: "content" },
+      { label: "Audience", icon: UsersRound, tab: "analytics" },
+      { label: "Analytics", icon: BarChart3, tab: "analytics" },
+      { label: "Requests", icon: MessageCircle, tab: "integrations" },
+      { label: "Products", icon: Package, tab: "blocks" },
+      { label: "Settings", icon: Settings, tab: "design" },
     ];
 
     return (
@@ -344,7 +391,7 @@ export function AdminDashboard() {
         <section className="websitePhone detailPhone">
           <header className="detailHeader">
             <button type="button" aria-label="Back to websites" onClick={() => setAdminMode("list")}>
-              ←
+              <ArrowLeft />
             </button>
             <h1>{activePage.name}</h1>
             <button type="button" className="outlinePill" onClick={() => savePageNow({ status: activePage.status === "published" ? "draft" : "published" })}>
@@ -356,11 +403,11 @@ export function AdminDashboard() {
 
           <div className="quickActions">
             <button type="button" onClick={() => navigator.clipboard?.writeText(publicUrl(activePage.slug))}>
-              <span>□</span>
+              <span><ClipboardCopy /></span>
               Copy Link
             </button>
             <a href={`https://api.qrserver.com/v1/create-qr-code/?size=800x800&data=${encodeURIComponent(publicUrl(activePage.slug))}`}>
-              <span>▦</span>
+              <span><QrCode /></span>
               QR Code
             </a>
             <button
@@ -373,7 +420,7 @@ export function AdminDashboard() {
                 }
               }}
             >
-              <span>⌯</span>
+              <span><Share2 /></span>
               Share
             </button>
           </div>
@@ -389,9 +436,9 @@ export function AdminDashboard() {
                   if (action.tab === "analytics") void loadAnalytics();
                 }}
               >
-                <span>{action.icon}</span>
+                <span><action.icon /></span>
                 <strong>{action.label}</strong>
-                <em>›</em>
+                <ChevronRight aria-hidden="true" />
               </button>
             ))}
           </nav>
@@ -406,11 +453,11 @@ export function AdminDashboard() {
         <section className="homepageEditor">
           <header className="homepageEditorTop">
             <button type="button" aria-label="Back to website menu" onClick={() => setAdminMode("detail")}>
-              ←
+              <ArrowLeft />
             </button>
             <h1>Homepage</h1>
             <button type="button" aria-label="Share public page" onClick={() => navigator.clipboard?.writeText(publicUrl(activePage.slug))}>
-              ⇧
+              <Share2 />
             </button>
           </header>
 
@@ -423,39 +470,52 @@ export function AdminDashboard() {
               onMoveBlock={moveBlock}
               onUpdateBlock={editBlock}
               onSaveProfile={savePageNow}
+              profileEditorRequested={profileEditorRequested}
+              onProfileEditorDismiss={() => setProfileEditorRequested(false)}
+              onBlockSelectionChange={setHasSelectedBlock}
             />
           </div>
 
-          <nav className="editorDock" aria-label="Homepage tools">
-            <button type="button" onClick={() => document.querySelector(".homepageCanvas")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-              <span>▱</span>
-              Pages
-            </button>
-            <button type="button" onClick={() => document.getElementById("page-media")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-              <span>◒</span>
-              Style
-            </button>
-            <button type="button" className="addBlockDockButton" aria-label="Add a block" onClick={() => setBlockPickerOpen(true)}>
-              +
-            </button>
-            <button type="button" onClick={() => window.open(publicUrl(activePage.slug), "_blank", "noopener,noreferrer")}>
-              <span>◉</span>
-              Preview
-            </button>
-            <button type="button" onClick={() => document.getElementById("page-media")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-              <span>⚙</span>
-              Settings
-            </button>
-          </nav>
+          {!hasSelectedBlock && (
+            <nav className="editorDock" aria-label="Homepage tools">
+              <button type="button" onClick={() => document.querySelector(".homepageCanvas")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                <span><LayoutPanelTop /></span>
+                Pages
+              </button>
+              <button type="button" onClick={() => setThemeEditorOpen(true)}>
+                <span><Palette /></span>
+                Style
+              </button>
+              <button type="button" className="addBlockDockButton" aria-label="Add a block" onClick={() => setBlockPickerOpen(true)}>
+                <Plus />
+              </button>
+              <button type="button" onClick={() => window.open(publicUrl(activePage.slug), "_blank", "noopener,noreferrer")}>
+                <span><Eye /></span>
+                Preview
+              </button>
+              <button type="button" onClick={() => setThemeEditorOpen(true)}>
+                <span><Settings /></span>
+                Settings
+              </button>
+            </nav>
+          )}
 
           {blockPickerOpen && (
             <BlockPickerSheet
               onClose={() => setBlockPickerOpen(false)}
               onProfile={() => {
                 setBlockPickerOpen(false);
-                window.setTimeout(() => document.getElementById("page-media")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                setProfileEditorRequested(true);
               }}
               onSelect={addBlock}
+            />
+          )}
+
+          {themeEditorOpen && (
+            <ThemeEditorSheet
+              page={activePage}
+              onClose={() => setThemeEditorOpen(false)}
+              onChange={(theme) => editPage({ theme })}
             />
           )}
         </section>
@@ -743,25 +803,25 @@ export function AdminDashboard() {
   );
 }
 
-const pickerOptions: Array<{ label: string; icon: string; type?: BlockType; patch?: Partial<PageBlock>; profile?: boolean }> = [
-  { label: "Profile", icon: "▱", profile: true },
-  { label: "Text", icon: "T", type: "text", patch: { title: "Add your text here" } },
-  { label: "Links", icon: "↗", type: "link" },
-  { label: "Form", icon: "▣", type: "email", patch: { title: "Contact us", subtitle: "Send an enquiry" } },
-  { label: "Messengers", icon: "◌", type: "whatsapp" },
-  { label: "Socials", icon: "⌘", type: "socials" },
-  { label: "Divider", icon: "---", type: "divider" },
-  { label: "Products Catalog", icon: "▣", type: "link", patch: { title: "Products catalog" } },
-  { label: "Image", icon: "▧", type: "image" },
-  { label: "Image Gallery", icon: "▧", type: "image", patch: { title: "Image gallery" } },
-  { label: "Features", icon: "☷", type: "heading", patch: { title: "Features" } },
-  { label: "FAQ", icon: "☷", type: "text", patch: { title: "Frequently asked questions" } },
-  { label: "Timer", icon: "◷", type: "text", patch: { title: "Coming soon" } },
-  { label: "Giphy", icon: "GIF", type: "image", patch: { title: "Animated image" } },
-  { label: "Video", icon: "▻", type: "video" },
-  { label: "Video Gallery", icon: "▻", type: "video", patch: { title: "Video gallery" } },
-  { label: "Map", icon: "⌖", type: "website", patch: { title: "Find us", subtitle: "Open map" } },
-  { label: "Music", icon: "♫", type: "website", patch: { title: "Listen now" } },
+const pickerOptions: Array<{ label: string; icon: LucideIcon; type?: BlockType; patch?: Partial<PageBlock>; profile?: boolean }> = [
+  { label: "Profile", icon: LayoutPanelTop, profile: true },
+  { label: "Text", icon: Type, type: "text", patch: { title: "Add your text here" } },
+  { label: "Links", icon: Link2, type: "link" },
+  { label: "Form", icon: FormInput, type: "email", patch: { title: "Contact us", subtitle: "Send an enquiry" } },
+  { label: "Messengers", icon: MessageCircle, type: "whatsapp" },
+  { label: "Socials", icon: Share2, type: "socials" },
+  { label: "Divider", icon: Minus, type: "divider" },
+  { label: "Products Catalog", icon: Package, type: "link", patch: { title: "Products catalog" } },
+  { label: "Image", icon: ImageIcon, type: "image" },
+  { label: "Image Gallery", icon: GalleryVerticalEnd, type: "image", patch: { title: "Image gallery" } },
+  { label: "Features", icon: Blocks, type: "heading", patch: { title: "Features" } },
+  { label: "FAQ", icon: CircleHelp, type: "text", patch: { title: "Frequently asked questions" } },
+  { label: "Timer", icon: Timer, type: "text", patch: { title: "Coming soon" } },
+  { label: "Giphy", icon: ImageIcon, type: "image", patch: { title: "Animated image" } },
+  { label: "Video", icon: Video, type: "video" },
+  { label: "Video Gallery", icon: Video, type: "video", patch: { title: "Video gallery" } },
+  { label: "Map", icon: MapPin, type: "website", patch: { title: "Find us", subtitle: "Open map" } },
+  { label: "Music", icon: Music2, type: "website", patch: { title: "Listen now" } },
 ];
 
 function BlockPickerSheet({
@@ -777,7 +837,7 @@ function BlockPickerSheet({
     <div className="blockPickerBackdrop" role="dialog" aria-modal="true" aria-label="Choose block">
       <section className="blockPickerSheet">
         <header className="blockPickerHeader">
-          <button type="button" aria-label="Close block picker" onClick={onClose}>×</button>
+          <button type="button" aria-label="Close block picker" onClick={onClose}><X /></button>
           <h2>Choose block</h2>
           <span aria-hidden="true" />
         </header>
@@ -789,11 +849,59 @@ function BlockPickerSheet({
               key={option.label}
               onClick={() => (option.profile ? onProfile() : option.type && onSelect(option.type, option.patch))}
             >
-              <span className="blockPickerIcon">{option.icon}</span>
+              <span className="blockPickerIcon"><option.icon /></span>
               <strong>{option.label}</strong>
-              <em>+</em>
+              <Plus aria-hidden="true" />
             </button>
           ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ThemeEditorSheet({
+  onChange,
+  onClose,
+  page,
+}: {
+  onChange: (theme: SmartPage["theme"]) => void;
+  onClose: () => void;
+  page: SmartPage;
+}) {
+  const theme = page.theme;
+  const update = (patch: Partial<SmartPage["theme"]>) => onChange({ ...theme, ...patch });
+
+  return (
+    <div className="appearanceSheetBackdrop" role="dialog" aria-modal="true" aria-label="Edit appearance">
+      <section className="appearanceSheet">
+        <header className="appearanceSheetHeader">
+          <button type="button" aria-label="Close appearance editor" onClick={onClose}><X /></button>
+          <h2>Appearance</h2>
+          <span aria-hidden="true" />
+        </header>
+        <div className="appearanceFields">
+          <Field label="Theme">
+            <select value={theme.preset} onChange={(event) => update({ preset: event.target.value as SmartPage["theme"]["preset"] })}>
+              {themePresets.map((preset) => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
+            </select>
+          </Field>
+          <div className="appearanceColorGrid">
+            <Field label="Background">
+              <input type="color" value={theme.backgroundColor} onChange={(event) => update({ backgroundColor: event.target.value })} />
+            </Field>
+            <Field label="Accent">
+              <input type="color" value={theme.gradientTo} onChange={(event) => update({ gradientTo: event.target.value })} />
+            </Field>
+            <Field label="Button">
+              <input type="color" value={theme.buttonBackground} onChange={(event) => update({ buttonBackground: event.target.value })} />
+            </Field>
+          </div>
+          <Field label="Background image URL">
+            <input value={theme.backgroundImage} onChange={(event) => update({ backgroundImage: event.target.value })} />
+          </Field>
+          <Range label="Button corner radius" value={theme.buttonRadius} min={4} max={36} onChange={(buttonRadius) => update({ buttonRadius })} />
+          <Range label="Content spacing" value={theme.spacing} min={6} max={26} onChange={(spacing) => update({ spacing })} />
         </div>
       </section>
     </div>
@@ -807,6 +915,9 @@ function EditablePublicCanvas({
   onMoveBlock,
   onUpdateBlock,
   onSaveProfile,
+  onProfileEditorDismiss,
+  profileEditorRequested,
+  onBlockSelectionChange,
   page,
 }: {
   onDeleteBlock: (blockId: number) => void;
@@ -815,6 +926,9 @@ function EditablePublicCanvas({
   onMoveBlock: (blockId: number, direction: -1 | 1) => void;
   onUpdateBlock: (blockId: number, patch: Partial<PageBlock>) => void;
   onSaveProfile: (patch: Partial<SmartPage>) => void;
+  onProfileEditorDismiss: () => void;
+  profileEditorRequested: boolean;
+  onBlockSelectionChange: (selected: boolean) => void;
   page: SmartPage;
 }) {
   const blocks = [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -824,6 +938,8 @@ function EditablePublicCanvas({
   const selectedBlock = blocks.find((block) => block.id === selectedBlockId) ?? null;
   const editingBlock = blocks.find((block) => block.id === editingBlockId) ?? null;
   const selectedIndex = selectedBlock ? blocks.findIndex((block) => block.id === selectedBlock.id) : -1;
+
+  const isProfileEditorOpen = profileEditorOpen || profileEditorRequested;
 
   return (
     <div className="homepagePreviewWrap">
@@ -850,14 +966,20 @@ function EditablePublicCanvas({
                 type="button"
                 aria-label={`Select ${block.title || block.type}`}
                 className="leftHandle selectBlockHandle"
-                onClick={() => setSelectedBlockId(block.id)}
+                onClick={() => {
+                  setSelectedBlockId(block.id);
+                  onBlockSelectionChange(true);
+                }}
               >
                 {selected ? "●" : "○"}
               </button>
               <EditableCanvasBlock
                 block={block}
                 selected={selected}
-                onSelect={() => setSelectedBlockId(block.id)}
+                onSelect={() => {
+                  setSelectedBlockId(block.id);
+                  onBlockSelectionChange(true);
+                }}
               />
               <span className="rightHandle">=</span>
             </div>
@@ -867,11 +989,14 @@ function EditablePublicCanvas({
 
       {selectedBlock && (
         <div className="selectedBlockToolbar" aria-label="Selected block actions">
-          <button type="button" className="closeToolbarButton" onClick={() => setSelectedBlockId(null)}>
-            ×
+          <button type="button" className="closeToolbarButton" onClick={() => {
+            setSelectedBlockId(null);
+            onBlockSelectionChange(false);
+          }}>
+            <X />
           </button>
           <button type="button" onClick={() => setEditingBlockId(selectedBlock.id)}>
-            <span>✎</span>
+            <span><Pencil /></span>
             Edit
           </button>
           <button
@@ -879,7 +1004,7 @@ function EditablePublicCanvas({
             disabled={selectedIndex <= 0}
             onClick={() => onMoveBlock(selectedBlock.id, -1)}
           >
-            <span>↑</span>
+            <span><MoveUp /></span>
             Up
           </button>
           <button
@@ -887,22 +1012,22 @@ function EditablePublicCanvas({
             disabled={selectedIndex === -1 || selectedIndex >= blocks.length - 1}
             onClick={() => onMoveBlock(selectedBlock.id, 1)}
           >
-            <span>↓</span>
+            <span><MoveDown /></span>
             Down
           </button>
           <button type="button" onClick={() => onDeleteBlock(selectedBlock.id)}>
-            <span>▢</span>
+            <span><Trash2 /></span>
             Delete
           </button>
           <button type="button" onClick={() => onDuplicateBlock(selectedBlock.id)}>
-            <span>□</span>
+            <span><CopyPlus /></span>
             Clone
           </button>
           <button
             type="button"
             onClick={() => onCommitBlock(selectedBlock.id, { isActive: !selectedBlock.isActive })}
           >
-            <span>{selectedBlock.isActive ? "◌" : "●"}</span>
+            <span>{selectedBlock.isActive ? <EyeOff /> : <Eye />}</span>
             {selectedBlock.isActive ? "Hide" : "Show"}
           </button>
         </div>
@@ -921,13 +1046,17 @@ function EditablePublicCanvas({
         />
       )}
 
-      {profileEditorOpen && (
+      {isProfileEditorOpen && (
         <ProfileEditorSheet
           page={page}
-          onClose={() => setProfileEditorOpen(false)}
+          onClose={() => {
+            setProfileEditorOpen(false);
+            onProfileEditorDismiss();
+          }}
           onSave={(patch) => {
             onSaveProfile(patch);
             setProfileEditorOpen(false);
+            onProfileEditorDismiss();
           }}
         />
       )}
@@ -1017,9 +1146,9 @@ function ProfileEditorSheet({
     <div className="profileSheetBackdrop" role="dialog" aria-modal="true" aria-label="Edit profile">
       <section className="profileEditSheet">
         <header className="profileSheetHeader">
-          <button type="button" aria-label="Close profile editor" onClick={onClose}>×</button>
+          <button type="button" aria-label="Close profile editor" onClick={onClose}><X /></button>
           <h2>Profile</h2>
-          <button type="button" aria-label="More profile options">•••</button>
+          <button type="button" aria-label="More profile options"><MoreHorizontal /></button>
         </header>
 
         <div className="profileSheetPreview">
@@ -1109,7 +1238,7 @@ function LinkEditSheet({
       <section className="linkEditSheet" aria-label="Edit selected link">
         <header className="linkSheetHeader">
           <button type="button" aria-label="Close link editor" onClick={onClose}>
-            ×
+            <X />
           </button>
           <h2>{isVideo ? "Video" : "Link"}</h2>
           <button type="button" onClick={save}>
@@ -1199,7 +1328,7 @@ function PlayableVideo({ src, title }: { src: string; title: string }) {
 
   return (
     <div className="videoPlaceholder">
-      <span>▶</span>
+            <Play fill="currentColor" />
       <strong>Add video URL</strong>
     </div>
   );
@@ -1229,19 +1358,20 @@ function videoEmbedUrl(src: string) {
 }
 
 function canvasIcon(type: PageBlock["type"]) {
-  const labels: Partial<Record<PageBlock["type"], string>> = {
-    link: "◎",
-    website: "◎",
-    telegram: "◢",
-    whatsapp: "WA",
-    email: "@",
-    phone: "☎",
-    facebook: "f",
-    instagram: "IG",
-    youtube: "▶",
-    messenger: "M",
+  const icons: Partial<Record<PageBlock["type"], LucideIcon>> = {
+    link: Link2,
+    website: Globe2,
+    telegram: Send,
+    whatsapp: MessageCircle,
+    email: Mail,
+    phone: Phone,
+    facebook: Globe2,
+    instagram: ImageIcon,
+    youtube: Play,
+    messenger: MessageCircle,
   };
-  return labels[type] ?? "◎";
+  const Icon = icons[type] ?? Link2;
+  return <Icon aria-hidden="true" />;
 }
 
 function Field({ children, label }: { children: React.ReactNode; label: string }) {

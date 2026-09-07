@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect } from "react";
+import { ArrowUpRight, Camera, Globe2, Link2, Mail, MessageCircle, Phone, Play, Send, Share2, type LucideIcon } from "lucide-react";
 import type { PageBlock, SmartPage } from "@/lib/types";
 import { buildSmartUrl, publicPageUrl } from "@/lib/utils";
 
@@ -100,26 +101,27 @@ function PublicBlock({ block, onClick }: { block: PageBlock; onClick: () => void
         <strong>{block.title}</strong>
         {block.subtitle && <small>{block.subtitle}</small>}
       </div>
-      <em>↗</em>
+      <ArrowUpRight aria-hidden="true" />
     </a>
   );
 }
 
 function iconLabel(type: PageBlock["type"]) {
-  const map: Record<string, string> = {
-    whatsapp: "WA",
-    telegram: "TG",
-    messenger: "MS",
-    instagram: "IG",
-    facebook: "FB",
-    youtube: "YT",
-    email: "@",
-    phone: "TEL",
-    website: "WWW",
-    link: "GO",
-    socials: "SOC",
+  const map: Partial<Record<PageBlock["type"], LucideIcon>> = {
+    whatsapp: MessageCircle,
+    telegram: Send,
+    messenger: MessageCircle,
+    instagram: Camera,
+    facebook: Globe2,
+    youtube: Play,
+    email: Mail,
+    phone: Phone,
+    website: Globe2,
+    link: Link2,
+    socials: Share2,
   };
-  return map[type] ?? "GO";
+  const Icon = map[type] ?? Link2;
+  return <Icon aria-hidden="true" />;
 }
 
 function withAlpha(hex: string, alpha: number) {
@@ -144,7 +146,7 @@ function PublicPlayableVideo({ src, title }: { src: string; title: string }) {
 
   return (
     <div className="videoPlaceholder">
-      <span>▶</span>
+      <Play fill="currentColor" aria-hidden="true" />
       <strong>Video coming soon</strong>
     </div>
   );

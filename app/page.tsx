@@ -1,4 +1,4 @@
-import Link from "next/link";
+/* eslint-disable @next/next/no-html-link-for-pages */
 
 export default function Home() {
   return (
@@ -8,8 +8,8 @@ export default function Home() {
         <p>Self-hosted smart links</p>
         <h1>Create public contact pages from one private dashboard.</h1>
         <div className="homeActions">
-          <Link href="/admin">Open Admin</Link>
-          <Link href="/dr-moiz-khakiani">View Sample Page</Link>
+          <a href="/admin">Open Admin</a>
+          <a href="/dr-moiz-khakiani">View Sample Page</a>
         </div>
       </section>
     </main>
