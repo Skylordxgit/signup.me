@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Link2, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 export function MissingPage() {
@@ -15,8 +16,8 @@ export function MissingPage() {
     <main className="missingPage">
       <header className="missingHeader">
         <Link href="/" className="missingBrand" aria-label="signup.me home">
-          <span><Link2 size={20} /></span>
-          signup.me
+          <Image src="/signup888-logo.png" alt="" width={38} height={38} priority />
+          <strong>signup888</strong>
         </Link>
         <a href={destination} className="missingSignIn" onClick={rememberSlug}>Sign in</a>
       </header>

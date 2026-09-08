@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Mail } from "lucide-react";
 
 type LoginView = "options" | "email";
@@ -42,8 +43,8 @@ export default function LoginPage() {
   return (
     <main className="authShell">
       <div className="authBrandRow">
-        <div className="authBrandMark">SL</div>
-        <strong>SmartLink</strong>
+        <Image className="authBrandLogo" src="/signup888-logo.png" alt="" width={42} height={42} priority />
+        <strong>signup888</strong>
       </div>
 
       <section className="authCard">

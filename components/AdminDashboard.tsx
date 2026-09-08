@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, ArrowUpRight, BarChart3, Check, ChevronDown, FileText, ImageIcon, LayoutDashboard, Link2, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, User, X } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, ArrowUpRight, BarChart3, Check, ChevronDown, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, User, X } from "lucide-react";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage, ThemeSettings } from "@/lib/types";
 import { adminApi, combineAnalytics } from "@/lib/admin";
 import { slugify, summarizePage } from "@/lib/utils";
@@ -169,7 +170,7 @@ export function AdminDashboard() {
 
   function sidebar(drawer = false) {
     return <>
-      <div className="admBrand"><Link2 size={21} /><strong>signup.me</strong>{drawer && <IconButton icon={X} label="Close navigation" onClick={() => setDrawerOpen(false)} />}</div>
+      <div className="admBrand"><Image className="admBrandLogo" src="/signup888-logo.png" alt="" width={34} height={34} priority /><strong>signup888</strong>{drawer && <IconButton icon={X} label="Close navigation" onClick={() => setDrawerOpen(false)} />}</div>
       <nav aria-label={drawer ? 'Mobile admin navigation' : 'Admin navigation'}>{navigation.map(item => <button type="button" key={item.id} className={view === item.id || view === 'builder' && item.id === 'pages' ? 'admNavActive' : ''} aria-current={view === item.id || view === 'builder' && item.id === 'pages' ? 'page' : undefined} title={item.label} aria-label={item.label} disabled={busy} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'pages' && <small>{pages.length}</small>}</button>)}</nav>
       <div className="admSidebarBottom"><button type="button" title="Log out" disabled={busy} onClick={logout}><LogOut size={19} /><span>Logout</span></button>{!drawer && <button type="button" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => collapse(!collapsed)}>{collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>Collapse sidebar</span></button>}</div>
     </>;

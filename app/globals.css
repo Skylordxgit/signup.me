@@ -222,16 +222,12 @@ textarea {
   font-size: 20px;
 }
 
-.authBrandMark {
-  display: grid;
-  place-items: center;
+.authBrandLogo {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: #16171b;
-  color: #ffffff;
-  font-size: 13px;
-  font-weight: 950;
+  object-fit: cover;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.14);
 }
 
 .authCard {
@@ -2568,13 +2564,12 @@ shared by the theme swatches and the real page. */
   text-decoration: none;
 }
 
-.missingBrand > span {
-  display: grid;
-  place-items: center;
+.missingBrand img {
   width: 38px;
   height: 38px;
   border-radius: 8px;
-  background: #3b82f6;
+  object-fit: cover;
+  box-shadow: 0 0 22px rgba(56, 189, 248, 0.34);
 }
 
 .missingSignIn {

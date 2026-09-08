@@ -13,11 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'NordLink - Link Page Builder',
+  title: 'signup888 - Your Link. Your World.',
   description:
-    'A Linktree-style builder made with Node.js and Next.js for link pages, offers, requests, and analytics.',
+    'Create mobile-friendly link pages, offers, requests, and analytics with signup888.',
   icons: {
-    icon: '/favicon.svg',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon.png', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
   },
 };
 

@@ -27,7 +27,7 @@
 .admWorkspace, .admMain, .admShell section, .admShell article { min-width: 0; }
 .admSidebar { position: sticky; top: 0; height: 100dvh; display: flex; flex-direction: column; padding: 0 14px 18px; border-right: 1px solid var(--adm-line); background: white; overflow-y: auto; }
 .admBrand { display: flex; align-items: center; gap: 10px; height: 80px; flex: none; padding: 0 12px; }
-.admBrand > svg { color: var(--adm-blue); width: 30px; height: 30px; padding: 5px; border-radius: 7px; background: #edf3ff; }
+.admBrandLogo { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; box-shadow: 0 8px 18px #0c1a3320; }
 .admBrand strong { font-size: 19px; font-weight: 750; white-space: nowrap; }
 .admSidebar nav, .admDrawer nav { display: grid; gap: 5px; padding-top: 20px; }
 .admSidebar nav button, .admSidebarBottom button, .admDrawer nav button { display: flex; align-items: center; gap: 12px; width: 100%; height: 44px; border: 0; border-radius: 6px; background: transparent; padding: 0 12px; color: #66707e; text-align: left; white-space: nowrap; }
