@@ -2438,12 +2438,10 @@ so the card reads as the theme it applies. */
 .pushPrompt strong { display: block; font-size: 28px; line-height: 1.2; overflow-wrap: anywhere; }
 .pushPrompt p { margin: 14px 0; color: #586579; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
 .pushPrompt .pushPromptPage { color: #17212f; font-weight: 650; }
-.pushPromptAllow, .pushPromptSkip { width: 100%; min-height: 48px; padding: 12px 16px; font-size: 15px; border-radius: 6px; font-weight: 650; }
+.pushPromptAllow { width: 100%; min-height: 48px; padding: 12px 16px; font-size: 15px; border-radius: 6px; font-weight: 650; }
 .pushPromptAllow { margin-top: 12px; color: white; background: #2465d7; border: 0; }
 .pushPromptAllow:hover { background: #1955bd; }
 .pushPromptAllow:disabled { opacity: .65; cursor: wait; }
-.pushPromptSkip { margin-top: 8px; color: #465469; background: white; border: 1px solid #dce2e9; }
-.pushPromptSkip:hover { background: #f3f6fa; }
 .pushPromptClose { position: absolute; right: 10px; top: 10px; display: grid; place-items: center; width: 40px; height: 40px; color: #586579; background: #f3f6fa; border: 0; border-radius: 6px; }
 .pushPrompt small { display: block; margin-top: 16px; color: #6c788a; font-size: 13px; line-height: 1.5; }
 .pushPrompt .pushPromptError { color: #a12845; font-size: 14px; }

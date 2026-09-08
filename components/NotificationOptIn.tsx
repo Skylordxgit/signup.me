@@ -96,7 +96,6 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
     {error && <p className="pushPromptError" role="alert">{error}</p>}
     {success ? <button type="button" className="pushPromptAllow" onClick={dismiss}>{copy.continueLabel}</button> : <>
       <button type="button" className="pushPromptAllow" disabled={busy} onClick={() => void allow()}>{busy ? copy.busyLabel : error ? copy.retryLabel : copy.allowLabel}</button>
-      <button type="button" className="pushPromptSkip" onClick={dismiss}>{copy.skipLabel}</button>
       <small>{copy.footer}</small>
     </>}
   </dialog>;

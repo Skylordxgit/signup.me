@@ -2,7 +2,6 @@ export const notificationPromptDefaults = {
   heading: 'Stay up to date',
   message: 'Get new links, offers, and announcements from this page straight to your browser.',
   allowLabel: 'Allow notifications',
-  skipLabel: 'Continue without notifications',
   footer: 'You can turn notifications off in your browser settings.',
   closeLabel: 'Close notification prompt',
   busyLabel: 'Subscribing...',

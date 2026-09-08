@@ -66,13 +66,13 @@ test("upload roots are absolute, anchored to the app, and still contain traversa
 
 test('page-specific prompt text survives the save payload and reaches the visitor prompt', () => {
   const page = seedPages()[0];
-  page.integrations.notificationPrompt = { heading: 'Noticias', allowLabel: 'Permitir', skipLabel: 'Continuar', successHeading: 'Suscrito', message: '<script>plain text</script>' };
+  page.integrations.notificationPrompt = { heading: 'Noticias', allowLabel: 'Permitir', successHeading: 'Suscrito', message: '<script>plain text</script>' };
   const saved = JSON.parse(JSON.stringify(editablePage(page)));
   assert.equal(saved.integrations.notificationPrompt.heading, 'Noticias');
   const html = renderToStaticMarkup(<NotificationOptIn slug={page.slug} title={page.title} settings={saved.integrations.notificationPrompt} />);
   assert.match(html, /Noticias/);
   assert.match(html, /Permitir/);
-  assert.match(html, /Continuar/);
+  assert.doesNotMatch(html, /Continue without notifications/);
   assert.match(html, /&lt;script&gt;plain text&lt;\/script&gt;/);
   assert.equal(resolveNotificationPrompt({ heading: ' ' }).heading, 'Stay up to date');
   assert.match(renderToStaticMarkup(<NotificationPromptFields page={page} onEdit={() => {}} />), /value="Noticias"/);

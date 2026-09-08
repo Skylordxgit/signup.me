@@ -20,7 +20,6 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
     { key: 'heading', label: 'Prompt heading' },
     { key: 'message', label: 'Prompt message', long: true },
     { key: 'allowLabel', label: 'Allow button' },
-    { key: 'skipLabel', label: 'Continue without notifications button' },
     { key: 'footer', label: 'Footer text', long: true },
     { key: 'successHeading', label: 'Success heading' },
     { key: 'successMessage', label: 'Success message', long: true },
@@ -32,7 +31,7 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
   ];
   return <><SectionHeading title="Notification prompt" />
     <div className="admFormStack">{fields.map(({ key, label, long }) => <Field key={key} label={label}>{long ? <textarea dir="auto" rows={3} maxLength={400} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} /> : <input dir="auto" maxLength={120} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} />}</Field>)}</div>
-    <section className="admPromptCopyPreview" dir="auto" aria-label="Notification prompt preview"><h3>{copy.heading}</h3><strong>{page.title}</strong><p>{copy.message}</p><div>{copy.allowLabel}</div><div>{copy.skipLabel}</div><small>{copy.footer}</small></section>
+    <section className="admPromptCopyPreview" dir="auto" aria-label="Notification prompt preview"><h3>{copy.heading}</h3><strong>{page.title}</strong><p>{copy.message}</p><div>{copy.allowLabel}</div><small>{copy.footer}</small></section>
   </>;
 }
 type Props = {
