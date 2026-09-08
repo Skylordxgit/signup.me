@@ -255,6 +255,11 @@ export async function updatePage(id: number, patch: Partial<SmartPage>) {
 
   const status = patch.status as PageStatus | undefined;
   if (status && !["published", "draft", "disabled"].includes(status)) throw new Error("Invalid status");
+  if (patch.profileImage && !isValidImageUrl(patch.profileImage)) throw new Error("Invalid profile image URL");
+  if (patch.logoImage && !isValidImageUrl(patch.logoImage)) throw new Error("Invalid logo image URL");
+  if (patch.theme?.backgroundImage && !isValidImageUrl(patch.theme.backgroundImage)) throw new Error("Invalid cover image URL");
+  if (patch.seo?.ogImage && !isValidImageUrl(patch.seo.ogImage)) throw new Error("Invalid social image URL");
+  if (patch.seo?.favicon && !isValidImageUrl(patch.seo.favicon)) throw new Error("Invalid favicon URL");
 
   const merged: SmartPage = {
     ...current,

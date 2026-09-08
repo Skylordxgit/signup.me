@@ -85,7 +85,16 @@ test("youtube blocks render as embedded video players", () => {
   const html = renderToStaticMarkup(<PageRenderer page={page} />);
   assert.match(html, /class="pageVideo"/);
   assert.match(html, /https:\/\/www\.youtube\.com\/embed\/dQw4w9WgXcQ/);
+  assert.match(html, /autoplay=1&amp;mute=1/);
+  assert.doesNotMatch(html, /<strong>YouTube<\/strong>/);
   assert.doesNotMatch(html, /class="pageButton/);
+});
+
+test("saved logo image becomes the public round profile mark", () => {
+  const page = { ...fixture(), logoImage: "/uploads/logo/brand.webp" };
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(html, /src="\/uploads\/logo\/brand.webp"/);
+  assert.doesNotMatch(html, /src="\/uploads\/profile.webp"/);
 });
 
 test("Share is shown only when enabled, including pages without a cover", () => {

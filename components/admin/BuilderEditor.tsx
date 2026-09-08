@@ -88,6 +88,7 @@ export function ProfileFields({ page, onEdit }: { page: SmartPage; onEdit: (patc
     <Field label="URL slug"><input value={page.slug} onChange={event => onEdit({ slug: event.target.value })} required /></Field>
     <div className="admSpanFull"><Field label="Profile title"><input value={page.title} onChange={event => onEdit({ title: event.target.value })} /></Field></div>
     <div className="admSpanFull"><Field label="Bio"><textarea rows={3} value={page.bio} onChange={event => onEdit({ bio: event.target.value })} /></Field></div>
+    <div className="admSpanFull"><ImageUploader category="logo" label="Logo" round value={page.logoImage || page.profileImage} onChange={logoImage => onEdit({ logoImage })} /></div>
     <div className="admSpanFull"><ImageUploader category="profile" label="Profile photo" round value={page.profileImage} onChange={profileImage => onEdit({ profileImage })} /></div>
     <div className="admSpanFull"><ImageUploader category="banner" label="Cover image" value={page.theme.backgroundImage} onChange={backgroundImage => theme({ backgroundImage })} /></div>
     <Field label="Profile layout"><select value={resolveProfileLayout(page.theme)} onChange={event => theme({ profileLayout: event.target.value as ThemeSettings['profileLayout'] })}><option value="hero">Banner and profile</option><option value="centered">Stacked profile</option><option value="avatar">Profile without banner</option><option value="none">Text only</option></select></Field>

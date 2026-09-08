@@ -61,7 +61,8 @@ export function PageRenderer({
   const align = resolveAlignment(theme);
   const layout = resolveProfileLayout(theme);
   const hasCover = Boolean(theme.backgroundImage) && layout !== "avatar" && layout !== "none";
-  const hasAvatar = Boolean(page.profileImage) && layout !== "none";
+  const avatarImage = page.logoImage || page.profileImage;
+  const hasAvatar = Boolean(avatarImage) && layout !== "none";
   const hasProfile = hasAvatar || Boolean(page.title || page.bio);
   const isPreview = preview || Boolean(edit);
 
@@ -97,11 +98,11 @@ export function PageRenderer({
               aria-label="Edit profile"
               onClick={edit.onEditProfile}
             >
-              <ProfileIdentity page={page} showAvatar={hasAvatar} />
+              <ProfileIdentity page={page} showAvatar={hasAvatar} src={avatarImage} />
             </button>
           ) : (
             <div className="pageIdentity">
-              <ProfileIdentity page={page} showAvatar={hasAvatar} />
+              <ProfileIdentity page={page} showAvatar={hasAvatar} src={avatarImage} />
             </div>
           )}
         </header>}
@@ -147,10 +148,10 @@ function PageCover({
   );
 }
 
-function ProfileIdentity({ page, showAvatar }: { page: SmartPage; showAvatar: boolean }) {
+function ProfileIdentity({ page, showAvatar, src }: { page: SmartPage; showAvatar: boolean; src: string }) {
   return (
     <>
-      {showAvatar && <ProfileAvatar key={page.profileImage} name={page.title || page.name} src={page.profileImage} />}
+      {showAvatar && <ProfileAvatar key={src} name={page.title || page.name} src={src} />}
       {(page.title || page.bio) && <div className="pageIdentityText">
         {page.title && <h1 className="pageTitle">{page.title}</h1>}
         {page.bio && <p className="pageBio">{page.bio}</p>}
@@ -279,7 +280,6 @@ export function PageBlockView({
     return (
       <div className="pageVideo">
         <PlayableVideo preview={preview} src={block.videoUrl || block.url} title={block.title || "Video"} />
-        {block.title && <strong>{block.title}</strong>}
       </div>
     );
   }
@@ -434,7 +434,7 @@ function PlayableVideo({ preview, src, title }: { preview: boolean; src: string;
   }
 
   if (embed.type === "video") {
-    return <video src={embed.src} controls={!preview} playsInline style={preview ? { pointerEvents: "none" } : undefined} />;
+    return <video src={embed.src} autoPlay muted controls={!preview} playsInline style={preview ? { pointerEvents: "none" } : undefined} />;
   }
 
   return (
@@ -451,10 +451,10 @@ function videoEmbedUrl(src: string) {
     const url = new URL(src);
     const youtubeId = youtubeVideoId(url);
     if (youtubeId) {
-      return { type: "iframe" as const, src: `https://www.youtube.com/embed/${youtubeId}` };
+      return { type: "iframe" as const, src: `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&playsinline=1&rel=0` };
     }
     if (url.hostname.includes("vimeo.com")) {
-      return { type: "iframe" as const, src: `https://player.vimeo.com/video/${url.pathname.split("/").filter(Boolean).pop()}` };
+      return { type: "iframe" as const, src: `https://player.vimeo.com/video/${url.pathname.split("/").filter(Boolean).pop()}?autoplay=1&muted=1` };
     }
     if (/\.(mp4|webm|ogg)$/i.test(url.pathname)) {
       return { type: "video" as const, src };
