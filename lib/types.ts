@@ -93,6 +93,7 @@ export type SeoSettings = {
 export type IntegrationSettings = {
   metaPixelId: string;
   gtmId: string;
+  notificationPrompt?: import('./notificationPrompt').NotificationPromptSettings;
 };
 
 export type PageBlock = {

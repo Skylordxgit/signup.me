@@ -34,7 +34,7 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   return (
     <main className="publicExperience">
       <PageRenderer page={page} onTrack={track} preview={preview} />
-      {!preview && <NotificationOptIn slug={page.slug} title={page.title} />}
+      {!preview && <NotificationOptIn key={page.slug} slug={page.slug} title={page.title} settings={page.integrations.notificationPrompt} />}
     </main>
   );
 }

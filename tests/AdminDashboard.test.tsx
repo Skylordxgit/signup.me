@@ -6,6 +6,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AdminDashboard } from "../components/AdminDashboard";
 import { BuilderEditor } from "../components/admin/BuilderEditor";
 import { ProfileFields } from "../components/admin/BuilderEditor";
+import { NotificationPromptFields } from '../components/admin/BuilderEditor';
+import { editablePage } from '../lib/admin';
+import { resolveNotificationPrompt } from '../lib/notificationPrompt';
+import { NotificationOptIn } from '../components/NotificationOptIn';
 import { combineAnalytics } from "../lib/admin";
 import { seedPages } from "../lib/defaults";
 import { isValidImageUrl, parseBlockIcon } from "../lib/utils";
@@ -58,6 +62,20 @@ test("upload roots are absolute, anchored to the app, and still contain traversa
   assert.equal(resolveUploadPath(["profile", "..", "..", "..", "secret.png"]), null);
   assert.equal(resolveUploadPath([]), null);
   assert.ok(resolveUploadPath(["profile", "photo.webp"])?.endsWith(path.join("profile", "photo.webp")));
+});
+
+test('page-specific prompt text survives the save payload and reaches the visitor prompt', () => {
+  const page = seedPages()[0];
+  page.integrations.notificationPrompt = { heading: 'Noticias', allowLabel: 'Permitir', skipLabel: 'Continuar', successHeading: 'Suscrito', message: '<script>plain text</script>' };
+  const saved = JSON.parse(JSON.stringify(editablePage(page)));
+  assert.equal(saved.integrations.notificationPrompt.heading, 'Noticias');
+  const html = renderToStaticMarkup(<NotificationOptIn slug={page.slug} title={page.title} settings={saved.integrations.notificationPrompt} />);
+  assert.match(html, /Noticias/);
+  assert.match(html, /Permitir/);
+  assert.match(html, /Continuar/);
+  assert.match(html, /&lt;script&gt;plain text&lt;\/script&gt;/);
+  assert.equal(resolveNotificationPrompt({ heading: ' ' }).heading, 'Stay up to date');
+  assert.match(renderToStaticMarkup(<NotificationPromptFields page={page} onEdit={() => {}} />), /value="Noticias"/);
 });
 
 test("workspace analytics merge daily and device totals and weight the click rate", () => {

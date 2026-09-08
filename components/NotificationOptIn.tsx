@@ -2,6 +2,7 @@
 
 import { Bell, Check, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { resolveNotificationPrompt, type NotificationPromptSettings } from '@/lib/notificationPrompt';
 
 function preference(slug: string, value?: string) {
   try {
@@ -16,48 +17,46 @@ function decodePublicKey(value: string) {
   return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
 }
 
-export function NotificationOptIn({ slug, title }: { slug: string; title: string }) {
-  const [visible, setVisible] = useState(false);
+async function preparePush() {
+  const response = await fetch('/api/notifications/vapid-public-key', { signal: AbortSignal.timeout(10000), cache: 'no-store' });
+  const data = await response.json() as { enabled?: boolean; publicKey?: string };
+  if (!response.ok || !data.enabled || !data.publicKey) throw new Error('Push unavailable');
+  await navigator.serviceWorker.register('/push-worker.js');
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Push setup timed out')), 10000); }),
+    ]);
+    return { registration, publicKey: data.publicKey };
+  } finally { clearTimeout(timer); }
+}
+
+export function NotificationOptIn({ slug, title, settings }: { slug: string; title: string; settings?: NotificationPromptSettings }) {
+  const copy = resolveNotificationPrompt(settings);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const publicKey = useRef('');
-  const worker = useRef<ServiceWorkerRegistration | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
     if (!window.isSecureContext || !('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    if (Notification.permission === 'denied' || preference(slug) === 'dismissed') return;
+    if (Notification.permission === 'denied') return;
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout>;
-    const controller = new AbortController();
-    async function prepare() {
-      try {
-        const response = await fetch('/api/notifications/vapid-public-key', { signal: controller.signal });
-        const data = await response.json() as { enabled?: boolean; publicKey?: string };
-        if (!response.ok || !data.enabled || !data.publicKey) return;
-        await navigator.serviceWorker.register('/push-worker.js');
-        const registration = await navigator.serviceWorker.ready;
-        if (cancelled) return;
-        worker.current = registration;
-        publicKey.current = data.publicKey;
-        const existing = await registration.pushManager.getSubscription();
-        if (existing && Notification.permission === 'granted' && preference(slug) === 'saved-v2') return;
-        if (!cancelled) timer = setTimeout(() => setVisible(true), 1400);
-      } catch { /* Public content stays available when push setup fails. */ }
+    if (Notification.permission === 'granted' && preference(slug) === 'saved-v2') {
+      // Only returning subscribers wait for a check; new visitors see the prompt immediately.
+      void navigator.serviceWorker.getRegistration('/').then(async registration => {
+        const existing = await registration?.pushManager.getSubscription();
+        if (!cancelled && !existing) dialog.current?.showModal();
+      }).catch(() => { if (!cancelled) dialog.current?.showModal(); });
+    } else {
+      dialog.current?.showModal();
     }
-    void prepare();
-    return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
+    return () => { cancelled = true; };
   }, [slug]);
 
-  useEffect(() => {
-    if (visible) dialog.current?.showModal();
-    else dialog.current?.close();
-  }, [visible]);
-
   function dismiss() {
-    if (!success) preference(slug, 'dismissed');
-    setVisible(false);
+    dialog.current?.close();
   }
 
   async function allow() {
@@ -68,12 +67,11 @@ export function NotificationOptIn({ slug, title }: { slug: string; title: string
       // Keep the permission request directly in the user gesture.
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') { dismiss(); return; }
-      const registration = worker.current;
-      if (!registration) throw new Error('Please refresh the page and try again.');
+      const { registration, publicKey } = await preparePush();
       const existing = await registration.pushManager.getSubscription();
       const subscription = existing || await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: decodePublicKey(publicKey.current),
+        applicationServerKey: decodePublicKey(publicKey),
       });
       const response = await fetch('/api/notifications/subscribe', {
         method: 'POST',
@@ -84,22 +82,22 @@ export function NotificationOptIn({ slug, title }: { slug: string; title: string
       if (!response.ok) throw new Error('Your subscription was not saved. Please try again.');
       preference(slug, 'saved-v2');
       setSuccess(true);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not subscribe. Please try again.');
+    } catch {
+      setError(copy.errorMessage);
     } finally { setBusy(false); }
   }
 
-  return <dialog ref={dialog} className="pushPrompt" aria-label="Page updates" onCancel={event => { event.preventDefault(); dismiss(); }}>
-    <button type="button" className="pushPromptClose" aria-label="Close notification prompt" onClick={dismiss}><X size={20} /></button>
+  return <dialog ref={dialog} className="pushPrompt" dir="auto" aria-label={copy.heading} onCancel={event => { event.preventDefault(); dismiss(); }}>
+    <button type="button" className="pushPromptClose" aria-label={copy.closeLabel} onClick={dismiss}><X size={20} /></button>
     <span className="pushPromptIcon" aria-hidden="true">{success ? <Check size={30} /> : <Bell size={30} />}</span>
-    <strong>{success ? "You're subscribed" : 'Stay up to date'}</strong>
+    <strong>{success ? copy.successHeading : copy.heading}</strong>
     <p className="pushPromptPage">{title || 'This page'}</p>
-    <p>{success ? 'New announcements and offers can now reach this browser.' : 'Get new links, offers, and announcements from this page straight to your browser.'}</p>
+    <p>{success ? copy.successMessage : copy.message}</p>
     {error && <p className="pushPromptError" role="alert">{error}</p>}
-    {success ? <button type="button" className="pushPromptAllow" onClick={dismiss}>Continue to page</button> : <>
-      <button type="button" className="pushPromptAllow" disabled={busy} onClick={() => void allow()}>{busy ? 'Subscribing...' : error ? 'Try again' : 'Allow notifications'}</button>
-      <button type="button" className="pushPromptSkip" onClick={dismiss}>Continue without notifications</button>
-      <small>You can turn notifications off in your browser settings.</small>
+    {success ? <button type="button" className="pushPromptAllow" onClick={dismiss}>{copy.continueLabel}</button> : <>
+      <button type="button" className="pushPromptAllow" disabled={busy} onClick={() => void allow()}>{busy ? copy.busyLabel : error ? copy.retryLabel : copy.allowLabel}</button>
+      <button type="button" className="pushPromptSkip" onClick={dismiss}>{copy.skipLabel}</button>
+      <small>{copy.footer}</small>
     </>}
   </dialog>;
 }

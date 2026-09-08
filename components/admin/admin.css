@@ -268,6 +268,12 @@
 .admNotificationSetup p { margin: 12px 0 0; }
 .admNotificationSetup ul { padding-left: 20px; margin: 10px 0; }
 .admNotificationComposer { min-width: 0; }
+.admPromptCopyPreview { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--adm-line); text-align: center; overflow-wrap: anywhere; }
+.admPromptCopyPreview h3 { font-size: 22px; margin-bottom: 14px; }
+.admPromptCopyPreview p { margin: 14px 0; line-height: 1.6; }
+.admPromptCopyPreview > div { padding: 12px; margin: 8px 0; border: 1px solid var(--adm-line); border-radius: 6px; }
+.admPromptCopyPreview > div:first-of-type { background: #2465d7; color: white; }
+.admPromptCopyPreview small { display: block; margin-top: 12px; }
 .admNotificationComposer fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
 .admNotificationComposer .admFormStack { gap: 16px; }
 .admMessageCount { text-align: right; color: #738095; font-size: 12px; margin-top: -10px; font-variant-numeric: tabular-nums; }

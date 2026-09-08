@@ -9,8 +9,32 @@ import { ImageUploader } from "../ImageUploader";
 import { PageRenderer, resolveBlockIcon } from "../PageRenderer";
 import { PhoneFrame } from "../PhoneFrame";
 import { Dialog, EmptyState, Field, IconButton, SectionHeading } from "./AdminUI";
+import { notificationPromptDefaults, resolveNotificationPrompt } from '@/lib/notificationPrompt';
 
-export type BuilderTab = "profile" | "content" | "design" | "seo" | "integrations";
+export type BuilderTab = "profile" | "content" | "design" | "seo" | "integrations" | "notifications";
+
+export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; onEdit: (patch: Partial<SmartPage>) => void }) {
+  const settings = page.integrations.notificationPrompt || {};
+  const copy = resolveNotificationPrompt(settings);
+  const fields: { key: keyof typeof notificationPromptDefaults; label: string; long?: boolean }[] = [
+    { key: 'heading', label: 'Prompt heading' },
+    { key: 'message', label: 'Prompt message', long: true },
+    { key: 'allowLabel', label: 'Allow button' },
+    { key: 'skipLabel', label: 'Continue without notifications button' },
+    { key: 'footer', label: 'Footer text', long: true },
+    { key: 'successHeading', label: 'Success heading' },
+    { key: 'successMessage', label: 'Success message', long: true },
+    { key: 'continueLabel', label: 'Continue button' },
+    { key: 'busyLabel', label: 'Subscribing text' },
+    { key: 'retryLabel', label: 'Retry button' },
+    { key: 'errorMessage', label: 'Error message', long: true },
+    { key: 'closeLabel', label: 'Close button label' },
+  ];
+  return <><SectionHeading title="Notification prompt" />
+    <div className="admFormStack">{fields.map(({ key, label, long }) => <Field key={key} label={label}>{long ? <textarea dir="auto" rows={3} maxLength={400} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} /> : <input dir="auto" maxLength={120} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} />}</Field>)}</div>
+    <section className="admPromptCopyPreview" dir="auto" aria-label="Notification prompt preview"><h3>{copy.heading}</h3><strong>{page.title}</strong><p>{copy.message}</p><div>{copy.allowLabel}</div><div>{copy.skipLabel}</div><small>{copy.footer}</small></section>
+  </>;
+}
 type Props = {
   page: SmartPage;
   tab: BuilderTab;
@@ -36,7 +60,7 @@ export function BuilderEditor(props: Props) {
     </div>
     <section className="admEditorPanel" aria-label="Page editing controls">
       <nav className="admEditorTabs" aria-label="Page editor sections">
-        {([['profile', 'Profile'], ['content', 'Content'], ['design', 'Design'], ['seo', 'SEO'], ['integrations', 'Integrations']] as const).map(([value, label]) => <button type="button" key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => onTab(value)}>{label}</button>)}
+        {([['profile', 'Profile'], ['content', 'Content'], ['design', 'Design'], ['seo', 'SEO'], ['integrations', 'Integrations'], ['notifications', 'Notifications']] as const).map(([value, label]) => <button type="button" key={value} aria-current={tab === value ? 'page' : undefined} onClick={() => onTab(value)}>{label}</button>)}
       </nav>
       <div className="admEditorBody">
         {tab === 'profile' && <ProfileFields page={page} onEdit={onEdit} />}
@@ -70,6 +94,7 @@ export function BuilderEditor(props: Props) {
         </>}
         {tab === 'seo' && <><SectionHeading title="Search & sharing" /><div className="admFormStack">{([['seoTitle', 'Search title'], ['metaDescription', 'Search description'], ['socialTitle', 'Social title'], ['socialDescription', 'Social description']] as const).map(([key, label]) => <Field label={label} key={key}><input value={page.seo[key]} onChange={event => onEdit({ seo: { ...page.seo, [key]: event.target.value } })} /></Field>)}<ImageUploader category="og" label="Social preview image" value={page.seo.ogImage} onChange={ogImage => onEdit({ seo: { ...page.seo, ogImage } })} /><ImageUploader category="favicon" label="Favicon" value={page.seo.favicon} onChange={favicon => onEdit({ seo: { ...page.seo, favicon } })} /></div></>}
         {tab === 'integrations' && <><SectionHeading title="Integrations" /><div className="admFormStack"><Field label="Meta Pixel ID"><input value={page.integrations.metaPixelId} onChange={event => onEdit({ integrations: { ...page.integrations, metaPixelId: event.target.value } })} /></Field><Field label="Google Tag Manager ID"><input value={page.integrations.gtmId} onChange={event => onEdit({ integrations: { ...page.integrations, gtmId: event.target.value } })} /></Field></div></>}
+        {tab === 'notifications' && <NotificationPromptFields page={page} onEdit={onEdit} />}
       </div>
     </section>
     <aside className="admPreviewPane" aria-label="Live mobile preview">
