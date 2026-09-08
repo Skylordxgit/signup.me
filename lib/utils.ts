@@ -111,7 +111,16 @@ export function buildSmartUrl(block: PageBlock) {
 
 export function publicPageUrl(slug: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  return `${base.replace(/\/$/, "")}/${slug}`;
+
+  try {
+    const url = new URL(base);
+    url.pathname = `/${slug}`;
+    url.search = "";
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return `/${slug}`;
+  }
 }
 
 export type ParsedBlockIcon =

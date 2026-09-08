@@ -23,9 +23,9 @@ import {
   Video,
   type LucideIcon,
 } from "lucide-react";
-import type { PageBlock, SmartPage } from "@/lib/types";
+import type { PageBlock, ProfileLayout, SmartPage } from "@/lib/types";
 import { buildSmartUrl, parseBlockIcon, readableTextColor } from "@/lib/utils";
-import { resolveAlignment, resolveButtonStyle, resolveSurface, themeCssVariables } from "@/lib/themes";
+import { resolveAlignment, resolveButtonStyle, resolveLayout, resolveSurface, themeCssVariables } from "@/lib/themes";
 
 /**
  * Editing affordances supplied by the admin builder. When absent the renderer
@@ -57,6 +57,7 @@ export function PageRenderer({
   const buttonStyle = resolveButtonStyle(theme);
   const surface = resolveSurface(theme);
   const align = resolveAlignment(theme);
+  const layout = resolveLayout(theme);
 
   // The builder shows hidden blocks (dimmed) so they can be re-enabled;
   // visitors only ever get the active ones. Order is identical.
@@ -72,7 +73,7 @@ export function PageRenderer({
     // builder frame and on a desktop browser, so content geometry is identical.
     <div className="smartPage" style={themeCssVariables(theme)}>
       <div className="pageColumn">
-      <div className={`smartCard surface-${surface}`} data-align={align}>
+      <div className={`smartCard surface-${surface}`} data-align={align} data-layout={layout}>
         <PageCover edit={edit} page={page} theme={theme} />
 
         <header className="pageProfile">
@@ -85,11 +86,11 @@ export function PageRenderer({
               aria-label="Edit profile"
               onClick={edit.onEditProfile}
             >
-              <ProfileIdentity page={page} />
+              <ProfileIdentity layout={layout} page={page} />
             </button>
           ) : (
             <div className="pageIdentity">
-              <ProfileIdentity page={page} />
+              <ProfileIdentity layout={layout} page={page} />
             </div>
           )}
         </header>
@@ -137,10 +138,10 @@ function PageCover({
   );
 }
 
-function ProfileIdentity({ page }: { page: SmartPage }) {
+function ProfileIdentity({ layout, page }: { layout: ProfileLayout; page: SmartPage }) {
   return (
     <>
-      <ProfileAvatar name={page.title || page.name} src={page.profileImage} />
+      {layout !== "none" && <ProfileAvatar name={page.title || page.name} src={page.profileImage} />}
       <h1 className="pageTitle">{page.title}</h1>
       {page.bio && <p className="pageBio">{page.bio}</p>}
     </>

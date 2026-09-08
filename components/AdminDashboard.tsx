@@ -3,7 +3,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowDown,
   ArrowLeft,
   BarChart3,
   AlignCenter,
@@ -13,6 +12,7 @@ import {
   Blocks,
   Check,
   ChevronRight,
+  Circle,
   CircleHelp,
   CircleOff,
   ClipboardCopy,
@@ -24,7 +24,6 @@ import {
   FormInput,
   GalleryVerticalEnd,
   Globe2,
-  Hand,
   Heart,
   ImageIcon,
   LayoutPanelTop,
@@ -35,7 +34,6 @@ import {
   Menu,
   MessageCircle,
   Minus,
-  MoreHorizontal,
   Music2,
   MoveDown,
   MoveUp,
@@ -64,9 +62,17 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PublicPage } from "@/components/PublicPage";
-import type { AnalyticsReport, BlockType, PageBlock, PageSummary, ProfileAlignment, SmartPage } from "@/lib/types";
-import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } from "@/lib/utils";
-import { applyThemeDefinition, resolveAlignment, themeDefinition, themeLibrary } from "@/lib/themes";
+import type {
+  AnalyticsReport,
+  BlockType,
+  PageBlock,
+  PageSummary,
+  ProfileAlignment,
+  ProfileLayout,
+  SmartPage,
+} from "@/lib/types";
+import { blockTypes, parseBlockIcon, publicPageUrl, readableTextColor, slugify, themePresets } from "@/lib/utils";
+import { applyThemeDefinition, resolveAlignment, resolveLayout, themeDefinition, themeLibrary } from "@/lib/themes";
 import { PhoneFrame } from "./PhoneFrame";
 import { PageRenderer } from "./PageRenderer";
 import { ImageUploader } from "./ImageUploader";
@@ -86,6 +92,7 @@ export function AdminDashboard() {
   const [blockPickerOpen, setBlockPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
+  const [websiteSettingsOpen, setWebsiteSettingsOpen] = useState(false);
   const [decorationOpen, setDecorationOpen] = useState(false);
   const [addLinkFlowOpen, setAddLinkFlowOpen] = useState(false);
   const [profileEditorRequested, setProfileEditorRequested] = useState(false);
@@ -93,7 +100,6 @@ export function AdminDashboard() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [pendingPagePatch, setPendingPagePatch] = useState<Partial<SmartPage> | null>(null);
   const [pendingBlockPatches, setPendingBlockPatches] = useState<Record<number, Partial<PageBlock>>>({});
-  const [appOrigin] = useState(() => (typeof window === "undefined" ? "" : window.location.origin));
 
   const filteredPages = useMemo(
     () => pages.filter((page) => `${page.name} ${page.slug}`.toLowerCase().includes(query.toLowerCase())),
@@ -132,7 +138,16 @@ export function AdminDashboard() {
   }
 
   function publicUrl(slug: string) {
-    return `${appOrigin || ""}/${slug}` || `/${slug}`;
+    return publicPageUrl(slug);
+  }
+
+  function publicHost(slug: string) {
+    try {
+      const url = new URL(publicUrl(slug));
+      return `${url.host}${url.pathname}`;
+    } catch {
+      return `/${slug}`;
+    }
   }
 
   function editPage(patch: Partial<SmartPage>) {
@@ -383,7 +398,7 @@ export function AdminDashboard() {
                 <button type="button" className="websiteCard" key={page.id} onClick={() => loadPage(page.id)}>
                   <div>
                     <strong>{page.name}</strong>
-                    <span>{page.slug}.smartlink.local</span>
+                    <span>{publicHost(page.slug)}</span>
                   </div>
                   <ChevronRight aria-hidden="true" />
                 </button>
@@ -421,7 +436,7 @@ export function AdminDashboard() {
             </button>
           </header>
 
-          <div className="detailUrl">{activePage.slug}.smartlink.local</div>
+          <div className="detailUrl">{publicHost(activePage.slug)}</div>
 
           <div className="quickActions">
             <button type="button" onClick={() => navigator.clipboard?.writeText(publicUrl(activePage.slug))}>
@@ -508,6 +523,17 @@ export function AdminDashboard() {
               />
             )}
 
+            {websiteSettingsOpen && (
+              <WebsiteSettingsSheet
+                page={activePage}
+                onClose={() => setWebsiteSettingsOpen(false)}
+                onSave={(patch) => {
+                  savePageNow(patch);
+                  setWebsiteSettingsOpen(false);
+                }}
+              />
+            )}
+
             {decorationOpen && (
               <PageDecorationSheet
                 page={activePage}
@@ -543,7 +569,6 @@ export function AdminDashboard() {
               profileEditorRequested={profileEditorRequested}
               onProfileEditorDismiss={() => setProfileEditorRequested(false)}
               onBlockSelectionChange={setHasSelectedBlock}
-              onAddFirstBlock={() => setBlockPickerOpen(true)}
             />
           </div>
 
@@ -564,7 +589,7 @@ export function AdminDashboard() {
                 <span><Eye /></span>
                 Preview
               </button>
-              <button type="button" onClick={() => setThemeEditorOpen(true)}>
+              <button type="button" onClick={() => setWebsiteSettingsOpen(true)}>
                 <span><Settings /></span>
                 Settings
               </button>
@@ -1147,6 +1172,48 @@ function SettingsSheet({ onClose, onLogout }: { onClose: () => void; onLogout: (
   );
 }
 
+function WebsiteSettingsSheet({
+  onClose,
+  onSave,
+  page,
+}: {
+  onClose: () => void;
+  onSave: (patch: Partial<SmartPage>) => void;
+  page: SmartPage;
+}) {
+  const [name, setName] = useState(page.name);
+  const [slug, setSlug] = useState(page.slug);
+  const pageUrl = publicPageUrl(slugify(slug) || "your-page");
+
+  return (
+    <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Website settings">
+      <section className="settingsSheet websiteSettingsSheet">
+        <header className="settingsHeader">
+          <button type="button" aria-label="Close website settings" onClick={onClose}><X /></button>
+          <h2>Website Settings</h2>
+          <button type="button" className="websiteSettingsSave" onClick={() => onSave({ name, slug: slugify(slug) })}>Save</button>
+        </header>
+        <div className="websiteSettingsFields">
+          <Field label="Website name *">
+            <input value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field label="Page URL *">
+            <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
+            <small className="subdomainPreview">{pageUrl}</small>
+          </Field>
+          <div className="websiteStatusRow">
+            <div>
+              <strong>Publishing</strong>
+              <span>{page.status === "published" ? "Visible to visitors" : "Not visible to visitors"}</span>
+            </div>
+            <span className={`statusPill ${page.status}`}>{page.status === "published" ? "Published" : "Draft"}</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function ThemeEditorSheet({
   onChange,
   onClose,
@@ -1429,7 +1496,6 @@ function EditablePublicCanvas({
   onProfileEditorDismiss,
   profileEditorRequested,
   onBlockSelectionChange,
-  onAddFirstBlock,
   page,
 }: {
   onDeleteBlock: (blockId: number) => void;
@@ -1441,14 +1507,12 @@ function EditablePublicCanvas({
   onProfileEditorDismiss: () => void;
   profileEditorRequested: boolean;
   onBlockSelectionChange: (selected: boolean) => void;
-  onAddFirstBlock: () => void;
   page: SmartPage;
 }) {
   const blocks = [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder);
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<number | null>(null);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
-  const [emptyCtaDismissed, setEmptyCtaDismissed] = useState(false);
   const selectedBlock = blocks.find((block) => block.id === selectedBlockId) ?? null;
   const editingBlock = blocks.find((block) => block.id === editingBlockId) ?? null;
   const selectedIndex = selectedBlock ? blocks.findIndex((block) => block.id === selectedBlock.id) : -1;
@@ -1459,40 +1523,6 @@ function EditablePublicCanvas({
     setSelectedBlockId(null);
     onBlockSelectionChange(false);
     setProfileEditorOpen(true);
-  }
-
-  if (blocks.length === 0) {
-    return (
-      <div className="canvasEmptyState">
-        <h2>Start building your website</h2>
-        <p>Press the button below to add your first block</p>
-        <ArrowDown className="canvasEmptyArrow" aria-hidden="true" />
-        {!emptyCtaDismissed && (
-          <button type="button" className="canvasEmptyCta" onClick={onAddFirstBlock}>
-            <Hand size={16} aria-hidden="true" />
-            Create free website
-            <span
-              className="canvasEmptyCtaClose"
-              role="button"
-              tabIndex={0}
-              aria-label="Dismiss"
-              onClick={(event) => {
-                event.stopPropagation();
-                setEmptyCtaDismissed(true);
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" && event.key !== " ") return;
-                event.stopPropagation();
-                event.preventDefault();
-                setEmptyCtaDismissed(true);
-              }}
-            >
-              <X size={14} />
-            </span>
-          </button>
-        )}
-      </div>
-    );
   }
 
   return (
@@ -1509,7 +1539,7 @@ function EditablePublicCanvas({
         }}
       />
 
-      {selectedBlock && (
+      {selectedBlock && !editingBlock && (
         <div className="selectedBlockToolbar" aria-label="Selected block actions">
           <button type="button" className="closeToolbarButton" onClick={() => {
             setSelectedBlockId(null);
@@ -1637,6 +1667,8 @@ function ProfileEditorSheet({
   const [title, setTitle] = useState(page.title);
   const [bio, setBio] = useState(page.bio);
   const [align, setAlign] = useState<ProfileAlignment>(resolveAlignment(page.theme));
+  const [layout, setLayout] = useState<ProfileLayout>(resolveLayout(page.theme));
+  const pageUrl = publicPageUrl(slugify(slug) || "your-page");
 
   function save() {
     onSave({
@@ -1644,7 +1676,7 @@ function ProfileEditorSheet({
       name,
       profileImage: photo,
       slug: slugify(slug),
-      theme: { ...page.theme, backgroundImage: cover, profileAlignment: align },
+      theme: { ...page.theme, backgroundImage: cover, profileAlignment: align, profileLayout: layout },
       title,
     });
   }
@@ -1655,13 +1687,15 @@ function ProfileEditorSheet({
         <header className="profileSheetHeader">
           <button type="button" aria-label="Close profile editor" onClick={onClose}><X /></button>
           <h2>Profile</h2>
-          <button type="button" aria-label="More profile options"><MoreHorizontal /></button>
+          <button type="button" className="profileHeaderSave" onClick={save}>Save</button>
         </header>
 
-        <div className="profileSheetPreview">
-          <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
+        <div className={`profileSheetPreview profilePreview-${layout}`}>
+          {layout !== "avatar" && layout !== "none" && (
+            <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
+          )}
           <div className="profileSheetIdentity">
-            <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
+            {layout !== "none" && <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />}
             <div>
               <strong>{title || "Your name"}</strong>
               <p>{bio || "Add a short description"}</p>
@@ -1676,7 +1710,8 @@ function ProfileEditorSheet({
               <input value={name} onChange={(event) => setName(event.target.value)} />
             </Field>
             <Field label="Public URL *">
-              <input value={slug} onChange={(event) => setSlug(event.target.value)} />
+              <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
+              <small className="subdomainPreview">{pageUrl}</small>
             </Field>
             <Field label="Title *">
               <input value={title} onChange={(event) => setTitle(event.target.value)} />
@@ -1688,21 +1723,47 @@ function ProfileEditorSheet({
 
           <section className="editorSection">
             <h3>Images</h3>
-            <ImageUploader
-              category="banner"
-              label="Cover"
-              hint="The hero image across the top. Drag one here, or click to choose."
-              value={cover}
-              onChange={setCover}
-            />
-            <ImageUploader
-              category="profile"
-              label="Profile photo"
-              hint="Square images look best. Drag one here, or click to choose."
-              round
-              value={photo}
-              onChange={setPhoto}
-            />
+            {layout !== "avatar" && layout !== "none" && (
+              <ImageUploader
+                category="banner"
+                label="Cover"
+                hint="The hero image across the top. Drag one here, or click to choose."
+                value={cover}
+                onChange={setCover}
+              />
+            )}
+            {layout !== "none" && (
+              <ImageUploader
+                category="profile"
+                label="Profile photo"
+                hint="Square images look best. Drag one here, or click to choose."
+                round
+                value={photo}
+                onChange={setPhoto}
+              />
+            )}
+          </section>
+
+          <section className="editorSection">
+            <h3>Layout</h3>
+            <div className="profileLayoutPicker" aria-label="Header layout">
+              {[
+                { value: "hero", label: "Hero", icon: LayoutPanelTop },
+                { value: "centered", label: "Centered", icon: Circle },
+                { value: "avatar", label: "Avatar", icon: User },
+                { value: "none", label: "None", icon: Minus },
+              ].map((option) => (
+                <button
+                  type="button"
+                  className={layout === option.value ? "active" : ""}
+                  key={option.value}
+                  onClick={() => setLayout(option.value as ProfileLayout)}
+                >
+                  <option.icon aria-hidden="true" />
+                  <span>{option.label}</span>
+                </button>
+              ))}
+            </div>
           </section>
 
           <section className="editorSection">

@@ -49,6 +49,9 @@ export type ButtonStyle =
 
 export type SurfaceStyle = "glass" | "glass-dark" | "solid" | "plain" | "plain-dark";
 
+/** The profile header's shape. */
+export type ProfileLayout = "hero" | "centered" | "avatar" | "none";
+
 /** How the whole profile identity block is aligned on the page. */
 export type ProfileAlignment = "left" | "center" | "right";
 
@@ -70,11 +73,14 @@ export type ThemeSettings = {
   shadow: number;
   font: "inter" | "system" | "serif" | "mono";
   spacing: number;
-  /* Optional: pages saved before these existed fall back to their theme. */
+  /* Optional: pages saved before these existed fall back to their theme.
+     All three are page layout rather than palette, so they are deliberately
+     carried across when a new theme preset is applied. */
   buttonStyle?: ButtonStyle;
   surface?: SurfaceStyle;
-  /* Profile layout. Kept in the theme blob so it needs no schema change, and
-     deliberately carried across when a new theme preset is applied. */
+  /* Which header shape the profile uses. */
+  profileLayout?: ProfileLayout;
+  /* Which side the whole identity block sits on. Composes with profileLayout. */
   profileAlignment?: ProfileAlignment;
 };
 

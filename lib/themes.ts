@@ -1,4 +1,4 @@
-import type { ProfileAlignment, ThemeSettings } from "./types";
+import type { ProfileAlignment, ProfileLayout, ThemeSettings } from "./types";
 
 /**
  * Each entry is a complete, coordinated design system — background, typography,
@@ -340,6 +340,10 @@ export function resolveSurface(theme: ThemeSettings): string {
 
 export function resolveAlignment(theme: ThemeSettings): ProfileAlignment {
   return theme.profileAlignment ?? "center";
+}
+
+export function resolveLayout(theme: ThemeSettings): ProfileLayout {
+  return theme.profileLayout ?? "hero";
 }
 
 function withAlpha(hex: string, alpha: number) {
