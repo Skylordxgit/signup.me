@@ -2,8 +2,8 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Check, Clock3, Copy, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Plus, RefreshCw, Trash2, User } from "lucide-react";
-import type { AnalyticsReport, PageSummary } from "@/lib/types";
+import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
+import type { AnalyticsReport, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { ImageUploader } from "../ImageUploader";
 import { EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./AdminUI";
@@ -37,7 +37,7 @@ export function DashboardHome({ pages, analytics, onOpen, onNavigate }: { pages:
   return <>
     <div className="admPageHeading"><div><h2>Workspace overview</h2><p>Your pages, traffic, and latest updates.</p></div><button type="button" className="admButton admPrimary" onClick={() => onNavigate('create')}><Plus size={17} />Create page</button></div>
     <Metrics pages={pages} />
-    <div className="admHomeGrid"><section><SectionHeading title="Traffic overview"><span className="admMuted">Last 30 days</span></SectionHeading><TrafficChart report={analytics} /></section><section className="admQuickActions"><SectionHeading title="Quick actions" />{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={18} /><span>{action.label}</span><ArrowUpRight size={15} /></button>)}</section></div>
+    <div className="admHomeGrid"><section><SectionHeading title="Traffic overview"><span className="admMuted">Last 30 days</span></SectionHeading><TrafficChart report={analytics} /></section><section className="admQuickActions"><SectionHeading title="Quick actions" />{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'Send notification', icon: Bell, view: 'notifications' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={18} /><span>{action.label}</span><ArrowUpRight size={15} /></button>)}</section></div>
     <div className="admHomeGrid"><section><SectionHeading title="Recent pages"><button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} /></button></SectionHeading><PagesTable pages={recent} onOpen={onOpen} /></section><section><SectionHeading title="Recent activity" />{!recent.length ? <EmptyState title="No activity yet" /> : <ul className="admActivity">{recent.map(page => <li key={page.id}><span><Clock3 size={17} /></span><div><button type="button" onClick={() => onOpen(page.id)}>{page.name}</button><small>Page updated</small><time dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div></li>)}</ul>}</section></div>
   </>;
 }
@@ -99,6 +99,97 @@ export function MediaView() {
     <div className="admToolbar"><span className="admMuted">{media.length} images</span><select aria-label="Filter media" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All media</option>{['profile', 'banner', 'block', 'logo', 'background', 'icon', 'og', 'favicon'].map(value => <option key={value}>{value}</option>)}</select></div>
     {error && <p className="admError" role="alert">{error}</p>}{loading ? <EmptyState title="Loading media..." /> : !filtered.length ? <EmptyState title="No images in this category" /> : <div className="admMediaGrid">{filtered.map(file => <article className="admMediaItem" key={file.path}><a href={file.path} target="_blank" rel="noreferrer" aria-label={`Open ${file.name}`}><img src={file.path} alt={file.name} loading="lazy" /></a><div><span><strong title={file.name}>{file.name}</strong><small>{file.category} · {Math.max(1, Math.round(file.bytes / 1024))} KB</small></span><IconButton icon={copied === file.path ? Check : Copy} label={copied === file.path ? 'Copied' : 'Copy image link'} onClick={() => void copy(file.path)} /></div></article>)}</div>}
   </>;
+}
+
+export function NotificationsView({ pages }: { pages: PageSummary[] }) {
+  const [summary, setSummary] = useState<NotificationSubscriberSummary>({ total: 0, byPage: [] });
+  const [configured, setConfigured] = useState(false);
+  const [pageId, setPageId] = useState('all');
+  const [title, setTitle] = useState('New update from signup888');
+  const [body, setBody] = useState('');
+  const [url, setUrl] = useState('/');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState<NotificationSendResult | null>(null);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      const data = await adminApi<{ configured: boolean; subscribers: NotificationSubscriberSummary }>('/api/admin/notifications');
+      setConfigured(data.configured);
+      setSummary(data.subscribers);
+      setError('');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not load notifications.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    adminApi<{ configured: boolean; subscribers: NotificationSubscriberSummary }>('/api/admin/notifications')
+      .then(data => {
+        if (cancelled) return;
+        setConfigured(data.configured);
+        setSummary(data.subscribers);
+        setError('');
+      })
+      .catch(cause => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load notifications.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function send(event: React.FormEvent) {
+    event.preventDefault();
+    setSending(true);
+    setResult(null);
+    setError('');
+    try {
+      const response = await adminApi<NotificationSendResult>('/api/admin/notifications/send', {
+        method: 'POST',
+        body: JSON.stringify({ title, body, url, pageId: pageId === 'all' ? null : Number(pageId) }),
+      });
+      setResult(response);
+      await refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not send notification.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const pageCounts = new Map(summary.byPage.map(item => [item.pageId, item.subscribers]));
+
+  return <div className="admNotificationGrid">
+    <section>
+      <SectionHeading title="Browser notifications"><IconButton icon={RefreshCw} label="Refresh subscribers" disabled={loading} onClick={() => void refresh()} /></SectionHeading>
+      <div className="admMetrics admNotificationMetrics">
+        <article className="admMetric"><div><span>Total subscribers</span><strong>{number(summary.total)}</strong></div><span className="admMetricIcon admTone-blue"><Bell size={21} /></span></article>
+        <article className="admMetric"><div><span>Status</span><strong>{configured ? 'Ready' : 'Setup needed'}</strong></div></article>
+      </div>
+      {!configured && <p className="admSetupNote">Add WEB_PUSH_PUBLIC_KEY, NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY, and WEB_PUSH_PRIVATE_KEY to enable live sends.</p>}
+      {loading ? <EmptyState title="Loading subscribers..." /> : !summary.byPage.length ? <EmptyState title="No subscribers yet" /> : <div className="admDistribution">{summary.byPage.map(item => <div key={item.pageId}><div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div><progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} /></div>)}</div>}
+    </section>
+
+    <form onSubmit={send}>
+      <SectionHeading title="Send campaign" />
+      <div className="admFormStack">
+        <Field label="Audience"><select value={pageId} onChange={event => setPageId(event.target.value)}><option value="all">All subscribers</option>{pages.map(page => <option key={page.id} value={page.id}>/{page.slug} ({number(pageCounts.get(page.id) ?? 0)})</option>)}</select></Field>
+        <Field label="Title"><input maxLength={80} value={title} onChange={event => setTitle(event.target.value)} /></Field>
+        <Field label="Message"><textarea rows={4} maxLength={180} required value={body} onChange={event => setBody(event.target.value)} placeholder="Write a short update or offer." /></Field>
+        <Field label="Open URL"><input value={url} onChange={event => setUrl(event.target.value)} placeholder="/jeetbuzzaffinir" /></Field>
+        {error && <p className="admError" role="alert">{error}</p>}
+        {result && <p className="admSuccess" role="status">Sent {number(result.sent)} of {number(result.attempted)}. Removed {number(result.removed)} expired subscriptions.</p>}
+        <button type="submit" className="admButton admPrimary" disabled={sending || !configured || !body.trim()}><Send size={16} />{sending ? 'Sending...' : 'Send notification'}</button>
+      </div>
+    </form>
+  </div>;
 }
 
 export function SettingsView({ email, collapsed, onCollapse, onLogout }: { email: string; collapsed: boolean; onCollapse: (collapsed: boolean) => void; onLogout: () => void }) {

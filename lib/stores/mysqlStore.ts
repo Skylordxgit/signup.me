@@ -1,8 +1,9 @@
 import { createHash } from "crypto";
-import type { AnalyticsReport, BlockType, PageBlock, PageStatus, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
 import { defaultTheme } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
+import { configureWebPush, isGonePushError, notificationPayload, webpush } from "../push";
 
 type PageRow = {
   id: number;
@@ -38,6 +39,17 @@ type BlockRow = {
   sort_order: number;
   is_active: number | boolean;
   clicks: number;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type PushRow = {
+  id: number;
+  page_id: number;
+  slug: string;
+  endpoint_hash: string;
+  subscription_json: unknown;
+  user_agent: string | null;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -129,6 +141,29 @@ async function loadPage(pageId: number) {
 
 function visitorHash(visitorKey: string) {
   return createHash("sha256").update(visitorKey).digest("hex");
+}
+
+function subscriptionHash(endpoint: string) {
+  return createHash("sha256").update(endpoint).digest("hex");
+}
+
+let pushTableReady: Promise<void> | null = null;
+
+function ensurePushTable() {
+  pushTableReady ??= mysqlQuery(
+    `CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      page_id BIGINT UNSIGNED NOT NULL,
+      endpoint_hash CHAR(64) NOT NULL UNIQUE,
+      subscription_json JSON NOT NULL,
+      user_agent VARCHAR(500) NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_push_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+      INDEX idx_push_page (page_id)
+    )`,
+  ).then(() => undefined);
+  return pushTableReady;
 }
 
 export async function listPages() {
@@ -533,4 +568,87 @@ export async function analyticsForPage(pageId: number): Promise<AnalyticsReport 
     })),
     referrers: referrerRows.map((row) => ({ referrer: row.referrer, count: Number(row.count) })),
   };
+}
+
+export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string) {
+  await ensurePushTable();
+  const rows = await mysqlQuery<{ id: number }[]>("SELECT id FROM pages WHERE slug = ? AND status = 'published'", [slug]);
+  const pageId = rows[0]?.id;
+  if (!pageId) return null;
+
+  const endpointHash = subscriptionHash(subscription.endpoint);
+  await mysqlQuery(
+    `INSERT INTO push_subscriptions (page_id, endpoint_hash, subscription_json, user_agent)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent)`,
+    [pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500)],
+  );
+
+  const saved = await mysqlQuery<PushRow[]>(
+    `SELECT ps.*, p.slug FROM push_subscriptions ps
+     INNER JOIN pages p ON p.id = ps.page_id
+     WHERE ps.endpoint_hash = ?`,
+    [endpointHash],
+  );
+  const row = saved[0];
+  if (!row) return null;
+  return {
+    id: row.id,
+    pageId: row.page_id,
+    slug: row.slug,
+    endpointHash: row.endpoint_hash,
+    subscription: toJson<PushSubscriptionRecord>(row.subscription_json, subscription),
+    userAgent: row.user_agent ?? "",
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
+}
+
+export async function listPushSubscribers(): Promise<NotificationSubscriberSummary> {
+  await ensurePushTable();
+  const rows = await mysqlQuery<{ page_id: number; slug: string; subscribers: number }[]>(
+    `SELECT ps.page_id, p.slug, COUNT(*) AS subscribers
+     FROM push_subscriptions ps
+     INNER JOIN pages p ON p.id = ps.page_id
+     GROUP BY ps.page_id, p.slug
+     ORDER BY subscribers DESC`,
+  );
+  return {
+    total: rows.reduce((sum, row) => sum + Number(row.subscribers), 0),
+    byPage: rows.map((row) => ({ pageId: row.page_id, slug: row.slug, subscribers: Number(row.subscribers) })),
+  };
+}
+
+export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
+  configureWebPush();
+  await ensurePushTable();
+  const rows = await mysqlQuery<PushRow[]>(
+    `SELECT ps.*, p.slug FROM push_subscriptions ps
+     INNER JOIN pages p ON p.id = ps.page_id
+     WHERE (? IS NULL OR ps.page_id = ?)`,
+    [input.pageId ?? null, input.pageId ?? null],
+  );
+  const result: NotificationSendResult = { attempted: rows.length, sent: 0, removed: 0, failed: 0 };
+  const payload = notificationPayload(input);
+  const expired: string[] = [];
+
+  for (const row of rows) {
+    try {
+      await webpush.sendNotification(toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }), payload);
+      result.sent += 1;
+    } catch (error) {
+      if (isGonePushError(error)) {
+        expired.push(row.endpoint_hash);
+        result.removed += 1;
+      } else {
+        result.failed += 1;
+      }
+    }
+  }
+
+  if (expired.length) {
+    await mysqlQuery("DELETE FROM push_subscriptions WHERE endpoint_hash IN (?)", [expired]);
+  }
+
+  return result;
 }

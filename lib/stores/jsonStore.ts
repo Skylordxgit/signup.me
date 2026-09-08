@@ -1,13 +1,16 @@
+import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, BlockType, PageBlock, PageStatus, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
 import { defaultTheme, seedPages } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
+import { configureWebPush, isGonePushError, notificationPayload, webpush } from "../push";
 
 type DatabaseShape = {
   pages: SmartPage[];
   pageViews: { id: number; pageId: number; date: string; device: string; referrer: string; visitorKey: string }[];
   linkClicks: { id: number; pageId: number; blockId: number; date: string; device: string; referrer: string }[];
+  pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
 };
 
 const dataFile = path.join(process.cwd(), "data", "db.json");
@@ -15,9 +18,15 @@ const dataFile = path.join(process.cwd(), "data", "db.json");
 async function readJsonDb(): Promise<DatabaseShape> {
   try {
     const file = await fs.readFile(dataFile, "utf8");
-    return JSON.parse(file) as DatabaseShape;
+    const db = JSON.parse(file) as Partial<DatabaseShape>;
+    return {
+      pages: db.pages ?? [],
+      pageViews: db.pageViews ?? [],
+      linkClicks: db.linkClicks ?? [],
+      pushSubscriptions: db.pushSubscriptions ?? [],
+    };
   } catch {
-    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [] };
+    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [], pushSubscriptions: [] };
     await writeJsonDb(initial);
     return initial;
   }
@@ -336,4 +345,82 @@ export async function analyticsForPage(pageId: number): Promise<AnalyticsReport 
         }, {}),
     ).map(([referrer, count]) => ({ referrer, count })),
   };
+}
+
+function subscriptionHash(endpoint: string) {
+  return createHash("sha256").update(endpoint).digest("hex");
+}
+
+export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.slug === slug && item.status === "published");
+  if (!page) return null;
+
+  const timestamp = nowIso();
+  const endpointHash = subscriptionHash(subscription.endpoint);
+  const existing = db.pushSubscriptions.find((item) => item.endpointHash === endpointHash);
+  if (existing) {
+    existing.pageId = page.id;
+    existing.slug = page.slug;
+    existing.subscription = subscription;
+    existing.userAgent = userAgent.slice(0, 500);
+    existing.updatedAt = timestamp;
+    await writeJsonDb(db);
+    return existing;
+  }
+
+  const subscriber = {
+    id: nextId(db.pushSubscriptions),
+    pageId: page.id,
+    slug: page.slug,
+    endpointHash,
+    subscription,
+    userAgent: userAgent.slice(0, 500),
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  db.pushSubscriptions.push(subscriber);
+  await writeJsonDb(db);
+  return subscriber;
+}
+
+export async function listPushSubscribers(): Promise<NotificationSubscriberSummary> {
+  const db = await readJsonDb();
+  const byPage = db.pushSubscriptions.reduce<Map<number, { pageId: number; slug: string; subscribers: number }>>((acc, item) => {
+    const current = acc.get(item.pageId) ?? { pageId: item.pageId, slug: item.slug, subscribers: 0 };
+    current.subscribers += 1;
+    acc.set(item.pageId, current);
+    return acc;
+  }, new Map());
+  return { total: db.pushSubscriptions.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers) };
+}
+
+export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
+  configureWebPush();
+  const db = await readJsonDb();
+  const subscribers = db.pushSubscriptions.filter((item) => !input.pageId || item.pageId === input.pageId);
+  const result: NotificationSendResult = { attempted: subscribers.length, sent: 0, removed: 0, failed: 0 };
+  const payload = notificationPayload(input);
+  const expired = new Set<string>();
+
+  for (const subscriber of subscribers) {
+    try {
+      await webpush.sendNotification(subscriber.subscription, payload);
+      result.sent += 1;
+    } catch (error) {
+      if (isGonePushError(error)) {
+        expired.add(subscriber.endpointHash);
+        result.removed += 1;
+      } else {
+        result.failed += 1;
+      }
+    }
+  }
+
+  if (expired.size) {
+    db.pushSubscriptions = db.pushSubscriptions.filter((item) => !expired.has(item.endpointHash));
+    await writeJsonDb(db);
+  }
+
+  return result;
 }

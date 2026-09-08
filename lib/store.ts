@@ -21,3 +21,6 @@ export const reorderBlocks: typeof jsonStore.reorderBlocks = (...args) => store(
 export const trackView: typeof jsonStore.trackView = (...args) => store().trackView(...args);
 export const trackClick: typeof jsonStore.trackClick = (...args) => store().trackClick(...args);
 export const analyticsForPage: typeof jsonStore.analyticsForPage = (...args) => store().analyticsForPage(...args);
+export const savePushSubscription: typeof jsonStore.savePushSubscription = (...args) => store().savePushSubscription(...args);
+export const listPushSubscribers: typeof jsonStore.listPushSubscribers = (...args) => store().listPushSubscribers(...args);
+export const sendPushNotification: typeof jsonStore.sendPushNotification = (...args) => store().sendPushNotification(...args);

@@ -13,7 +13,7 @@ test("the admin shell uses full workspace navigation without a phone frame", () 
   const html = renderToStaticMarkup(<AdminDashboard />);
   assert.match(html, /admSidebar/);
   assert.match(html, /admTopbar/);
-  for (const name of ['Dashboard', 'Pages', 'Create Page', 'Analytics', 'Media', 'Themes', 'Settings', 'Logout']) assert.ok(html.includes(name));
+  for (const name of ['Dashboard', 'Pages', 'Create Page', 'Analytics', 'Media', 'Themes', 'Notifications', 'Settings', 'Logout']) assert.ok(html.includes(name));
   assert.doesNotMatch(html, /phoneDevice|phoneStage/);
 });
 

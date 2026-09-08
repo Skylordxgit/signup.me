@@ -161,3 +161,43 @@ export type AnalyticsReport = {
   devices: { device: string; count: number }[];
   referrers: { referrer: string; count: number }[];
 };
+
+export type PushSubscriptionKeys = {
+  p256dh: string;
+  auth: string;
+};
+
+export type PushSubscriptionRecord = {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: PushSubscriptionKeys;
+};
+
+export type NotificationSubscriber = {
+  id: number;
+  pageId: number;
+  slug: string;
+  endpointHash: string;
+  userAgent: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NotificationSubscriberSummary = {
+  total: number;
+  byPage: { pageId: number; slug: string; subscribers: number }[];
+};
+
+export type NotificationSendInput = {
+  title: string;
+  body: string;
+  url: string;
+  pageId?: number | null;
+};
+
+export type NotificationSendResult = {
+  attempted: number;
+  sent: number;
+  removed: number;
+  failed: number;
+};

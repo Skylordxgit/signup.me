@@ -2432,6 +2432,97 @@ so the card reads as the theme it applies. */
   overflow-x: hidden;
 }
 
+.pushPrompt {
+  position: fixed;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 60;
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.94);
+  color: #ffffff;
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(18px);
+}
+
+.pushPromptIcon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #1d4ed8, #db2777);
+  color: #ffffff;
+}
+
+.pushPrompt strong {
+  display: block;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.pushPrompt p {
+  margin: 3px 0 0;
+  color: #cbd5e1;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.pushPromptAllow,
+.pushPromptClose {
+  border: 0;
+  border-radius: 999px;
+}
+
+.pushPromptAllow {
+  min-height: 38px;
+  background: #ffffff;
+  color: #111827;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.pushPromptClose {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 0;
+}
+
+.pushPromptClose:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+@media (max-width: 520px) {
+  .pushPrompt {
+    left: max(10px, env(safe-area-inset-left));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: auto;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 13px;
+  }
+
+  .pushPromptAllow {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+}
+
 /* Card surface treatments,
 shared by the theme swatches and the real page. */
 .surface-glass {

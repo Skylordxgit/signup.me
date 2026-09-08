@@ -1,0 +1,29 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth";
+import { sendPushNotification } from "@/lib/store";
+
+export async function POST(request: NextRequest) {
+  const session = await requireAdmin();
+  if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+
+  try {
+    const body = await request.json() as Record<string, unknown> | null;
+    const title = typeof body?.title === "string" ? body.title.trim() : "";
+    const message = typeof body?.body === "string" ? body.body.trim() : "";
+    const url = typeof body?.url === "string" ? body.url.trim() : "/";
+    const pageId = typeof body?.pageId === "number" && Number.isFinite(body.pageId) ? body.pageId : null;
+
+    if (!title) throw new Error("Notification title is required");
+    if (!message) throw new Error("Notification message is required");
+    if (title.length > 80) throw new Error("Keep the title under 80 characters");
+    if (message.length > 180) throw new Error("Keep the message under 180 characters");
+    if (!url.startsWith("/")) throw new Error("Notification URL must start with /");
+
+    return NextResponse.json(await sendPushNotification({ title, body: message, url, pageId }));
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Notification failed" },
+      { status: 400 },
+    );
+  }
+}
