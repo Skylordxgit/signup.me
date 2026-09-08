@@ -3,7 +3,6 @@
 /* eslint-disable @next/next/no-img-element */
 import { useState } from "react";
 import {
-  ArrowUpRight,
   Camera,
   CircleHelp,
   Globe2,
@@ -274,7 +273,6 @@ export function PageBlockView({
         <strong>{block.title || "Untitled link"}</strong>
         {block.subtitle && <small>{block.subtitle}</small>}
       </span>
-      <ArrowUpRight className="pageButtonArrow" aria-hidden="true" />
     </a>
   );
 }

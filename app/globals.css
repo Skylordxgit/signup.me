@@ -3024,14 +3024,17 @@ button:hover:not(:disabled) {
 }
 
 /* Layout only. Background, border and shadow come from the .buttonStyle-*
-   class so a theme can restyle buttons without fighting this rule. */
+   class so a theme can restyle buttons without fighting this rule.
+
+   The label is centred on the button itself, not on the space left over beside
+   the icon, so it reads as a title bar with a badge rather than a list row. */
 .pageButton {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 20px;
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
   min-height: 62px;
-  padding: 11px 14px 11px 11px;
+  padding: 11px 16px;
   border-radius: var(--button-radius);
   color: var(--button-text);
   text-decoration: none;
@@ -3040,13 +3043,23 @@ button:hover:not(:disabled) {
     box-shadow 180ms ease;
 }
 
+/* With an icon present, reserve the same width on both sides so the title
+   stays centred and long text can never run underneath the badge. */
+.pageButton:has(.pageButtonIcon:not(:empty)) {
+  padding-inline: 62px;
+}
+
 .pageButtonIcon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
   display: grid;
   place-items: center;
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: rgba(15, 23, 42, 0.1);
+  background: color-mix(in srgb, currentColor 15%, transparent);
 }
 
 .pageButtonIcon svg {
@@ -3058,15 +3071,10 @@ button:hover:not(:disabled) {
   display: none;
 }
 
-/* With no icon the label takes the freed column so nothing shifts. */
-.pageButton:has(.pageButtonIcon:empty) {
-  grid-template-columns: minmax(0, 1fr) 20px;
-  padding-left: 16px;
-}
-
 .pageButtonLabel {
   display: block;
   min-width: 0;
+  text-align: center;
 }
 
 .pageButtonLabel strong,
@@ -3088,12 +3096,6 @@ button:hover:not(:disabled) {
   font-size: 12.5px;
   font-weight: 600;
   line-height: 1.35;
-}
-
-.pageButtonArrow {
-  width: 18px;
-  height: 18px;
-  opacity: 0.55;
 }
 
 .pageHeading {
@@ -3412,18 +3414,22 @@ button:hover:not(:disabled) {
 }
 
 /* Preview chip inside the link/add-link sheets. Mirrors the real page button
-   but uses fixed values, since a sheet sits outside the themed page surface. */
+   (badge left, title centred on the whole chip) but uses fixed values, since a
+   sheet sits outside the themed page surface. */
 .sheetPreviewButton {
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
   min-height: 62px;
-  padding: 11px 14px 11px 11px;
+  padding: 11px 16px;
   border-radius: 16px;
   background: #2563eb;
   color: #ffffff;
-  text-align: left;
+}
+
+.sheetPreviewButton:has(.sheetPreviewIcon:not(:empty)) {
+  padding-inline: 62px;
 }
 
 .sheetPreviewButton strong {
@@ -3436,6 +3442,10 @@ button:hover:not(:disabled) {
 }
 
 .sheetPreviewIcon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
   display: grid;
   place-items: center;
   width: 44px;
@@ -3451,10 +3461,6 @@ button:hover:not(:disabled) {
 
 .sheetPreviewIcon:empty {
   display: none;
-}
-
-.sheetPreviewButton:has(.sheetPreviewIcon:empty) {
-  grid-template-columns: minmax(0, 1fr);
 }
 
 .sheetPreviewImage {
