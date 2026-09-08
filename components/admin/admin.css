@@ -146,6 +146,7 @@
 .admFilterTabs button[aria-pressed="true"] { background: #eaf0fc; color: #3267c8; }
 .admField { display: grid; align-content: start; gap: 7px; min-width: 0; }
 .admField > span:first-child { color: #657083; font-size: 13px; font-weight: 500; }
+.admFieldHint { margin: -6px 0 0; color: #8a5a00; background: #fff7df; border: 1px solid #f2d99a; border-radius: 7px; padding: 10px 12px; font-size: 13px; line-height: 1.45; }
 .admFormGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
 .admSpanFull { grid-column: 1 / -1; min-width: 0; }
 .admFormStack { display: grid; gap: 20px; }

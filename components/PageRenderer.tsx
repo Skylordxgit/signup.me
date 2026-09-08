@@ -429,6 +429,8 @@ function PlayableVideo({ preview, src, title }: { preview: boolean; src: string;
         style={preview ? { pointerEvents: "none" } : undefined}
         allow="autoplay; encrypted-media; picture-in-picture"
         allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+        sandbox="allow-scripts allow-same-origin allow-presentation"
       />
     );
   }
@@ -451,7 +453,7 @@ function videoEmbedUrl(src: string) {
     const url = new URL(src);
     const youtubeId = youtubeVideoId(url);
     if (youtubeId) {
-      return { type: "iframe" as const, src: `https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1&playsinline=1&rel=0` };
+      return { type: "iframe" as const, src: `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&playsinline=1&rel=0` };
     }
     if (url.hostname.includes("vimeo.com")) {
       return { type: "iframe" as const, src: `https://player.vimeo.com/video/${url.pathname.split("/").filter(Boolean).pop()}?autoplay=1&muted=1` };

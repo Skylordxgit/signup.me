@@ -84,7 +84,7 @@ test("youtube blocks render as embedded video players", () => {
   }];
   const html = renderToStaticMarkup(<PageRenderer page={page} />);
   assert.match(html, /class="pageVideo"/);
-  assert.match(html, /https:\/\/www\.youtube\.com\/embed\/dQw4w9WgXcQ/);
+  assert.match(html, /https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ/);
   assert.match(html, /autoplay=1&amp;mute=1/);
   assert.doesNotMatch(html, /<strong>YouTube<\/strong>/);
   assert.doesNotMatch(html, /class="pageButton/);
