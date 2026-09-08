@@ -65,6 +65,27 @@ export function AdminDashboard() {
 
   async function refresh() { setPages(await adminApi<PageSummary[]>('/api/pages')); }
 
+  async function bulkPageStatus(ids: number[], status: 'draft' | 'disabled') {
+    const updated: number[] = [];
+    await run(async () => {
+      await editor.save();
+      const failed: string[] = [];
+      // Keep writes serial because the local JSON store uses read/modify/write.
+      for (const id of ids) {
+        try {
+          const page = await adminApi<SmartPage>('/api/pages/' + id, { method: 'PUT', body: JSON.stringify({ status }) });
+          updated.push(id);
+          setPages(current => current.map(item => item.id === id ? summarizePage(page) : item));
+          if (editor.page?.id === id) editor.adopt(page);
+        } catch {
+          failed.push(pages.find(page => page.id === id)?.name || String(id));
+        }
+      }
+      if (failed.length) throw new Error(`Could not update: ${failed.join(', ')}. These pages remain selected for retry.`);
+    });
+    return updated;
+  }
+
   useEffect(() => {
     let cancelled = false;
     Promise.all([adminApi<PageSummary[]>('/api/pages'), adminApi<{ email: string }>('/api/auth/me')]).then(async ([items, account]) => {
@@ -192,7 +213,7 @@ export function AdminDashboard() {
         {(error || editor.error) && <div className="admError" role="alert"><span>{error || editor.error}</span><IconButton icon={X} label="Dismiss error" onClick={() => { setError(''); editor.clearError(); }} /></div>}
         {loading ? <EmptyState title="Loading workspace..." /> : <>
           {view === 'dashboard' && <DashboardHome pages={pages} analytics={report} onOpen={openPage} onNavigate={navigate} />}
-          {view === 'pages' && <><div className="admPageHeading"><div><h2>Pages</h2><p>{pages.length} pages in your workspace</p></div><button type="button" className="admButton admPrimary" onClick={() => navigate('create')}><Plus size={17} />Create page</button></div><div className="admToolbar"><div className="admFilterTabs" role="group" aria-label="Page status">{['all', 'published', 'draft', 'disabled'].map(status => <button type="button" key={status} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status === 'all' ? 'All pages' : status}</button>)}</div><div className="admFilters"><select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort pages"><option value="updated">Recently updated</option><option value="name">Name</option><option value="views">Most views</option></select><IconButton icon={RefreshCw} label="Refresh pages" disabled={busy} onClick={() => void run(refresh)} /></div></div><div className="admMobileSearch"><Search size={17} /><input aria-label="Filter pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></div><PagesTable pages={filtered} onOpen={openPage} onDuplicate={duplicatePage} onDelete={setDeleteTarget} busy={busy} /></>}
+{view === 'pages' && <><div className="admPageHeading"><div><h2>Pages</h2><p>{pages.length} pages in your workspace</p></div><button type="button" className="admButton admPrimary" onClick={() => navigate('create')}><Plus size={17} />Create page</button></div><div className="admToolbar"><div className="admFilterTabs" role="group" aria-label="Page status">{['all', 'published', 'draft', 'disabled'].map(status => <button type="button" key={status} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status === 'all' ? 'All pages' : status}</button>)}</div><div className="admFilters"><select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort pages"><option value="updated">Recently updated</option><option value="name">Name</option><option value="views">Most views</option></select><IconButton icon={RefreshCw} label="Refresh pages" disabled={busy} onClick={() => void run(refresh)} /></div></div><div className="admMobileSearch"><Search size={17} /><input aria-label="Filter pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></div><PagesTable onBulkStatus={bulkPageStatus} pages={filtered} onOpen={openPage} onDuplicate={duplicatePage} onDelete={setDeleteTarget} busy={busy} /></>}
           {view === 'create' && <CreatePage key={createSlug || 'blank'} initialSlug={createSlug} busy={busy} onCreate={input => { void run(async () => { const page = await adminApi<SmartPage>('/api/pages', { method: 'POST', body: JSON.stringify(input) }); editor.adopt(page); setCreateSlug(''); window.history.replaceState({}, '', '/admin'); await refresh(); setBuilderTab('profile'); setView('builder'); }); }} />}
           {view === 'builder' && editor.page && <><div className="admBuilderHeading"><div><IconButton icon={ArrowLeft} label="Back to pages" onClick={() => navigate('pages')} /><span><h2>{editor.page.name}</h2><small>/{editor.page.slug}</small></span></div><div className="admActionRow"><StatusBadge status={editor.page.status} /><select aria-label="Publishing status" value={editor.page.status} onChange={event => editor.edit({ status: event.target.value as SmartPage['status'] })}><option value="published">Published</option><option value="draft">Draft</option><option value="disabled">Disabled</option></select></div></div><BuilderEditor key={editor.page.id} page={editor.page} tab={builderTab} onTab={setBuilderTab} onEdit={editor.edit} onBlock={editor.editBlock} onAdd={addBlock} onMove={moveBlock} onDelete={setDeleteBlockTarget} onDuplicate={block => void run(async () => mutateBlocks(() => adminApi('/api/blocks/' + block.id, { method: 'POST', body: JSON.stringify({ action: 'duplicate' }) })))} busy={busy} /></>}
           {view === 'analytics' && <><SectionHeading title="Page analytics"><select aria-label="Analytics page" value={reportPageId} onChange={event => { setReportPageId(event.target.value); setReport(null); }}><option value="all">All pages</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></SectionHeading><AnalyticsView report={report} /></>}

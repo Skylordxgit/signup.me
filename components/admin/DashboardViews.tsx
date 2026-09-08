@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { ImageUploader } from "../ImageUploader";
@@ -20,16 +20,35 @@ export function Metrics({ pages }: { pages: PageSummary[] }) {
   return <div className="admMetrics">{values.map(metric => <article className="admMetric" key={metric.label}><div><span>{metric.label}</span><strong>{number(metric.value)}</strong></div><span className={`admMetricIcon admTone-${metric.tone}`}><metric.icon size={21} /></span></article>)}</div>;
 }
 
-export function PagesTable({ pages, onOpen, onDuplicate, onDelete, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; busy?: boolean }) {
-  return !pages.length ? <EmptyState title="No pages found" /> : <div className="admPageTable" role="table" aria-label="Pages">
-    <div className="admPageTableHead" role="row"><span role="columnheader">Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader"><span className="admSrOnly">Actions</span></span></div>
+export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; busy?: boolean }) {
+  const [selected, setSelected] = useState<number[]>([]);
+  const [message, setMessage] = useState('');
+  const selectedIds = pages.filter(page => selected.includes(page.id)).map(page => page.id);
+  const allSelected = pages.length > 0 && selectedIds.length === pages.length;
+  async function copyLink(page: PageSummary) {
+    try {
+      await navigator.clipboard.writeText(new URL('/' + page.slug, window.location.origin).href);
+      setMessage(`Link copied for ${page.name}`);
+    } catch { setMessage('Could not copy the link. Open Preview and copy the address.'); }
+  }
+  async function bulkStatus(status: 'draft' | 'disabled') {
+    if (!onBulkStatus || busy || !selectedIds.length) return;
+    const updated = await onBulkStatus(selectedIds, status);
+    setSelected(current => current.filter(id => !updated.includes(id)));
+    setMessage(`${updated.length} page${updated.length === 1 ? '' : 's'} ${status === 'draft' ? 'moved to draft' : 'unpublished'}.`);
+  }
+  return !pages.length ? <EmptyState title="No pages found" /> : <>
+    {onBulkStatus && <div className="admBulkActions"><span>{selectedIds.length} selected</span><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('draft')}><FileText size={16} />Move to draft</button><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('disabled')}><Eye size={16} />Unpublish</button>{selectedIds.length > 0 && <button type="button" className="admTextButton" disabled={busy} onClick={() => setSelected([])}>Clear selection</button>}</div>}
+    {message && <p className="admMuted" role="status">{message}</p>}
+    <div className={`admPageTable ${onBulkStatus ? 'admPageTableManage' : ''}`} role="table" aria-label="Pages">
+    <div className="admPageTableHead" role="row"><span role="columnheader" className="admPageSelect">{onBulkStatus && <input type="checkbox" aria-label="Select all visible pages" disabled={busy} checked={allSelected} ref={node => { if (node) node.indeterminate = selectedIds.length > 0 && !allSelected; }} onChange={() => setSelected(allSelected ? [] : pages.map(page => page.id))} />}Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader"><span className="admSrOnly">Actions</span></span></div>
     {pages.map(page => <div className="admPageRow" role="row" key={page.id}>
-      <div role="cell"><button type="button" className="admPageIdentity" onClick={() => onOpen(page.id)} disabled={busy}><span className="admPageGlyph"><Link2 size={18} /></span><span><strong>{page.name}</strong><small>/{page.slug}</small></span></button></div>
+      <div role="cell" className="admPageSelect">{onBulkStatus && <input type="checkbox" aria-label={`Select ${page.name}`} disabled={busy} checked={selectedIds.includes(page.id)} onChange={event => setSelected(current => event.target.checked ? [...current, page.id] : current.filter(id => id !== page.id))} />}<button type="button" className="admPageIdentity" onClick={() => onOpen(page.id)} disabled={busy}><span className="admPageGlyph"><Link2 size={18} /></span><span><strong>{page.name}</strong><small>/{page.slug}</small></span></button></div>
       <div role="cell"><StatusBadge status={page.status} /></div><span role="cell" className="admTableNumber">{number(page.views)}</span><span role="cell" className="admTableNumber">{number(page.clicks)}</span>
       <time role="cell" dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</time>
-      <div role="cell" className="admActionRow">{onDuplicate && <IconButton icon={Copy} label={`Duplicate ${page.name}`} disabled={busy} onClick={() => onDuplicate(page.id)} />}{onDelete && <IconButton icon={Trash2} label={`Delete ${page.name}`} disabled={busy} onClick={() => onDelete(page)} />}<IconButton icon={ArrowUpRight} label={`Edit ${page.name}`} disabled={busy} onClick={() => onOpen(page.id)} /></div>
+      <div role="cell" className="admActionRow">{onBulkStatus && <><a className="admIconButton" href={'/' + page.slug} target="_blank" rel="noreferrer" title={`Preview ${page.name}`} aria-label={`Preview ${page.name}`}><Eye size={18} /></a><IconButton icon={Link2} label={`Copy link for ${page.name}`} onClick={() => void copyLink(page)} /></>}{onDuplicate && <IconButton icon={Copy} label={`Duplicate ${page.name}`} disabled={busy} onClick={() => onDuplicate(page.id)} />}{onDelete && <IconButton icon={Trash2} label={`Delete ${page.name}`} disabled={busy} onClick={() => onDelete(page)} />}<IconButton icon={onBulkStatus ? Pencil : ArrowUpRight} label={`Edit ${page.name}`} disabled={busy} onClick={() => onOpen(page.id)} /></div>
     </div>)}
-  </div>;
+  </div></>;
 }
 
 export function DashboardHome({ pages, analytics, onOpen, onNavigate }: { pages: PageSummary[]; analytics: AnalyticsReport | null; onOpen: (id: number) => void; onNavigate: (view: string) => void }) {

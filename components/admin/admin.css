@@ -98,6 +98,18 @@
 .admPageTableHead { min-height: 42px; border-block: 1px solid var(--adm-line); color: #818a96; font-size: 12px; }
 .admPageRow { padding-block: 15px; border-bottom: 1px solid var(--adm-line); font-size: 13px; }
 .admPageRow > * { min-width: 0; }
+.admPageSelect { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.admPageSelect input[type="checkbox"] { width: 16px; height: 16px; flex: 0 0 16px; margin: 0; accent-color: #3569e8; }
+.admPageSelect .admPageIdentity { min-width: 0; }
+.admBulkActions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.admBulkActions > span { font-size: 13px; color: #677489; margin-right: 6px; }
+.admPageTableManage .admPageRow .admActionRow { display: grid; grid-template-columns: repeat(3, 32px); gap: 4px; }
+.admPageTableManage .admPageRow .admActionRow .admIconButton { width: 32px; min-width: 32px; }
+@media (max-width: 600px) {
+  .admPageTableManage .admPageRow .admActionRow { grid-template-columns: repeat(2, 28px); gap: 0; }
+  .admPageTableManage .admPageRow .admActionRow .admIconButton { width: 28px; min-width: 28px; }
+  .admPageTableManage .admPageSelect { gap: 6px; }
+}
 .admPageRow:hover { background: #f1f5fa; }
 .admPageIdentity { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; padding: 0; background: transparent; border: 0; }
 .admPageIdentity > span:last-child { min-width: 0; }
