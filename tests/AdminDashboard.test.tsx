@@ -44,7 +44,7 @@ test("upload roots are absolute, anchored to the app, and still contain traversa
   // files were both still intact. (The cwd behaviour itself needs a running
   // server to observe; this covers the shape of the roots and their guards.)
   assert.ok(uploadRoots.length >= 1);
-  assert.ok(uploadRoots.every(root => root.startsWith("/")), "roots must be absolute");
+  assert.ok(uploadRoots.every(root => path.isAbsolute(root)), "roots must be absolute");
 
   // The root the app writes to is anchored to the installed app (the directory
   // holding package.json), so it is the same directory however the process was
@@ -57,7 +57,7 @@ test("upload roots are absolute, anchored to the app, and still contain traversa
   assert.equal(resolveUploadPath(["..", "..", "etc", "passwd"]), null);
   assert.equal(resolveUploadPath(["profile", "..", "..", "..", "secret.png"]), null);
   assert.equal(resolveUploadPath([]), null);
-  assert.ok(resolveUploadPath(["profile", "photo.webp"])?.endsWith("/profile/photo.webp"));
+  assert.ok(resolveUploadPath(["profile", "photo.webp"])?.endsWith(path.join("profile", "photo.webp")));
 });
 
 test("workspace analytics merge daily and device totals and weight the click rate", () => {
