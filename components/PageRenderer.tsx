@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import type { PageBlock, SmartPage } from "@/lib/types";
 import { buildSmartUrl, parseBlockIcon, readableTextColor } from "@/lib/utils";
-import { resolveButtonStyle, resolveSurface, themeCssVariables } from "@/lib/themes";
+import { resolveAlignment, resolveButtonStyle, resolveSurface, themeCssVariables } from "@/lib/themes";
 
 /**
  * Editing affordances supplied by the admin builder. When absent the renderer
@@ -56,6 +56,7 @@ export function PageRenderer({
   const theme = page.theme;
   const buttonStyle = resolveButtonStyle(theme);
   const surface = resolveSurface(theme);
+  const align = resolveAlignment(theme);
 
   // The builder shows hidden blocks (dimmed) so they can be re-enabled;
   // visitors only ever get the active ones. Order is identical.
@@ -71,8 +72,8 @@ export function PageRenderer({
     // builder frame and on a desktop browser, so content geometry is identical.
     <div className="smartPage" style={themeCssVariables(theme)}>
       <div className="pageColumn">
-      <div className={`smartCard surface-${surface}`}>
-        <PageBanner edit={edit} theme={theme} />
+      <div className={`smartCard surface-${surface}`} data-align={align}>
+        <PageCover edit={edit} page={page} theme={theme} />
 
         <header className="pageProfile">
           {/* Same element type and classes in both modes; the builder only
@@ -91,21 +92,20 @@ export function PageRenderer({
               <ProfileIdentity page={page} />
             </div>
           )}
-          <ShareAction page={page} preview={Boolean(edit)} />
         </header>
-
-        {mainBlocks.length > 0 && (
-          <div className="pageBlocks">
-            {mainBlocks.map((block) => (
-              <BlockRow block={block} buttonStyle={buttonStyle} edit={edit} key={block.id} onTrack={onTrack} />
-            ))}
-          </div>
-        )}
 
         {socialBlocks.length > 0 && (
           <div className="pageSocials">
             {socialBlocks.map((block) => (
               <SocialRow block={block} edit={edit} key={block.id} onTrack={onTrack} />
+            ))}
+          </div>
+        )}
+
+        {mainBlocks.length > 0 && (
+          <div className="pageBlocks">
+            {mainBlocks.map((block) => (
+              <BlockRow block={block} buttonStyle={buttonStyle} edit={edit} key={block.id} onTrack={onTrack} />
             ))}
           </div>
         )}
@@ -115,11 +115,25 @@ export function PageRenderer({
   );
 }
 
-function PageBanner({ edit, theme }: { edit?: PageEditHooks; theme: SmartPage["theme"] }) {
+function PageCover({
+  edit,
+  page,
+  theme,
+}: {
+  edit?: PageEditHooks;
+  page: SmartPage;
+  theme: SmartPage["theme"];
+}) {
   const style = theme.backgroundImage ? { backgroundImage: `url(${theme.backgroundImage})` } : undefined;
-  if (!edit) return <div className="pageBanner" style={style} />;
   return (
-    <button type="button" className="pageBanner pageBannerEditable" aria-label="Edit banner" style={style} onClick={edit.onEditProfile} />
+    <div className="pageCover" style={style}>
+      {/* Edit affordance fills the cover and sits beneath the share control,
+          so tapping share never opens the cover editor. */}
+      {edit && (
+        <button type="button" className="pageCoverEdit" aria-label="Edit cover" onClick={edit.onEditProfile} />
+      )}
+      <ShareAction page={page} preview={Boolean(edit)} />
+    </div>
   );
 }
 

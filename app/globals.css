@@ -12,8 +12,9 @@
 
   /* The one phone frame. Every builder section and every overlay sheet sizes
      itself from these, so switching sections cannot change the frame. */
-  --phone-w: 400px;
-  --phone-h: min(848px, calc(100dvh - 40px));
+  /* A 9:16 handset. Width is the design width; height follows the ratio so the
+     frame never changes shape, and shrinks to fit a short window. */
+  --phone-w: 390px;
   --phone-radius: 30px;
 }
 
@@ -371,11 +372,22 @@ textarea {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  width: min(100%, var(--phone-w));
-  height: var(--phone-h);
+  /* Capped by the design width and by what the window can show, so the 9:16
+     ratio holds on any screen and the frame never depends on content. */
+  width: min(100%, var(--phone-w), calc((100dvh - 40px) * 9 / 16));
+  aspect-ratio: 9 / 16;
   border-radius: var(--phone-radius);
   background: linear-gradient(180deg, #f6f6f8 0%, #ffffff 45%);
   box-shadow: 0 20px 54px rgba(17, 24, 39, 0.12);
+}
+
+@media (max-width: 520px) {
+  /* On a real handset the device is the frame: fill it. */
+  .phoneDevice {
+    width: 100%;
+    height: 100dvh;
+    aspect-ratio: auto;
+  }
 }
 
 /* The scrolling viewport inside the frame. min-height:0 lets it shrink so the
@@ -2456,6 +2468,14 @@ shared by the theme swatches and the real page. */
   backdrop-filter: none;
 }
 
+/* Button treatments. Each supplies background, border and shadow; .pageButton
+   provides layout only. */
+.buttonStyle-glass {
+  background: var(--button-bg-glass);
+  border: 1px solid var(--button-border);
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
 .buttonStyle-solid {
   background: var(--button-bg);
   border: 1px solid transparent;
@@ -2897,53 +2917,63 @@ button:hover:not(:disabled) {
 
 /* Caps content at the phone width so a desktop browser centres the mobile
    layout instead of stretching it. Identical width inside the builder frame. */
+/* No padding: the cover is flush with the top and sides, so the page reads as
+   a full mobile screen rather than a card floating on a background. */
 .pageColumn {
   width: 100%;
   max-width: var(--phone-w);
-  padding: 14px 16px 30px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .smartCard {
-  display: grid;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing);
   min-width: 0;
-  padding: 0 0 18px;
-  border: 1px solid transparent;
-  border-radius: 26px;
-  box-shadow: var(--shadow);
+  padding: 0 0 32px;
+  border: 0;
   backdrop-filter: blur(calc(var(--glass) * 1px));
 }
 
-.pageBanner {
-  display: block;
+/* Hero band at the very top of the page. object-fit-style cover behaviour via
+   background-size so the image fills the band without distortion. */
+.pageCover {
+  position: relative;
   width: 100%;
-  text-align: start;
-  font: inherit;
-  color: inherit;
-  min-height: 132px;
-  padding: 0;
-  border: 0;
-  border-radius: 26px 26px 18px 18px;
+  aspect-ratio: 16 / 7;
+  flex: none;
   background-color: rgba(255, 255, 255, 0.12);
   background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
   background-position: center;
   background-size: cover;
+  background-repeat: no-repeat;
 }
 
+.pageCoverEdit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* Pulled up so the avatar straddles the cover's bottom edge. */
 .pageProfile {
   display: grid;
-  justify-items: center;
   gap: 10px;
   margin-top: -46px;
-  padding: 0 16px;
-  text-align: center;
+  padding: 0 18px;
+  flex: none;
 }
 
 /* Identity wrapper. A <div> publicly, a <button> in the builder - same class,
    so both produce the same box and the layout cannot differ. */
 .pageIdentity {
   display: grid;
-  justify-items: center;
   gap: 8px;
   width: 100%;
   margin: 0;
@@ -2952,7 +2982,49 @@ button:hover:not(:disabled) {
   background: transparent;
   color: inherit;
   font: inherit;
+}
+
+/* One switch drives the entire identity block — avatar, title, subtitle — plus
+   the social row, so alignment is never applied to the text alone. */
+[data-align="center"] .pageIdentity {
+  justify-items: center;
   text-align: center;
+}
+
+[data-align="left"] .pageIdentity {
+  justify-items: start;
+  text-align: left;
+}
+
+[data-align="right"] .pageIdentity {
+  justify-items: end;
+  text-align: right;
+}
+
+[data-align="center"] .pageSocials {
+  justify-content: center;
+}
+
+[data-align="left"] .pageSocials {
+  justify-content: flex-start;
+}
+
+[data-align="right"] .pageSocials {
+  justify-content: flex-end;
+}
+
+/* The bio is width-capped for readability; keep that cap anchored to the
+   chosen side instead of always centring it. */
+[data-align="center"] .pageBio {
+  margin-inline: auto;
+}
+
+[data-align="left"] .pageBio {
+  margin-inline: 0 auto;
+}
+
+[data-align="right"] .pageBio {
+  margin-inline: auto 0;
 }
 
 .pageAvatar {
@@ -2996,31 +3068,44 @@ button:hover:not(:disabled) {
   text-wrap: pretty;
 }
 
+/* Glass circle over the cover's top-right. Sits above .pageCoverEdit and well
+   clear of the avatar, which overlaps the cover's bottom edge. */
 .pageShare {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 38px;
-  margin-top: 2px;
-  padding: 0 16px;
-  border: 1px solid var(--button-border);
-  border-radius: 999px;
-  background: var(--button-bg-glass);
-  color: var(--button-text);
-  font-size: 13px;
-  font-weight: 800;
-  backdrop-filter: blur(calc(var(--glass) * 1px));
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.32);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
 }
 
 .pageShare svg {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
+}
+
+/* Label is for assistive tech only; the control is an icon button. */
+.pageShare span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .pageBlocks {
   display: grid;
   gap: var(--spacing);
-  padding: 4px 16px 0;
+  padding: 2px 18px 0;
 }
 
 /* Layout only. Background, border and shadow come from the .buttonStyle-*
@@ -3176,9 +3261,8 @@ button:hover:not(:disabled) {
 .pageSocials {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 12px;
-  padding: 2px 16px 0;
+  padding: 0 18px;
 }
 
 .pageSocialIcon {
@@ -3245,13 +3329,13 @@ button:hover:not(:disabled) {
   opacity: 0.45;
 }
 
-.pageBannerEditable,
+.pageCoverEdit,
 .pageIdentityEditable,
 .pageBlockRow {
   cursor: pointer;
 }
 
-.pageBannerEditable:hover,
+.pageCoverEdit:hover,
 .pageIdentityEditable:hover .pageAvatar {
   outline: 2px solid rgba(11, 124, 255, 0.6);
   outline-offset: 3px;
@@ -3470,4 +3554,63 @@ button:hover:not(:disabled) {
   border-radius: 14px;
   object-fit: cover;
   background: #e4e7ee;
+}
+
+/* Grouped sections in the profile editor, so the controls read as
+   Profile / Images / Alignment rather than one flat list. */
+.editorSection {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #f7f8fb;
+}
+
+.editorSection h3 {
+  margin: 0;
+  color: #1f2430;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Segmented control */
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border-radius: 14px;
+  background: #e7e9f0;
+}
+
+.segmentedOption {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  min-height: 58px;
+  padding: 9px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #5b6070;
+  font-size: 12px;
+  font-weight: 800;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.segmentedOption svg {
+  width: 18px;
+  height: 18px;
+}
+
+.segmentedOption:hover:not(.segmentedOptionActive) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.segmentedOptionActive {
+  background: #ffffff;
+  color: #0b7cff;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12);
 }

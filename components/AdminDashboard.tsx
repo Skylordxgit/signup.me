@@ -6,6 +6,9 @@ import {
   ArrowDown,
   ArrowLeft,
   BarChart3,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   Bell,
   Blocks,
   Check,
@@ -61,9 +64,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PublicPage } from "@/components/PublicPage";
-import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
+import type { AnalyticsReport, BlockType, PageBlock, PageSummary, ProfileAlignment, SmartPage } from "@/lib/types";
 import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } from "@/lib/utils";
-import { applyThemeDefinition, themeDefinition, themeLibrary } from "@/lib/themes";
+import { applyThemeDefinition, resolveAlignment, themeDefinition, themeLibrary } from "@/lib/themes";
 import { PhoneFrame } from "./PhoneFrame";
 import { PageRenderer } from "./PageRenderer";
 import { ImageUploader } from "./ImageUploader";
@@ -1318,7 +1321,7 @@ function ThemeGallery({
             key={item.id}
             className={`themeCard ${isActive ? "themeCardActive" : ""}`}
             aria-pressed={isActive}
-            onClick={() => onSelect(applyThemeDefinition(item))}
+            onClick={() => onSelect(applyThemeDefinition(item, theme))}
           >
             <span
               className={`themeSwatch surface-${preview.surface}`}
@@ -1583,6 +1586,41 @@ function EditablePublicCanvas({
   );
 }
 
+const alignmentOptions: { value: ProfileAlignment; label: string; icon: LucideIcon }[] = [
+  { value: "left", label: "Left", icon: AlignLeft },
+  { value: "center", label: "Center", icon: AlignCenter },
+  { value: "right", label: "Right", icon: AlignRight },
+];
+
+/** Segmented control for how the whole profile block sits on the page. */
+function AlignmentControl({
+  onChange,
+  value,
+}: {
+  onChange: (value: ProfileAlignment) => void;
+  value: ProfileAlignment;
+}) {
+  return (
+    <div className="segmented" role="group" aria-label="Profile alignment">
+      {alignmentOptions.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            type="button"
+            key={option.value}
+            className={`segmentedOption ${active ? "segmentedOptionActive" : ""}`}
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+          >
+            <option.icon aria-hidden="true" />
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function ProfileEditorSheet({
   onClose,
   onSave,
@@ -1598,6 +1636,7 @@ function ProfileEditorSheet({
   const [slug, setSlug] = useState(page.slug);
   const [title, setTitle] = useState(page.title);
   const [bio, setBio] = useState(page.bio);
+  const [align, setAlign] = useState<ProfileAlignment>(resolveAlignment(page.theme));
 
   function save() {
     onSave({
@@ -1605,7 +1644,7 @@ function ProfileEditorSheet({
       name,
       profileImage: photo,
       slug: slugify(slug),
-      theme: { ...page.theme, backgroundImage: cover },
+      theme: { ...page.theme, backgroundImage: cover, profileAlignment: align },
       title,
     });
   }
@@ -1631,33 +1670,46 @@ function ProfileEditorSheet({
         </div>
 
         <div className="profileSheetFields">
-          <Field label="Website name *">
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field label="Public URL *">
-            <input value={slug} onChange={(event) => setSlug(event.target.value)} />
-          </Field>
-          <ImageUploader
-            category="banner"
-            label="Cover"
-            hint="Shown behind your profile. Drag an image here, or click to choose."
-            value={cover}
-            onChange={setCover}
-          />
-          <ImageUploader
-            category="profile"
-            label="Profile photo"
-            hint="Square images look best. Drag one here, or click to choose."
-            round
-            value={photo}
-            onChange={setPhoto}
-          />
-          <Field label="Title *">
-            <input value={title} onChange={(event) => setTitle(event.target.value)} />
-          </Field>
-          <Field label="Subtitle">
-            <textarea value={bio} onChange={(event) => setBio(event.target.value)} />
-          </Field>
+          <section className="editorSection">
+            <h3>Profile</h3>
+            <Field label="Website name *">
+              <input value={name} onChange={(event) => setName(event.target.value)} />
+            </Field>
+            <Field label="Public URL *">
+              <input value={slug} onChange={(event) => setSlug(event.target.value)} />
+            </Field>
+            <Field label="Title *">
+              <input value={title} onChange={(event) => setTitle(event.target.value)} />
+            </Field>
+            <Field label="Subtitle">
+              <textarea value={bio} onChange={(event) => setBio(event.target.value)} />
+            </Field>
+          </section>
+
+          <section className="editorSection">
+            <h3>Images</h3>
+            <ImageUploader
+              category="banner"
+              label="Cover"
+              hint="The hero image across the top. Drag one here, or click to choose."
+              value={cover}
+              onChange={setCover}
+            />
+            <ImageUploader
+              category="profile"
+              label="Profile photo"
+              hint="Square images look best. Drag one here, or click to choose."
+              round
+              value={photo}
+              onChange={setPhoto}
+            />
+          </section>
+
+          <section className="editorSection">
+            <h3>Alignment</h3>
+            <AlignmentControl onChange={setAlign} value={align} />
+          </section>
+
           <button type="button" className="profileSaveButton" onClick={save}>Save changes</button>
         </div>
       </section>

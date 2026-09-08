@@ -1,4 +1,4 @@
-import type { ThemeSettings } from "./types";
+import type { ProfileAlignment, ThemeSettings } from "./types";
 
 /**
  * Each entry is a complete, coordinated design system — background, typography,
@@ -312,9 +312,17 @@ export function themeDefinition(preset: string): ThemeDefinition | undefined {
   return themeLibrary.find((theme) => theme.id === id);
 }
 
-/** The full ThemeSettings produced by picking a theme from the library. */
-export function applyThemeDefinition(theme: ThemeDefinition): ThemeSettings {
-  return { ...theme.settings, preset: theme.id as ThemeSettings["preset"] };
+/**
+ * The full ThemeSettings produced by picking a theme from the library.
+ * Profile alignment is a layout choice rather than part of the theme's look,
+ * so it survives a theme change instead of snapping back to centre.
+ */
+export function applyThemeDefinition(theme: ThemeDefinition, current?: ThemeSettings): ThemeSettings {
+  return {
+    ...theme.settings,
+    preset: theme.id as ThemeSettings["preset"],
+    ...(current?.profileAlignment ? { profileAlignment: current.profileAlignment } : {}),
+  };
 }
 
 /**
@@ -328,6 +336,10 @@ export function resolveButtonStyle(theme: ThemeSettings): string {
 
 export function resolveSurface(theme: ThemeSettings): string {
   return theme.surface || themeDefinition(theme.preset)?.settings.surface || "glass";
+}
+
+export function resolveAlignment(theme: ThemeSettings): ProfileAlignment {
+  return theme.profileAlignment ?? "center";
 }
 
 function withAlpha(hex: string, alpha: number) {

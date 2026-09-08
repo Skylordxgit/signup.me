@@ -49,6 +49,9 @@ export type ButtonStyle =
 
 export type SurfaceStyle = "glass" | "glass-dark" | "solid" | "plain" | "plain-dark";
 
+/** How the whole profile identity block is aligned on the page. */
+export type ProfileAlignment = "left" | "center" | "right";
+
 export type ThemeSettings = {
   preset: ThemePreset;
   backgroundColor: string;
@@ -70,6 +73,9 @@ export type ThemeSettings = {
   /* Optional: pages saved before these existed fall back to their theme. */
   buttonStyle?: ButtonStyle;
   surface?: SurfaceStyle;
+  /* Profile layout. Kept in the theme blob so it needs no schema change, and
+     deliberately carried across when a new theme preset is applied. */
+  profileAlignment?: ProfileAlignment;
 };
 
 export type SeoSettings = {
