@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AdminDashboard } from "../components/AdminDashboard";
 import { BuilderEditor } from "../components/admin/BuilderEditor";
 import { ProfileFields } from "../components/admin/BuilderEditor";
-import { NotificationPromptFields } from '../components/admin/BuilderEditor';
+import { NotificationPromptFields, NotificationPromptPreview } from '../components/admin/BuilderEditor';
 import { editablePage } from '../lib/admin';
 import { isNotificationPromptEnabled, resolveNotificationPrompt } from '../lib/notificationPrompt';
 import { NotificationOptIn } from '../components/NotificationOptIn';
@@ -79,7 +79,7 @@ test('page-specific prompt text survives the save payload and reaches the visito
   assert.match(html, /&lt;script&gt;plain text&lt;\/script&gt;/);
   assert.equal(resolveNotificationPrompt({ heading: ' ' }).heading, 'Stay up to date');
   assert.match(renderToStaticMarkup(<NotificationPromptFields page={page} onEdit={() => {}} />), /value="Noticias"/);
-  assert.match(renderToStaticMarkup(<NotificationPromptFields page={page} onEdit={() => {}} />), /Prompt preview/);
+  assert.match(renderToStaticMarkup(<NotificationPromptPreview page={page} />), /Prompt preview/);
 });
 
 test('public pages only render the notification prompt when the visitor prompt is enabled', () => {

@@ -15,7 +15,6 @@ export type BuilderTab = "profile" | "content" | "design" | "seo" | "integration
 
 export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; onEdit: (patch: Partial<SmartPage>) => void }) {
   const settings = page.integrations.notificationPrompt || {};
-  const copy = resolveNotificationPrompt(settings);
   const enabled = settings.enabled === true;
   const updateSettings = (next: typeof settings) => onEdit({ integrations: { ...page.integrations, notificationPrompt: next } });
   const setText = (key: NotificationPromptCopyKey, value: string) => updateSettings({ ...settings, [key]: value });
@@ -59,23 +58,30 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
           </div>
         </details>
       </div>
-      <aside className="admPromptPreviewWrap">
-        <SectionHeading title="Prompt preview" />
-        <section className={`admPromptCopyPreview ${!enabled ? 'admPromptCopyPreviewOff' : ''}`} dir="auto" aria-label="Notification prompt preview">
-          <button type="button" aria-label={copy.closeLabel}><X size={18} /></button>
-          <span aria-hidden="true"><Bell size={28} /></span>
-          <h3>{copy.heading}</h3>
-          <strong>{page.title || page.name}</strong>
-          <p>{copy.message}</p>
-          <div>{copy.allowLabel}</div>
-          <small>{copy.footer}</small>
-          <small>{copy.dataNotice}</small>
-          {!enabled && <em>Hidden on public page until Visitor prompt is turned on.</em>}
-        </section>
-      </aside>
     </div>
   </>;
 }
+
+export function NotificationPromptPreview({ page }: { page: SmartPage }) {
+  const settings = page.integrations.notificationPrompt || {};
+  const copy = resolveNotificationPrompt(settings);
+  const enabled = settings.enabled === true;
+  return <aside className="admPromptPreviewWrap">
+    <SectionHeading title="Prompt preview" />
+    <section className={`admPromptCopyPreview ${!enabled ? 'admPromptCopyPreviewOff' : ''}`} dir="auto" aria-label="Notification prompt preview">
+      <button type="button" aria-label={copy.closeLabel}><X size={18} /></button>
+      <span aria-hidden="true"><Bell size={28} /></span>
+      <h3>{copy.heading}</h3>
+      <strong>{page.title || page.name}</strong>
+      <p>{copy.message}</p>
+      <div>{copy.allowLabel}</div>
+      <small>{copy.footer}</small>
+      <small>{copy.dataNotice}</small>
+      {!enabled && <em>Hidden on public page until Visitor prompt is turned on.</em>}
+    </section>
+  </aside>;
+}
+
 type Props = {
   page: SmartPage;
   tab: BuilderTab;
@@ -142,6 +148,7 @@ export function BuilderEditor(props: Props) {
       <header><span className="admLiveDot" />Live preview<span>9:16</span></header>
       <PhoneFrame label={`${page.title || page.name} mobile preview`}><PageRenderer page={page} preview /></PhoneFrame>
       <span className="admPreviewSlug">/{page.slug}</span>
+      {tab === 'notifications' && <NotificationPromptPreview page={page} />}
     </aside>
     {picker && <Dialog title="Add content" onClose={() => setPicker(false)}><div className="admBlockPicker">{blockTypes.map(type => <button type="button" key={type.value} onClick={() => { props.onAdd(type.value); setPicker(false); }}><span>{resolveBlockIcon('', type.value)}</span>{type.label}<Plus size={15} /></button>)}</div></Dialog>}
   </div>;
