@@ -1,6 +1,44 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sendPushBatch, webpush } from '../lib/push';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+import { notificationPayload, sendPushBatch, webpush } from '../lib/push';
+import { isNotificationUrl } from '../lib/notificationUrl';
+
+test('notification destinations accept HTTPS custom links and local paths', () => {
+  for (const value of ['/', '/mik?offer=1#join', 'https://example.com/offer?ref=push#signup', ' https://example.com/offer ']) assert.equal(isNotificationUrl(value), true, value);
+  for (const value of ['', 'example.com', '//example.com', '/\\example.com', 'javascript:alert(1)', 'data:text/html,test', 'http://example.com', 'https://', 'https://user:pass@example.com', 'https://exa\nmple.com']) assert.equal(isNotificationUrl(value), false, value);
+  const url = 'https://example.com/offer?ref=push#signup';
+  assert.equal(JSON.parse(notificationPayload({ title: 'Offer', body: 'Open this offer', url })).url, url);
+});
+
+test('notification clicks open the custom link, focus local tabs, and reject unsafe destinations', async () => {
+  const source = readFileSync('public/push-worker.js', 'utf8');
+  const origin = 'https://signup888.shop';
+  const handlers: Record<string, (event: unknown) => void> = {};
+  const opened: string[] = [];
+  let focused = 0;
+  let closed = 0;
+  runInNewContext(source, {
+    URL,
+    self: { location: { origin }, addEventListener: (name: string, handler: (event: unknown) => void) => { handlers[name] = handler; } },
+    clients: { matchAll: async () => [{ url: origin + '/mik', focus: async () => { focused++; } }], openWindow: async (url: string) => { opened.push(url); return null; } },
+  });
+  async function click(url: unknown) {
+    let done: Promise<unknown> | undefined;
+    handlers.notificationclick({ notification: { data: { url }, close: () => { closed++; } }, waitUntil: (promise: Promise<unknown>) => { done = promise; } });
+    await done;
+  }
+  await click('https://example.com/offer?ref=push#signup');
+  assert.deepEqual(opened, ['https://example.com/offer?ref=push#signup']);
+  await click('/mik');
+  assert.equal(focused, 1);
+  for (const url of ['javascript:alert(1)', '//example.com', '/\\example.com', 'https://', { url: 'bad' }]) {
+    await click(url);
+    assert.equal(opened.at(-1), origin + '/');
+  }
+  assert.equal(closed, 7);
+});
 
 test('push batches bound concurrency and distinguish expired and failed subscriptions', async t => {
   let active = 0;

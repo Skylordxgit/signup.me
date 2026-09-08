@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
+import { isNotificationUrl } from '@/lib/notificationUrl';
 import { ImageUploader } from "../ImageUploader";
 import { EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./AdminUI";
 import type { MediaFile, UploadCategory } from "@/lib/uploads";
@@ -167,6 +168,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   async function send(event: React.FormEvent) {
     event.preventDefault();
     if (sending || loading || !configured || !recipients || !title.trim() || !body.trim()) return;
+    if (!isNotificationUrl(url)) { setError('Enter a full HTTPS link or a page path starting with /'); return; }
     setSending(true);
     setResult(null);
     setError('');
@@ -207,7 +209,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
         <Field label="Title"><input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} /></Field>
         <Field label="Message"><textarea rows={4} maxLength={180} required value={body} onChange={event => setBody(event.target.value)} placeholder="Write a short update or offer." /></Field>
         <span className="admMessageCount">{body.length}/180</span>
-        <Field label="Destination link"><input required pattern="/(?!/).*" value={url} onChange={event => setUrl(event.target.value)} placeholder="/your-page" /></Field>
+        <Field label="Destination link"><input required inputMode="url" autoCapitalize="none" spellCheck={false} value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com/offer or /your-page" /></Field>
         {selectedPage && <button type="button" className="admTextButton" onClick={() => setUrl('/' + selectedPage.slug)}><Link2 size={15} />Use selected page</button>}
       </div>
       </fieldset>

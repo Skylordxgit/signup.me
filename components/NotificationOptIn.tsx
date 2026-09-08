@@ -70,6 +70,7 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
     if (mode === 'supported' && Notification.permission === 'granted' && preference(slug) === 'saved-v2') {
       // Only returning subscribers wait for a check; new visitors see the prompt immediately.
       void navigator.serviceWorker.getRegistration('/').then(async registration => {
+        if (registration) void registration.update().catch(() => {});
         const existing = await registration?.pushManager.getSubscription();
         if (!existing) show();
       }).catch(show);

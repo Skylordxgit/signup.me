@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { sendPushNotification } from "@/lib/store";
+import { isNotificationUrl } from '@/lib/notificationUrl';
 
 export async function POST(request: NextRequest) {
   const session = await requireAdmin();
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
     if (!message) throw new Error("Notification message is required");
     if (title.length > 80) throw new Error("Keep the title under 80 characters");
     if (message.length > 180) throw new Error("Keep the message under 180 characters");
-    if (!url.startsWith("/") || url.startsWith("//") || url.includes("\\")) throw new Error("Use a link to a page on this site, starting with /");
+    if (!isNotificationUrl(url)) throw new Error('Enter a full HTTPS link or a page path starting with /');
 
     return NextResponse.json(await sendPushNotification({ title, body: message, url, pageId }));
   } catch (error) {

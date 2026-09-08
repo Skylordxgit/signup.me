@@ -22,8 +22,16 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const destination = new URL(event.notification.data?.url || "/", self.location.origin);
-  const url = destination.origin === self.location.origin ? destination.href : self.location.origin;
+  let url = self.location.origin + '/';
+  try {
+    const raw = event.notification.data?.url;
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    const localPath = value.startsWith('/') && !value.startsWith('//');
+    if (value && !/[\u0000-\u0020\u007f\\]/.test(value) && (localPath || /^https:\/\//i.test(value))) {
+      const destination = new URL(value, self.location.origin);
+      if (!destination.username && !destination.password) url = destination.href;
+    }
+  } catch { /* Older or malformed notifications open the homepage. */ }
   event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
     const existing = windows.find(client => client.url === url);
     if (existing) return existing.focus();
