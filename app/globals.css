@@ -2434,20 +2434,21 @@ so the card reads as the theme it applies. */
 
 .pushPrompt {
   position: fixed;
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom));
+  top: 50%;
+  left: 50%;
   z-index: 60;
-  width: min(420px, calc(100vw - 32px));
+  width: min(480px, calc(100vw - 20px));
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 12px;
-  padding: 14px;
+  padding: 18px;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 18px;
   background: rgba(15, 23, 42, 0.94);
   color: #ffffff;
   box-shadow: 0 22px 70px rgba(15, 23, 42, 0.32);
+  transform: translate(-50%, -50%);
   backdrop-filter: blur(18px);
 }
 
@@ -2481,7 +2482,10 @@ so the card reads as the theme it applies. */
 }
 
 .pushPromptAllow {
+  grid-column: 1 / -1;
+  width: 100%;
   min-height: 38px;
+  margin-top: 4px;
   background: #ffffff;
   color: #111827;
   padding: 0 16px;
@@ -2509,17 +2513,8 @@ so the card reads as the theme it applies. */
 
 @media (max-width: 520px) {
   .pushPrompt {
-    left: max(10px, env(safe-area-inset-left));
-    right: max(10px, env(safe-area-inset-right));
-    bottom: max(10px, env(safe-area-inset-bottom));
-    width: auto;
-    grid-template-columns: auto minmax(0, 1fr);
-    padding: 13px;
-  }
-
-  .pushPromptAllow {
-    grid-column: 1 / -1;
-    width: 100%;
+    width: min(482px, calc(100vw - 12px));
+    padding: 14px;
   }
 }
 
