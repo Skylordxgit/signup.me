@@ -11,7 +11,7 @@ await build({
   logLevel: "error",
   resolve: { alias: { "@": root } },
   build: {
-    ssr: fileURLToPath(new URL("./PageRenderer.test.tsx", import.meta.url)),
+    ssr: fileURLToPath(new URL("./index.test.ts", import.meta.url)),
     outDir: output,
     emptyOutDir: false,
     rollupOptions: { output: { entryFileNames: "tests.mjs" } },

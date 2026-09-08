@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAdmin } from "@/lib/auth";
+import { protectedJson, requireAdmin } from "@/lib/auth";
 import {
   isSafeSvg,
   isUploadCategory,
@@ -7,10 +7,15 @@ import {
   sniffImage,
   storeUpload,
   uploadCategories,
+  listMediaUploads,
 } from "@/lib/uploads";
 
 function fail(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+export async function GET() {
+  return protectedJson(listMediaUploads);
 }
 
 export async function POST(request: NextRequest) {

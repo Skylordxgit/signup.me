@@ -26,7 +26,11 @@ export default function LoginPage() {
     });
 
     if (response.ok) {
-      window.location.href = "/admin";
+      const cookieSlug = document.cookie.split("; ").find(value => value.startsWith("smartlink_claim="))?.split("=")[1];
+      const slug = new URLSearchParams(window.location.search).get("slug") || cookieSlug || "";
+      window.location.href = slug && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug)
+        ? `/admin?slug=${encodeURIComponent(slug)}`
+        : "/admin";
       return;
     }
 

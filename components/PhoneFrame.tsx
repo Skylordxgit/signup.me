@@ -19,11 +19,11 @@ export function PhoneFrame({
   overlays?: React.ReactNode;
 }) {
   return (
-    <main className="phoneStage">
+    <div className="phoneStage">
       <section className="phoneDevice" aria-label={label}>
         <div className="phoneScreen">{children}</div>
         {overlays}
       </section>
-    </main>
+    </div>
   );
 }

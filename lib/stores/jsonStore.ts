@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { AnalyticsReport, BlockType, PageBlock, PageStatus, SmartPage } from "../types";
 import { defaultTheme, seedPages } from "../defaults";
-import { detectDevice, emptyBlock, isValidSlug, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
+import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
 
 type DatabaseShape = {
   pages: SmartPage[];
@@ -65,7 +65,7 @@ export async function createPage(input: {
 
   if (!isValidSlug(slug)) throw new Error("Invalid slug");
   if (db.pages.some((page) => page.slug === slug)) throw new Error("Slug already exists");
-  if (input.profileImage && !isValidUrl(input.profileImage)) throw new Error("Invalid profile image URL");
+  if (input.profileImage && !isValidImageUrl(input.profileImage)) throw new Error("Invalid profile image URL");
 
   const timestamp = nowIso();
   const id = nextId(db.pages);

@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import type { AnalyticsReport, BlockType, PageBlock, PageStatus, SmartPage } from "../types";
 import { defaultTheme } from "../defaults";
-import { detectDevice, emptyBlock, isValidSlug, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
+import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
 
 type PageRow = {
@@ -171,7 +171,7 @@ export async function createPage(input: {
 }) {
   const slug = slugify(input.slug || input.name);
   if (!isValidSlug(slug)) throw new Error("Invalid slug");
-  if (input.profileImage && !isValidUrl(input.profileImage)) throw new Error("Invalid profile image URL");
+  if (input.profileImage && !isValidImageUrl(input.profileImage)) throw new Error("Invalid profile image URL");
 
   const existing = await mysqlQuery<{ id: number }[]>("SELECT id FROM pages WHERE slug = ?", [slug]);
   if (existing.length) throw new Error("Slug already exists");

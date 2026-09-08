@@ -1,14 +1,12 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ImageIcon, Loader2, Trash2, Upload } from "lucide-react";
 import { optimizeImage } from "@/lib/optimizeImage";
 import type { UploadCategory } from "@/lib/uploads";
 
 /** Mirrors the server's whitelist so bad files are caught before uploading. */
-const acceptedTypes = ["image/jpeg", "image/png", "image/webp", "image/svg+xml", "image/x-icon"];
-const acceptAttribute = ".jpg,.jpeg,.png,.webp,.svg,.ico,image/jpeg,image/png,image/webp,image/svg+xml";
 const maxBytes = 5 * 1024 * 1024;
 
 /**
@@ -21,6 +19,7 @@ export function ImageUploader({
   hint,
   label,
   onChange,
+  onBusyChange,
   round = false,
   value,
 }: {
@@ -28,28 +27,40 @@ export function ImageUploader({
   hint?: string;
   label: string;
   onChange: (path: string) => void;
+  onBusyChange?: (busy: boolean) => void;
   round?: boolean;
   value: string;
 }) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const uploadController = useRef<AbortController | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
+  const vectorAllowed = ["logo", "icon", "favicon"].includes(category);
+  const acceptedTypes = ["image/jpeg", "image/png", "image/webp", ...(vectorAllowed ? ["image/svg+xml"] : []), ...(category === "favicon" ? ["image/x-icon", "image/vnd.microsoft.icon"] : [])];
+  const acceptAttribute = `.jpg,.jpeg,.png,.webp${vectorAllowed ? ",.svg" : ""}${category === "favicon" ? ",.ico" : ""}`;
+  useEffect(() => () => { uploadController.current?.abort(); }, []);
 
   async function upload(file: File) {
+    if (uploadController.current) return;
     setError("");
 
-    if (!acceptedTypes.includes(file.type) && !/\.(jpe?g|png|webp|svg|ico)$/i.test(file.name)) {
-      setError("Use a JPG, PNG, WEBP or SVG image.");
+    const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0];
+    if (!acceptedTypes.includes(file.type) && (!extension || !acceptAttribute.split(',').includes(extension))) {
+      setError(vectorAllowed ? "Use a JPG, PNG, WEBP or SVG image." : "Use a JPG, PNG or WEBP image.");
       return;
     }
 
+    const controller = new AbortController();
+    uploadController.current = controller;
     setBusy(true);
+    onBusyChange?.(true);
     try {
       // Compress before checking the limit: a photo straight off a phone is
       // often well over 5MB but lands far under it once resized to WebP.
       const prepared = await optimizeImage(file);
+      if (controller.signal.aborted) return;
       if (prepared.size > maxBytes) {
         setError(`That image is ${(prepared.size / 1024 / 1024).toFixed(1)}MB after compression. The limit is 5MB.`);
         return;
@@ -59,18 +70,20 @@ export function ImageUploader({
       body.append("file", prepared);
       body.append("category", category);
 
-      const response = await fetch("/api/uploads", { method: "POST", body });
+      const response = await fetch("/api/uploads", { method: "POST", body, signal: controller.signal });
       const data = (await response.json().catch(() => null)) as { path?: string; error?: string } | null;
 
       if (!response.ok || !data?.path) {
         setError(data?.error || "Upload failed. Please try again.");
         return;
       }
-      onChange(data.path);
+      if (!controller.signal.aborted) onChange(data.path);
     } catch {
-      setError("Upload failed. Check your connection and try again.");
+      if (!controller.signal.aborted) setError("Upload failed. Check your connection and try again.");
     } finally {
+      uploadController.current = null;
       setBusy(false);
+      onBusyChange?.(false);
       // Allow re-picking the same file straight after a failure.
       if (inputRef.current) inputRef.current.value = "";
     }
@@ -122,6 +135,7 @@ export function ImageUploader({
         <input
           ref={inputRef}
           id={inputId}
+          aria-label={label}
           className="uploaderInput"
           type="file"
           accept={acceptAttribute}

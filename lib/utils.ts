@@ -57,6 +57,10 @@ export function isValidUrl(input: string) {
   }
 }
 
+export function isValidImageUrl(input: string) {
+  return /^\/uploads\/[a-z]+\/[a-zA-Z0-9_-]+\.(?:jpe?g|png|webp|svg|ico)$/.test(input) || isValidUrl(input);
+}
+
 export function detectDevice(userAgent: string) {
   const value = userAgent.toLowerCase();
   if (/ipad|tablet/.test(value)) return "tablet";
@@ -134,7 +138,7 @@ export function parseBlockIcon(icon: string): ParsedBlockIcon {
   if (!icon) return { kind: "empty" };
   if (icon === "none") return { kind: "none" };
   if (icon.startsWith("emoji:")) return { kind: "emoji", value: icon.slice("emoji:".length) };
-  if (/^https?:\/\//.test(icon) || icon.startsWith("data:")) return { kind: "image", src: icon };
+  if (/^https?:\/\//.test(icon) || icon.startsWith("data:") || icon.startsWith("/uploads/") && isValidImageUrl(icon)) return { kind: "image", src: icon };
   return { kind: "key", key: icon };
 }
 

@@ -7,7 +7,7 @@ import hostingConfig from './.openai/hosting.json';
 const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
   '00000000-0000-4000-8000-000000000000';
 
-const { d1, r2 } = hostingConfig;
+const { d1, r2 } = hostingConfig as { project_id: string; d1?: string; r2?: string };
 
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === 'seatbelt';
@@ -46,16 +46,23 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
+    ssr: { external: ['mysql2', 'mysql2/promise'] },
+    environments: {
+      rsc: { optimizeDeps: { exclude: ['mysql2', 'mysql2/promise'] } },
+      ssr: { optimizeDeps: { exclude: ['mysql2', 'mysql2/promise'] } },
+    },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
     plugins: [
       vinext(),
       sites(),
-      cloudflare({
+      // Filesystem uploads and MySQL use Node locally. Only binding-backed
+      // projects need the Workers runtime for their development preview.
+      ...(d1 || r2 ? [cloudflare({
         viteEnvironment: { name: 'rsc', childEnvironments: ['ssr'] },
         config: localBindingConfig,
-      }),
+      })] : []),
     ],
   };
 });

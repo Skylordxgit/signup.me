@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readdir, stat, writeFile } from "fs/promises";
 import path from "path";
 
 /**
@@ -78,6 +78,27 @@ function safeFileName(ext: string) {
 }
 
 export type StoredUpload = { path: string; bytes: number; mime: string };
+
+export type MediaFile = StoredUpload & { name: string; category: UploadCategory; updatedAt: string };
+
+export async function listMediaUploads(): Promise<MediaFile[]> {
+  const files: MediaFile[] = [];
+  for (const category of uploadCategories) {
+    const directory = path.join(uploadRoot, category);
+    let entries;
+    try { entries = await readdir(directory, { withFileTypes: true }); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") continue; throw error; }
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const filePath = path.join(directory, entry.name);
+      const mime = contentTypeFor(filePath);
+      if (!mime) continue;
+      const info = await stat(filePath);
+      files.push({ name: entry.name, category, path: `/uploads/${category}/${encodeURIComponent(entry.name)}`, mime, bytes: info.size, updatedAt: info.mtime.toISOString() });
+    }
+  }
+  return files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
 
 export async function storeUpload(
   category: UploadCategory,

@@ -2520,23 +2520,233 @@ shared by the theme swatches and the real page. */
   box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15), 0 0 22px rgba(34, 211, 238, 0.35);
 }
 
-.notFound {
-  min-height: 100vh;
+.missingPage {
+  position: relative;
+  min-height: 100svh;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: 0 clamp(20px, 5vw, 72px);
+  background: #090c12;
+  color: #f8fafc;
+}
+
+.missingPage::before {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+  content: "";
+  pointer-events: none;
+}
+
+.missingHeader,
+.missingContent,
+.missingFooter {
+  position: relative;
+  z-index: 1;
+}
+
+.missingHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 88px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.missingBrand {
+  display: inline-flex;
+  align-items: center;
+  gap: 11px;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.missingBrand > span {
   display: grid;
   place-items: center;
-  padding: 24px;
-  background: #0f172a;
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: #3b82f6;
+}
+
+.missingSignIn {
+  padding: 10px 4px;
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.missingSignIn:hover {
   color: #ffffff;
-  text-align: center;
 }
 
-.notFound div {
-  width: min(100%, 520px);
+.missingContent {
+  width: min(100%, 940px);
+  align-self: center;
+  padding: clamp(60px, 10vh, 120px) 0;
 }
 
-.notFound h1 {
-  font-size: 46px;
-  line-height: 1;
+.missingEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  color: #93c5fd;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.missingContent h1 {
+  max-width: 900px;
+  margin: 0;
+  font-size: clamp(50px, 8vw, 104px);
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.missingContent h1 strong {
+  color: #60a5fa;
+  font-weight: inherit;
+  overflow-wrap: anywhere;
+}
+
+.missingContent > p {
+  max-width: 600px;
+  margin: 28px 0 0;
+  color: #aeb9c8;
+  font-size: clamp(17px, 2vw, 20px);
+  line-height: 1.55;
+}
+
+.missingActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 36px;
+}
+
+.missingPrimary,
+.missingBack {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 50px;
+  border-radius: 7px;
+  padding: 0 20px;
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.missingPrimary {
+  background: #ffffff;
+  color: #111827;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+}
+
+.missingPrimary:hover {
+  background: #dbeafe;
+}
+
+.missingBack {
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+}
+
+.missingBack:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.missingAddress {
+  display: flex;
+  align-items: center;
+  width: min(100%, 480px);
+  min-height: 56px;
+  margin-top: 56px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0 17px;
+  color: #778397;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 15px;
+  overflow: hidden;
+}
+
+.missingAddress strong {
+  color: #f8fafc;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.missingAddress i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-left: auto;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.12);
+}
+
+.missingFooter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 70px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #778397;
+  font-size: 13px;
+}
+
+.missingFooter span {
+  color: #e2e8f0;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+@media (max-width: 560px) {
+  .missingHeader {
+    min-height: 72px;
+  }
+
+  .missingContent {
+    padding: 56px 0;
+  }
+
+  .missingContent h1 {
+    font-size: 48px;
+  }
+
+  .missingContent > p {
+    margin-top: 22px;
+    font-size: 17px;
+  }
+
+  .missingActions {
+    align-items: stretch;
+  }
+
+  .missingPrimary,
+  .missingBack {
+    width: 100%;
+  }
+
+  .missingAddress {
+    margin-top: 38px;
+  }
 }
 
 @media (max-width: 1280px) {

@@ -1,0 +1,117 @@
+"use client";
+
+/* eslint-disable @next/next/no-img-element */
+import { useEffect, useState } from "react";
+import { ArrowUpRight, BarChart3, Check, Clock3, Copy, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Plus, RefreshCw, Trash2, User } from "lucide-react";
+import type { AnalyticsReport, PageSummary } from "@/lib/types";
+import { adminApi } from "@/lib/admin";
+import { ImageUploader } from "../ImageUploader";
+import { EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./AdminUI";
+import type { MediaFile, UploadCategory } from "@/lib/uploads";
+
+const number = (value: number) => value.toLocaleString();
+export function Metrics({ pages }: { pages: PageSummary[] }) {
+  const values = [
+    { label: 'Total pages', value: pages.length, icon: FileText, tone: 'blue' },
+    { label: 'Published pages', value: pages.filter(page => page.status === 'published').length, icon: Globe2, tone: 'green' },
+    { label: 'Total views', value: pages.reduce((sum, page) => sum + page.views, 0), icon: Eye, tone: 'violet' },
+    { label: 'Total clicks', value: pages.reduce((sum, page) => sum + page.clicks, 0), icon: MousePointer2, tone: 'rose' },
+  ];
+  return <div className="admMetrics">{values.map(metric => <article className="admMetric" key={metric.label}><div><span>{metric.label}</span><strong>{number(metric.value)}</strong></div><span className={`admMetricIcon admTone-${metric.tone}`}><metric.icon size={21} /></span></article>)}</div>;
+}
+
+export function PagesTable({ pages, onOpen, onDuplicate, onDelete, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; busy?: boolean }) {
+  return !pages.length ? <EmptyState title="No pages found" /> : <div className="admPageTable" role="table" aria-label="Pages">
+    <div className="admPageTableHead" role="row"><span role="columnheader">Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader" className="admSrOnly">Actions</span></div>
+    {pages.map(page => <div className="admPageRow" role="row" key={page.id}>
+      <div role="cell"><button type="button" className="admPageIdentity" onClick={() => onOpen(page.id)} disabled={busy}><span className="admPageGlyph"><Link2 size={18} /></span><span><strong>{page.name}</strong><small>/{page.slug}</small></span></button></div>
+      <div role="cell"><StatusBadge status={page.status} /></div><span role="cell" className="admTableNumber">{number(page.views)}</span><span role="cell" className="admTableNumber">{number(page.clicks)}</span>
+      <time role="cell" dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</time>
+      <div role="cell" className="admActionRow">{onDuplicate && <IconButton icon={Copy} label={`Duplicate ${page.name}`} disabled={busy} onClick={() => onDuplicate(page.id)} />}{onDelete && <IconButton icon={Trash2} label={`Delete ${page.name}`} disabled={busy} onClick={() => onDelete(page)} />}<IconButton icon={ArrowUpRight} label={`Edit ${page.name}`} disabled={busy} onClick={() => onOpen(page.id)} /></div>
+    </div>)}
+  </div>;
+}
+
+export function DashboardHome({ pages, analytics, onOpen, onNavigate }: { pages: PageSummary[]; analytics: AnalyticsReport | null; onOpen: (id: number) => void; onNavigate: (view: string) => void }) {
+  const recent = [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
+  return <>
+    <div className="admPageHeading"><div><h2>Workspace overview</h2><p>Your pages, traffic, and latest updates.</p></div><button type="button" className="admButton admPrimary" onClick={() => onNavigate('create')}><Plus size={17} />Create page</button></div>
+    <Metrics pages={pages} />
+    <div className="admHomeGrid"><section><SectionHeading title="Traffic overview"><span className="admMuted">Last 30 days</span></SectionHeading><TrafficChart report={analytics} /></section><section className="admQuickActions"><SectionHeading title="Quick actions" />{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={18} /><span>{action.label}</span><ArrowUpRight size={15} /></button>)}</section></div>
+    <div className="admHomeGrid"><section><SectionHeading title="Recent pages"><button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} /></button></SectionHeading><PagesTable pages={recent} onOpen={onOpen} /></section><section><SectionHeading title="Recent activity" />{!recent.length ? <EmptyState title="No activity yet" /> : <ul className="admActivity">{recent.map(page => <li key={page.id}><span><Clock3 size={17} /></span><div><button type="button" onClick={() => onOpen(page.id)}>{page.name}</button><small>Page updated</small><time dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div></li>)}</ul>}</section></div>
+  </>;
+}
+
+export function TrafficChart({ report }: { report: AnalyticsReport | null }) {
+  if (!report) return <div className="admChartLoading" role="status">Loading traffic...</div>;
+  const peak = Math.max(2, ...report.daily.map(day => Math.max(day.views, day.clicks)));
+  const views = report.daily.reduce((sum, day) => sum + day.views, 0);
+  const clicks = report.daily.reduce((sum, day) => sum + day.clicks, 0);
+  return <div className="admTraffic"><div className="admChartLegend"><span><i />Views <strong>{number(views)}</strong></span><span><i />Clicks <strong>{number(clicks)}</strong></span></div>
+    <div className="admChart" role="img" aria-label={`Last 30 days: ${views} views and ${clicks} clicks`}>
+      <div className="admChartAxis"><span>{number(peak)}</span><span>{number(Math.round(peak / 2))}</span><span>0</span></div>
+      <div className="admChartBars">{report.daily.map(day => <div key={day.date} title={`${day.date}: ${day.views} views, ${day.clicks} clicks`}><i style={{ height: `${day.views / peak * 100}%` }} /><b style={{ height: `${day.clicks / peak * 100}%` }} /></div>)}{!views && !clicks && <span className="admChartEmpty">No traffic in this period</span>}</div>
+    </div><div className="admChartDates"><span>{report.daily[0]?.date}</span><span>{report.daily.at(-1)?.date}</span></div>
+  </div>;
+}
+
+export function AnalyticsView({ report }: { report: AnalyticsReport | null }) {
+  if (!report) return <EmptyState title="Loading analytics..." />;
+  return <><div className="admMetrics">{[['Views', report.views], ['Unique visitors', report.uniqueVisitors], ['Clicks', report.clicks], ['Click-through rate', `${report.ctr}%`]].map(([label, value]) => <article className="admMetric" key={label}><div><span>{label}</span><strong>{typeof value === 'number' ? number(value) : value}</strong></div></article>)}</div>
+    <section><SectionHeading title="Traffic"><span className="admMuted">Last 30 days</span></SectionHeading><TrafficChart report={report} /></section>
+    <div className="admThreeColumns"><Distribution title="Devices" items={report.devices.map(item => ({ label: item.device, count: item.count }))} /><Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} /><Distribution title="Top links" items={report.topBlocks.map(item => ({ label: item.title, count: item.clicks }))} /></div>
+  </>;
+}
+
+function Distribution({ title, items }: { title: string; items: { label: string; count: number }[] }) {
+  const peak = Math.max(1, ...items.map(item => item.count));
+  return <section><SectionHeading title={title} />{!items.length ? <EmptyState title="No data yet" /> : <div className="admDistribution">{items.map((item, index) => <div key={`${item.label}-${index}`}><div><span>{item.label}</span><strong>{number(item.count)}</strong></div><progress max={peak} value={item.count} aria-label={item.label} /></div>)}</div>}</section>;
+}
+
+export function MediaView() {
+  const [media, setMedia] = useState<MediaFile[]>([]);
+  const [category, setCategory] = useState<UploadCategory>('block');
+  const [filter, setFilter] = useState('all');
+  const [error, setError] = useState('');
+  const [uploaded, setUploaded] = useState('');
+  const [copied, setCopied] = useState('');
+  const [loading, setLoading] = useState(true);
+  async function refresh() {
+    setLoading(true);
+    try { setMedia(await adminApi<MediaFile[]>('/api/uploads')); setError(''); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not load media.'); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => {
+    let cancelled = false;
+    adminApi<MediaFile[]>('/api/uploads').then(files => { if (!cancelled) setMedia(files); })
+      .catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load media.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+  async function copy(path: string) {
+    try { await navigator.clipboard.writeText(new URL(path, window.location.origin).toString()); setCopied(path); }
+    catch { setError('Could not copy the link. Open the image to copy its address.'); }
+  }
+  const filtered = media.filter(file => filter === 'all' || file.category === filter);
+  return <><SectionHeading title="Media library"><IconButton icon={RefreshCw} label="Refresh media" disabled={loading} onClick={() => void refresh()} /></SectionHeading>
+    <div className="admMediaUpload"><Field label="Upload category"><select value={category} onChange={event => setCategory(event.target.value as UploadCategory)}>{['profile', 'banner', 'block', 'logo', 'background', 'icon', 'og', 'favicon'].map(value => <option key={value}>{value}</option>)}</select></Field><ImageUploader category={category} label="Upload image" value={uploaded} onChange={path => { setUploaded(path); void refresh(); }} /></div>
+    <div className="admToolbar"><span className="admMuted">{media.length} images</span><select aria-label="Filter media" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All media</option>{['profile', 'banner', 'block', 'logo', 'background', 'icon', 'og', 'favicon'].map(value => <option key={value}>{value}</option>)}</select></div>
+    {error && <p className="admError" role="alert">{error}</p>}{loading ? <EmptyState title="Loading media..." /> : !filtered.length ? <EmptyState title="No images in this category" /> : <div className="admMediaGrid">{filtered.map(file => <article className="admMediaItem" key={file.path}><a href={file.path} target="_blank" rel="noreferrer" aria-label={`Open ${file.name}`}><img src={file.path} alt={file.name} loading="lazy" /></a><div><span><strong title={file.name}>{file.name}</strong><small>{file.category} · {Math.max(1, Math.round(file.bytes / 1024))} KB</small></span><IconButton icon={copied === file.path ? Check : Copy} label={copied === file.path ? 'Copied' : 'Copy image link'} onClick={() => void copy(file.path)} /></div></article>)}</div>}
+  </>;
+}
+
+export function SettingsView({ email, collapsed, onCollapse, onLogout }: { email: string; collapsed: boolean; onCollapse: (collapsed: boolean) => void; onLogout: () => void }) {
+  const [name, setName] = useState(() => readPreferences().name || '');
+  const [avatar, setAvatar] = useState(() => readPreferences().avatar || '');
+  const [message, setMessage] = useState('');
+  function save(event: React.FormEvent) {
+    event.preventDefault();
+    try { const previous = JSON.parse(localStorage.getItem('smartlink_profile') || '{}'); localStorage.setItem('smartlink_profile', JSON.stringify({ ...previous, name, avatar })); setMessage('Preferences saved'); } catch { setMessage('Unable to save browser preferences.'); }
+  }
+  return <div className="admSettingsGrid"><form onSubmit={save}><SectionHeading title="Account preferences" /><div className="admFormStack"><Field label="Display name"><input value={name} onChange={event => setName(event.target.value)} autoComplete="nickname" /></Field><Field label="Signed-in email"><input type="email" readOnly value={email} /></Field><ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} /><button type="submit" className="admButton admPrimary"><Check size={16} />Save preferences</button><span role="status" className="admMuted">{message}</span></div></form><section><SectionHeading title="Workspace" /><label className="admCheck"><input type="checkbox" checked={collapsed} onChange={event => onCollapse(event.target.checked)} />Compact sidebar</label><p className="admMuted">Browser preferences</p><div className="admSettingsSession"><User size={20} /><span>{email || 'Administrator'}</span><button type="button" className="admButton" onClick={onLogout}><LogOut size={16} />Log out</button></div></section></div>;
+}
+
+function readPreferences(): { name?: string; avatar?: string } {
+  try { return JSON.parse(localStorage.getItem('smartlink_profile') || '{}'); } catch { return {}; }
+}
