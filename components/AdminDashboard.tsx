@@ -66,7 +66,7 @@ import {
 import { PublicPage } from "@/components/PublicPage";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, ProfileAlignment, SmartPage } from "@/lib/types";
 import { blockTypes, parseBlockIcon, publicPageUrl, readableTextColor, slugify, themePresets } from "@/lib/utils";
-import { applyThemeDefinition, resolveAlignment, themeDefinition, themeLibrary } from "@/lib/themes";
+import { applyThemeDefinition, resolveAlignment, resolveProfileLayout, themeDefinition, themeLibrary } from "@/lib/themes";
 import { PhoneFrame } from "./PhoneFrame";
 import { PageRenderer } from "./PageRenderer";
 import { ImageUploader } from "./ImageUploader";
@@ -1173,10 +1173,10 @@ function ThemeEditorSheet({
           </Field>
           <div className="appearanceColorGrid">
             <Field label="Background">
-              <input type="color" value={theme.backgroundColor} onChange={(event) => update({ backgroundColor: event.target.value })} />
+              <input type="color" value={theme.backgroundColor} onChange={(event) => update({ backgroundColor: event.target.value, gradientFrom: event.target.value, backgroundStyle: "solid" })} />
             </Field>
             <Field label="Accent">
-              <input type="color" value={theme.gradientTo} onChange={(event) => update({ gradientTo: event.target.value })} />
+              <input type="color" value={theme.gradientTo} onChange={(event) => update({ gradientTo: event.target.value, backgroundStyle: "gradient" })} />
             </Field>
             <Field label="Button">
               <input type="color" value={theme.buttonBackground} onChange={(event) => update({ buttonBackground: event.target.value })} />
@@ -1261,10 +1261,10 @@ function PageDecorationSheet({
           {view === "backgroundColor" && (
             <div className="appearanceColorGrid">
               <Field label="Background">
-                <input type="color" value={theme.backgroundColor} onChange={(event) => update({ backgroundColor: event.target.value })} />
+                <input type="color" value={theme.backgroundColor} onChange={(event) => update({ backgroundColor: event.target.value, gradientFrom: event.target.value, backgroundStyle: "solid" })} />
               </Field>
               <Field label="Accent">
-                <input type="color" value={theme.gradientTo} onChange={(event) => update({ gradientTo: event.target.value })} />
+                <input type="color" value={theme.gradientTo} onChange={(event) => update({ gradientTo: event.target.value, backgroundStyle: "gradient" })} />
               </Field>
               <Field label="Button">
                 <input type="color" value={theme.buttonBackground} onChange={(event) => update({ buttonBackground: event.target.value })} />
@@ -1274,8 +1274,7 @@ function PageDecorationSheet({
           {view === "backgroundImage" && (
             <ImageUploader
               category="background"
-              label="Background image"
-              hint="Sits behind the whole page. Drag an image here, or click to choose."
+              label="Cover image"
               value={theme.backgroundImage}
               onChange={(backgroundImage) => update({ backgroundImage })}
             />
@@ -1635,6 +1634,9 @@ function ProfileEditorSheet({
   const [title, setTitle] = useState(page.title);
   const [bio, setBio] = useState(page.bio);
   const [align, setAlign] = useState<ProfileAlignment>(resolveAlignment(page.theme));
+  const [layout, setLayout] = useState(resolveProfileLayout(page.theme));
+  const [showShareButton, setShowShareButton] = useState(page.theme.showShareButton ?? false);
+  const profileTheme = { ...page.theme, backgroundImage: cover, profileAlignment: align, profileLayout: layout, showShareButton };
 
   function save() {
     onSave({
@@ -1642,7 +1644,7 @@ function ProfileEditorSheet({
       name,
       profileImage: photo,
       slug: slugify(slug),
-      theme: { ...page.theme, backgroundImage: cover, profileAlignment: align },
+      theme: profileTheme,
       title,
     });
   }
@@ -1657,14 +1659,7 @@ function ProfileEditorSheet({
         </header>
 
         <div className="profileSheetPreview">
-          <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
-          <div className="profileSheetIdentity">
-            <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
-            <div>
-              <strong>{title || "Your name"}</strong>
-              <p>{bio || "Add a short description"}</p>
-            </div>
-          </div>
+          <PageRenderer page={{ ...page, title, bio, profileImage: photo, theme: profileTheme, blocks: [] }} preview />
         </div>
 
         <div className="profileSheetFields">
@@ -1704,8 +1699,20 @@ function ProfileEditorSheet({
           </section>
 
           <section className="editorSection">
+            <Field label="Profile layout">
+              <select value={layout} onChange={(event) => setLayout(event.target.value as typeof layout)}>
+                <option value="hero">Banner and profile</option>
+                <option value="centered">Stacked profile</option>
+                <option value="avatar">Profile without banner</option>
+                <option value="none">Text only</option>
+              </select>
+            </Field>
             <h3>Alignment</h3>
             <AlignmentControl onChange={setAlign} value={align} />
+            <label className="inlineToggle">
+              <input type="checkbox" checked={showShareButton} onChange={(event) => setShowShareButton(event.target.checked)} />
+              Show Share button
+            </label>
           </section>
 
           <button type="button" className="profileSaveButton" onClick={save}>Save changes</button>

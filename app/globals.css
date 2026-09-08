@@ -2909,19 +2909,16 @@ button:hover:not(:disabled) {
   display: flex;
   justify-content: center;
   color: var(--text);
-  font-family: Inter, Arial, Helvetica, sans-serif;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.16), transparent 18rem),
-    linear-gradient(135deg, var(--from), var(--to));
+  font-family: var(--page-font);
+  letter-spacing: 0;
+  background: var(--page-background, var(--bg));
 }
 
-/* Caps content at the phone width so a desktop browser centres the mobile
-   layout instead of stretching it. Identical width inside the builder frame. */
-/* No padding: the cover is flush with the top and sides, so the page reads as
-   a full mobile screen rather than a card floating on a background. */
+/* Shared responsive column: 512px of content on desktop, fluid on a phone. */
 .pageColumn {
   width: 100%;
-  max-width: var(--phone-w);
+  max-width: 528px;
+  padding: 8px;
   min-height: 100%;
   display: flex;
   flex-direction: column;
@@ -2943,10 +2940,9 @@ button:hover:not(:disabled) {
 .pageCover {
   position: relative;
   width: 100%;
-  aspect-ratio: 16 / 7;
+  aspect-ratio: 512 / 210;
   flex: none;
-  background-color: rgba(255, 255, 255, 0.12);
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
+  border-radius: var(--button-radius);
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -2961,13 +2957,16 @@ button:hover:not(:disabled) {
   background: transparent;
 }
 
-/* Pulled up so the avatar straddles the cover's bottom edge. */
 .pageProfile {
+  position: relative;
   display: grid;
-  gap: 10px;
-  margin-top: -46px;
-  padding: 0 18px;
+  margin: 0 0 8px;
+  padding: 0 16px;
   flex: none;
+}
+
+.smartCard[data-cover="true"][data-avatar="true"] .pageProfile {
+  margin-top: calc(-18px - var(--spacing));
 }
 
 /* Identity wrapper. A <div> publicly, a <button> in the builder - same class,
@@ -2982,6 +2981,35 @@ button:hover:not(:disabled) {
   background: transparent;
   color: inherit;
   font: inherit;
+}
+
+.pageIdentityText {
+  min-width: 0;
+  max-width: 100%;
+}
+
+[data-layout="hero"][data-avatar="true"]:not([data-align="center"]) .pageIdentity {
+  grid-template-columns: 80px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+[data-layout="hero"][data-avatar="true"][data-cover="true"]:not([data-align="center"]) .pageIdentityText {
+  padding-top: 18px;
+}
+
+[data-layout="hero"][data-avatar="true"][data-align="right"] .pageIdentity {
+  grid-template-columns: minmax(0, 1fr) 80px;
+}
+
+[data-layout="hero"][data-align="right"] .pageAvatar {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+[data-layout="hero"][data-align="right"] .pageIdentityText {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 /* One switch drives the entire identity block — avatar, title, subtitle — plus
@@ -3030,13 +3058,12 @@ button:hover:not(:disabled) {
 .pageAvatar {
   display: grid;
   place-items: center;
-  width: 92px;
-  height: 92px;
+  width: 80px;
+  height: 80px;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.18);
-  border: 4px solid rgba(255, 255, 255, 0.72);
-  border-radius: 28px;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.24);
+  border: 3px solid var(--bg);
+  border-radius: 50%;
 }
 
 .pageAvatarFallback {
@@ -3049,21 +3076,19 @@ button:hover:not(:disabled) {
 .pageTitle {
   margin: 0;
   color: var(--heading);
-  font-size: clamp(21px, 6.6vw, 27px);
-  font-weight: 800;
+  font-size: 22px;
+  font-weight: 700;
   line-height: 1.18;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   overflow-wrap: anywhere;
-  text-wrap: balance;
 }
 
 .pageBio {
   margin: 0;
-  max-width: 34ch;
-  color: color-mix(in srgb, var(--text), transparent 15%);
+  color: var(--text);
   font-size: 14px;
-  font-weight: 600;
-  line-height: 1.5;
+  font-weight: 400;
+  line-height: 1.4;
   overflow-wrap: anywhere;
   text-wrap: pretty;
 }
@@ -3092,6 +3117,15 @@ button:hover:not(:disabled) {
   height: 17px;
 }
 
+.pageActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pageActions .pageShare {
+  position: static;
+}
+
 /* Label is for assistive tech only; the control is an icon button. */
 .pageShare span {
   position: absolute;
@@ -3105,7 +3139,7 @@ button:hover:not(:disabled) {
 .pageBlocks {
   display: grid;
   gap: var(--spacing);
-  padding: 2px 18px 0;
+  padding: 0;
 }
 
 /* Layout only. Background, border and shadow come from the .buttonStyle-*
@@ -3118,7 +3152,7 @@ button:hover:not(:disabled) {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 62px;
+  min-height: 51px;
   padding: 11px 16px;
   border-radius: var(--button-radius);
   color: var(--button-text);
@@ -3131,20 +3165,18 @@ button:hover:not(:disabled) {
 /* With an icon present, reserve the same width on both sides so the title
    stays centred and long text can never run underneath the badge. */
 .pageButton:has(.pageButtonIcon:not(:empty)) {
-  padding-inline: 62px;
+  padding-inline: 48px;
 }
 
 .pageButtonIcon {
   position: absolute;
-  left: 11px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: color-mix(in srgb, currentColor 15%, transparent);
+  width: 22px;
+  height: 22px;
 }
 
 .pageButtonIcon svg {
@@ -3233,12 +3265,9 @@ button:hover:not(:disabled) {
 .pageVideo {
   display: grid;
   gap: 9px;
-  padding: 11px;
-  border: 1px solid var(--button-border);
-  border-radius: var(--button-radius);
-  background: var(--button-bg-glass);
-  color: var(--button-text);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
+  min-width: 0;
+  margin-top: 6px;
+  color: var(--text);
 }
 
 .pageVideo iframe,
@@ -3247,8 +3276,13 @@ button:hover:not(:disabled) {
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--button-radius);
   background: rgba(15, 23, 42, 0.28);
+}
+
+.pageVideo iframe,
+.pageVideo video {
+  display: block;
 }
 
 .pageVideo strong {
@@ -3262,7 +3296,7 @@ button:hover:not(:disabled) {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 0 18px;
+  padding: 0;
 }
 
 .pageSocialIcon {
@@ -3289,8 +3323,7 @@ button:hover:not(:disabled) {
 }
 
 @media (hover: hover) {
-  .pageButton:hover,
-  .pageVideo:hover {
+  .pageButton:hover {
     transform: translateY(-2px);
     box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
   }

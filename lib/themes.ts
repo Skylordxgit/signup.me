@@ -321,6 +321,12 @@ export function applyThemeDefinition(theme: ThemeDefinition, current?: ThemeSett
   return {
     ...theme.settings,
     preset: theme.id as ThemeSettings["preset"],
+    backgroundStyle: theme.settings.surface?.startsWith("plain") ? "solid" : "gradient",
+    ...(current ? {
+      backgroundImage: current.backgroundImage,
+      profileLayout: current.profileLayout,
+      showShareButton: current.showShareButton,
+    } : {}),
     ...(current?.profileAlignment ? { profileAlignment: current.profileAlignment } : {}),
   };
 }
@@ -339,7 +345,11 @@ export function resolveSurface(theme: ThemeSettings): string {
 }
 
 export function resolveAlignment(theme: ThemeSettings): ProfileAlignment {
-  return theme.profileAlignment ?? "center";
+  return theme.profileAlignment ?? (resolveProfileLayout(theme) === "hero" ? "left" : "center");
+}
+
+export function resolveProfileLayout(theme: ThemeSettings) {
+  return theme.profileLayout ?? "hero";
 }
 
 function withAlpha(hex: string, alpha: number) {
@@ -356,7 +366,16 @@ function withAlpha(hex: string, alpha: number) {
  * both render from this, so the preview cannot drift from the real page.
  */
 export function themeCssVariables(theme: ThemeSettings): React.CSSProperties {
+  const fonts = {
+    inter: "Inter, Arial, Helvetica, sans-serif",
+    system: "system-ui, sans-serif",
+    serif: "Georgia, 'Times New Roman', serif",
+    mono: "ui-monospace, SFMono-Regular, Consolas, monospace",
+  };
+  const backgroundStyle = theme.backgroundStyle ?? (resolveSurface(theme).startsWith("plain") ? "solid" : "gradient");
   return {
+    "--page-font": fonts[theme.font] || fonts.inter,
+    "--page-background": backgroundStyle === "solid" ? theme.backgroundColor : `linear-gradient(135deg, ${theme.gradientFrom}, ${theme.gradientTo})`,
     "--from": theme.gradientFrom,
     "--to": theme.gradientTo,
     "--bg": theme.backgroundColor,

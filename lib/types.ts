@@ -73,6 +73,8 @@ export type ThemeSettings = {
   /* Optional: pages saved before these existed fall back to their theme. */
   buttonStyle?: ButtonStyle;
   surface?: SurfaceStyle;
+  backgroundStyle?: "solid" | "gradient";
+  showShareButton?: boolean;
   profileLayout?: "hero" | "centered" | "avatar" | "none";
   /* Profile layout. Kept in the theme blob so it needs no schema change, and
      deliberately carried across when a new theme preset is applied. */

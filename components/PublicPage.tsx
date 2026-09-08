@@ -32,7 +32,7 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
 
   return (
     <main className="publicExperience">
-      <PageRenderer page={page} onTrack={track} />
+      <PageRenderer page={page} onTrack={track} preview={preview} />
     </main>
   );
 }

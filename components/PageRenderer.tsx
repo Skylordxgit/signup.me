@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import type { PageBlock, SmartPage } from "@/lib/types";
 import { buildSmartUrl, parseBlockIcon, publicPageUrl, readableTextColor } from "@/lib/utils";
-import { resolveAlignment, resolveButtonStyle, resolveSurface, themeCssVariables } from "@/lib/themes";
+import { resolveAlignment, resolveButtonStyle, resolveProfileLayout, resolveSurface, themeCssVariables } from "@/lib/themes";
 
 /**
  * Editing affordances supplied by the admin builder. When absent the renderer
@@ -48,34 +48,46 @@ export function PageRenderer({
   edit,
   onTrack,
   page,
+  preview = false,
 }: {
   edit?: PageEditHooks;
   onTrack?: (block: PageBlock) => void;
   page: SmartPage;
+  preview?: boolean;
 }) {
   const theme = page.theme;
   const buttonStyle = resolveButtonStyle(theme);
   const surface = resolveSurface(theme);
   const align = resolveAlignment(theme);
+  const layout = resolveProfileLayout(theme);
+  const hasCover = Boolean(theme.backgroundImage) && layout !== "avatar" && layout !== "none";
+  const hasAvatar = Boolean(page.profileImage) && layout !== "none";
+  const hasProfile = hasAvatar || Boolean(page.title || page.bio);
+  const isPreview = preview || Boolean(edit);
 
   // The builder shows hidden blocks (dimmed) so they can be re-enabled;
   // visitors only ever get the active ones. Order is identical.
   const ordered = [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder);
   const blocks = edit ? ordered : ordered.filter((block) => block.isActive);
 
-  const socialBlocks = blocks.filter((block) => block.type === "socials");
-  const mainBlocks = blocks.filter((block) => block.type !== "socials");
+  // Only adjacent social links share a row; never move them ahead of content.
+  const groups: PageBlock[][] = [];
+  for (const block of blocks) {
+    const last = groups.at(-1);
+    if (block.type === "socials" && last?.[0].type === "socials") last.push(block);
+    else groups.push([block]);
+  }
 
   return (
-    // smartPage paints the theme full-bleed; pageColumn caps the content at
-    // the phone width and centres it. The column is the same width in the
-    // builder frame and on a desktop browser, so content geometry is identical.
     <div className="smartPage" style={themeCssVariables(theme)}>
       <div className="pageColumn">
-      <div className={`smartCard surface-${surface}`} data-align={align}>
-        <PageCover edit={edit} page={page} theme={theme} />
+      <div className={`smartCard surface-${surface}`} data-align={align} data-layout={layout} data-cover={hasCover} data-avatar={hasAvatar}>
+        {hasCover && <PageCover edit={edit} page={page} preview={isPreview} theme={theme} />}
+        {!hasCover && theme.showShareButton && (
+          <div className="pageActions"><ShareAction page={page} preview={isPreview} /></div>
+        )}
 
-        <header className="pageProfile">
+        {(hasProfile || edit) && <header className="pageProfile">
           {/* Same element type and classes in both modes; the builder only
               swaps the tag for a button so the identity is clickable. */}
           {edit ? (
@@ -85,27 +97,23 @@ export function PageRenderer({
               aria-label="Edit profile"
               onClick={edit.onEditProfile}
             >
-              <ProfileIdentity page={page} />
+              <ProfileIdentity page={page} showAvatar={hasAvatar} />
             </button>
           ) : (
             <div className="pageIdentity">
-              <ProfileIdentity page={page} />
+              <ProfileIdentity page={page} showAvatar={hasAvatar} />
             </div>
           )}
-        </header>
+        </header>}
 
-        {socialBlocks.length > 0 && (
-          <div className="pageSocials">
-            {socialBlocks.map((block) => (
-              <SocialRow block={block} edit={edit} key={block.id} onTrack={onTrack} />
-            ))}
-          </div>
-        )}
-
-        {mainBlocks.length > 0 && (
+        {groups.length > 0 && (
           <div className="pageBlocks">
-            {mainBlocks.map((block) => (
-              <BlockRow block={block} buttonStyle={buttonStyle} edit={edit} key={block.id} onTrack={onTrack} />
+            {groups.map((group) => group[0].type === "socials" ? (
+              <div className="pageSocials" key={group[0].id}>
+                {group.map((block) => <SocialRow block={block} edit={edit} key={block.id} onTrack={onTrack} preview={isPreview} />)}
+              </div>
+            ) : (
+              <BlockRow block={group[0]} buttonStyle={buttonStyle} edit={edit} key={group[0].id} onTrack={onTrack} preview={isPreview} />
             ))}
           </div>
         )}
@@ -118,10 +126,12 @@ export function PageRenderer({
 function PageCover({
   edit,
   page,
+  preview,
   theme,
 }: {
   edit?: PageEditHooks;
   page: SmartPage;
+  preview: boolean;
   theme: SmartPage["theme"];
 }) {
   const style = theme.backgroundImage ? { backgroundImage: `url(${theme.backgroundImage})` } : undefined;
@@ -132,17 +142,19 @@ function PageCover({
       {edit && (
         <button type="button" className="pageCoverEdit" aria-label="Edit cover" onClick={edit.onEditProfile} />
       )}
-      <ShareAction page={page} preview={Boolean(edit)} />
+      {theme.showShareButton && <ShareAction page={page} preview={preview} />}
     </div>
   );
 }
 
-function ProfileIdentity({ page }: { page: SmartPage }) {
+function ProfileIdentity({ page, showAvatar }: { page: SmartPage; showAvatar: boolean }) {
   return (
     <>
-      <ProfileAvatar name={page.title || page.name} src={page.profileImage} />
-      <h1 className="pageTitle">{page.title}</h1>
-      {page.bio && <p className="pageBio">{page.bio}</p>}
+      {showAvatar && <ProfileAvatar key={page.profileImage} name={page.title || page.name} src={page.profileImage} />}
+      {(page.title || page.bio) && <div className="pageIdentityText">
+        {page.title && <h1 className="pageTitle">{page.title}</h1>}
+        {page.bio && <p className="pageBio">{page.bio}</p>}
+      </div>}
     </>
   );
 }
@@ -197,6 +209,7 @@ function ShareAction({ page, preview }: { page: SmartPage; preview: boolean }) {
       type="button"
       className="pageShare"
       aria-label={`Share ${page.title || page.name}`}
+      title={copied ? "Link copied" : "Share page"}
       onClick={preview ? undefined : share}
       tabIndex={preview ? -1 : 0}
     >
@@ -215,13 +228,15 @@ function BlockRow({
   buttonStyle,
   edit,
   onTrack,
+  preview,
 }: {
   block: PageBlock;
   buttonStyle: string;
   edit?: PageEditHooks;
   onTrack?: (block: PageBlock) => void;
+  preview: boolean;
 }) {
-  const view = <PageBlockView block={block} buttonStyle={buttonStyle} preview={Boolean(edit)} onTrack={onTrack} />;
+  const view = <PageBlockView block={block} buttonStyle={buttonStyle} preview={preview} onTrack={onTrack} />;
   if (!edit) return view;
 
   const selected = edit.selectedBlockId === block.id;
@@ -295,12 +310,13 @@ function SocialRow({
   block,
   edit,
   onTrack,
+  preview,
 }: {
   block: PageBlock;
   edit?: PageEditHooks;
   onTrack?: (block: PageBlock) => void;
+  preview: boolean;
 }) {
-  const preview = Boolean(edit);
   const link = (
     <a
       className="pageSocialIcon"
