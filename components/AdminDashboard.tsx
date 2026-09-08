@@ -66,6 +66,7 @@ import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } 
 import { applyThemeDefinition, themeDefinition, themeLibrary } from "@/lib/themes";
 import { PhoneFrame } from "./PhoneFrame";
 import { PageRenderer } from "./PageRenderer";
+import { ImageUploader } from "./ImageUploader";
 
 type EditorTab = "content" | "blocks" | "design" | "seo" | "integrations" | "analytics";
 type AdminMode = "list" | "detail" | "editor";
@@ -617,7 +618,6 @@ export function AdminDashboard() {
                 <input name="slug" placeholder="URL slug, e.g. mik" required />
                 <input name="title" placeholder="Profile heading" required />
                 <textarea name="bio" placeholder="Short bio or description" required />
-                <input name="profileImage" placeholder="Profile image URL" />
                 <button type="submit">Create and Publish</button>
               </form>
             )}
@@ -701,9 +701,13 @@ export function AdminDashboard() {
                     <Field label="Bio">
                       <textarea value={activePage.bio} onChange={(event) => editPage({ bio: event.target.value })} />
                     </Field>
-                    <Field label="Profile image URL">
-                      <input value={activePage.profileImage} onChange={(event) => editPage({ profileImage: event.target.value })} />
-                    </Field>
+                    <ImageUploader
+                      category="profile"
+                      label="Profile image"
+                      round
+                      value={activePage.profileImage}
+                      onChange={(profileImage) => editPage({ profileImage })}
+                    />
                   </div>
                 )}
 
@@ -772,12 +776,12 @@ export function AdminDashboard() {
                         />
                       </Field>
                     </div>
-                    <Field label="Background image URL">
-                      <input
-                        value={activePage.theme.backgroundImage}
-                        onChange={(event) => editPage({ theme: { ...activePage.theme, backgroundImage: event.target.value } })}
-                      />
-                    </Field>
+                    <ImageUploader
+                      category="background"
+                      label="Background image"
+                      value={activePage.theme.backgroundImage}
+                      onChange={(backgroundImage) => editPage({ theme: { ...activePage.theme, backgroundImage } })}
+                    />
                     <Range label="Button radius" value={activePage.theme.buttonRadius} min={4} max={36} onChange={(value) => editPage({ theme: { ...activePage.theme, buttonRadius: value } })} />
                     <Range label="Glass blur" value={activePage.theme.glassBlur} min={0} max={30} onChange={(value) => editPage({ theme: { ...activePage.theme, glassBlur: value } })} />
                     <Range label="Spacing" value={activePage.theme.spacing} min={6} max={26} onChange={(value) => editPage({ theme: { ...activePage.theme, spacing: value } })} />
@@ -795,9 +799,20 @@ export function AdminDashboard() {
                     <Field label="Social share title">
                       <input value={activePage.seo.socialTitle} onChange={(event) => editPage({ seo: { ...activePage.seo, socialTitle: event.target.value } })} />
                     </Field>
-                    <Field label="OG image URL">
-                      <input value={activePage.seo.ogImage} onChange={(event) => editPage({ seo: { ...activePage.seo, ogImage: event.target.value } })} />
-                    </Field>
+                    <ImageUploader
+                      category="og"
+                      label="Social sharing image"
+                      hint="Used when the page is shared. 1200x630 works well."
+                      value={activePage.seo.ogImage}
+                      onChange={(ogImage) => editPage({ seo: { ...activePage.seo, ogImage } })}
+                    />
+                    <ImageUploader
+                      category="favicon"
+                      label="Favicon"
+                      hint="A small square icon. PNG, SVG or ICO."
+                      value={activePage.seo.favicon}
+                      onChange={(favicon) => editPage({ seo: { ...activePage.seo, favicon } })}
+                    />
                     <a className="qrButton" href={`https://api.qrserver.com/v1/create-qr-code/?size=800x800&data=${encodeURIComponent(publicUrl(activePage.slug))}`}>
                       View or download QR code
                     </a>
@@ -1166,9 +1181,12 @@ function ThemeEditorSheet({
               <input type="color" value={theme.buttonBackground} onChange={(event) => update({ buttonBackground: event.target.value })} />
             </Field>
           </div>
-          <Field label="Background image URL">
-            <input value={theme.backgroundImage} onChange={(event) => update({ backgroundImage: event.target.value })} />
-          </Field>
+          <ImageUploader
+            category="background"
+            label="Background image"
+            value={theme.backgroundImage}
+            onChange={(backgroundImage) => update({ backgroundImage })}
+          />
           <Range label="Button corner radius" value={theme.buttonRadius} min={4} max={36} onChange={(buttonRadius) => update({ buttonRadius })} />
           <Range label="Content spacing" value={theme.spacing} min={6} max={26} onChange={(spacing) => update({ spacing })} />
         </div>
@@ -1253,9 +1271,13 @@ function PageDecorationSheet({
             </div>
           )}
           {view === "backgroundImage" && (
-            <Field label="Background image URL">
-              <input value={theme.backgroundImage} onChange={(event) => update({ backgroundImage: event.target.value })} />
-            </Field>
+            <ImageUploader
+              category="background"
+              label="Background image"
+              hint="Sits behind the whole page. Drag an image here, or click to choose."
+              value={theme.backgroundImage}
+              onChange={(backgroundImage) => update({ backgroundImage })}
+            />
           )}
           {view === "fonts" && (
             <Field label="Font">
@@ -1576,7 +1598,6 @@ function ProfileEditorSheet({
   const [slug, setSlug] = useState(page.slug);
   const [title, setTitle] = useState(page.title);
   const [bio, setBio] = useState(page.bio);
-  const [changing, setChanging] = useState<"cover" | "photo" | null>(null);
 
   function save() {
     onSave({
@@ -1616,12 +1637,21 @@ function ProfileEditorSheet({
           <Field label="Public URL *">
             <input value={slug} onChange={(event) => setSlug(event.target.value)} />
           </Field>
-          <MediaChangeRow label="Cover" preview={cover} active={changing === "cover"} onChange={() => setChanging(changing === "cover" ? null : "cover")}>
-            <input value={cover} aria-label="Cover image URL" placeholder="Cover image URL" onChange={(event) => setCover(event.target.value)} />
-          </MediaChangeRow>
-          <MediaChangeRow label="Profile photo" preview={photo} active={changing === "photo"} onChange={() => setChanging(changing === "photo" ? null : "photo")}>
-            <input value={photo} aria-label="Profile photo URL" placeholder="Profile photo URL" onChange={(event) => setPhoto(event.target.value)} />
-          </MediaChangeRow>
+          <ImageUploader
+            category="banner"
+            label="Cover"
+            hint="Shown behind your profile. Drag an image here, or click to choose."
+            value={cover}
+            onChange={setCover}
+          />
+          <ImageUploader
+            category="profile"
+            label="Profile photo"
+            hint="Square images look best. Drag one here, or click to choose."
+            round
+            value={photo}
+            onChange={setPhoto}
+          />
           <Field label="Title *">
             <input value={title} onChange={(event) => setTitle(event.target.value)} />
           </Field>
@@ -1631,31 +1661,6 @@ function ProfileEditorSheet({
           <button type="button" className="profileSaveButton" onClick={save}>Save changes</button>
         </div>
       </section>
-    </div>
-  );
-}
-
-function MediaChangeRow({
-  active,
-  children,
-  label,
-  onChange,
-  preview,
-}: {
-  active: boolean;
-  children: React.ReactNode;
-  label: string;
-  onChange: () => void;
-  preview: string;
-}) {
-  return (
-    <div className="mediaChangeGroup">
-      <div className="mediaChangeRow">
-        <img key={preview} src={preview} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
-        <strong>{label}</strong>
-        <button type="button" onClick={onChange}>Change</button>
-      </div>
-      {active && <div className="mediaUrlField">{children}</div>}
     </div>
   );
 }
@@ -1674,6 +1679,7 @@ function LinkEditSheet({
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const isPhoneAction = draft.type === "whatsapp" || draft.type === "phone";
   const isVideo = draft.type === "video";
+  const isImage = draft.type === "image";
   const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
 
   function save() {
@@ -1685,6 +1691,7 @@ function LinkEditSheet({
       settings: { ...draft.settings, buttonColor },
       subtitle: draft.subtitle,
       title: draft.title,
+      imageUrl: draft.imageUrl,
       url: isVideo ? draft.videoUrl || draft.url : draft.url,
       videoUrl: isVideo ? draft.videoUrl || draft.url : draft.videoUrl,
     });
@@ -1697,7 +1704,7 @@ function LinkEditSheet({
           <button type="button" aria-label="Close link editor" onClick={onClose}>
             <X />
           </button>
-          <h2>{isVideo ? "Video" : "Link"}</h2>
+          <h2>{isVideo ? "Video" : isImage ? "Image" : "Link"}</h2>
           <button type="button" onClick={save}>
             Save
           </button>
@@ -1706,16 +1713,33 @@ function LinkEditSheet({
         <div className="sheetPreview">
           {isVideo ? (
             <PlayableVideo src={draft.videoUrl || draft.url} title={draft.title || "Video"} />
+          ) : isImage ? (
+            <img
+              className="sheetPreviewImage"
+              key={draft.imageUrl || draft.url}
+              src={draft.imageUrl || draft.url}
+              alt={draft.title}
+              onError={(event) => { event.currentTarget.style.visibility = "hidden"; }}
+            />
           ) : (
-            <div className="canvasLinkButton" style={buttonStyle}>
-              <span className="canvasBlockIcon">{resolveIconElement(draft.icon, draft.type)}</span>
+            <div className="sheetPreviewButton" style={buttonStyle}>
+              <span className="sheetPreviewIcon">{resolveIconElement(draft.icon, draft.type)}</span>
               <strong>{draft.title || "Untitled link"}</strong>
             </div>
           )}
         </div>
 
         <div className="sheetFields">
-          {!isVideo && (
+          {isImage && (
+            <ImageUploader
+              category="block"
+              label="Image"
+              hint="Shown full width on your page. Drag one here, or click to choose."
+              value={draft.imageUrl || draft.url}
+              onChange={(imageUrl) => setDraft({ ...draft, imageUrl })}
+            />
+          )}
+          {!isVideo && !isImage && (
             <Field label="Icon">
               <div className="iconChooser">
                 <span>{resolveIconElement(draft.icon, draft.type)}</span>
@@ -1723,18 +1747,20 @@ function LinkEditSheet({
               </div>
             </Field>
           )}
-          <Field label={isVideo ? "Video title" : "Link title"}>
+          <Field label={isVideo ? "Video title" : isImage ? "Caption" : "Link title"}>
             <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
           </Field>
-          <Field label="Action *">
-            <select
-              value={isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}
-              onChange={() => undefined}
-            >
-              <option>{isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}</option>
-            </select>
-          </Field>
-          {isPhoneAction ? (
+          {!isImage && (
+            <Field label="Action *">
+              <select
+                value={isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}
+                onChange={() => undefined}
+              >
+                <option>{isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}</option>
+              </select>
+            </Field>
+          )}
+          {isImage ? null : isPhoneAction ? (
             <Field label="Phone number *">
               <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
             </Field>
@@ -1909,9 +1935,14 @@ function IconPickerSheet({ onClose, onSelect }: { onClose: () => void; onSelect:
           <span aria-hidden="true" />
         </header>
         <div className="decorationFields">
-          <Field label="Image URL">
-            <input value={imageUrl} placeholder="https://..." onChange={(event) => setImageUrl(event.target.value)} />
-          </Field>
+          <ImageUploader
+            category="icon"
+            label="Icon image"
+            hint="A small square image works best. Drag one here, or click to choose."
+            round
+            value={imageUrl}
+            onChange={setImageUrl}
+          />
           <button type="button" className="onboardingPrimaryButton" disabled={!imageUrl} onClick={() => onSelect(imageUrl)}>
             Use image
           </button>
@@ -1952,8 +1983,8 @@ function AddLinkSheet({ onClose, onCreate }: { onClose: () => void; onCreate: (p
           </header>
 
           <div className="sheetPreview">
-            <div className="canvasLinkButton" style={buttonStyle}>
-              <span className="canvasBlockIcon">{previewIcon}</span>
+            <div className="sheetPreviewButton" style={buttonStyle}>
+              <span className="sheetPreviewIcon">{previewIcon}</span>
               <strong>{title || "Link title"}</strong>
             </div>
           </div>
@@ -1981,8 +2012,8 @@ function AddLinkSheet({ onClose, onCreate }: { onClose: () => void; onCreate: (p
         </header>
 
         <div className="sheetPreview">
-          <div className="canvasLinkButton" style={buttonStyle}>
-            <span className="canvasBlockIcon">{previewIcon}</span>
+          <div className="sheetPreviewButton" style={buttonStyle}>
+            <span className="sheetPreviewIcon">{previewIcon}</span>
             <strong>{title || "Untitled link"}</strong>
           </div>
         </div>
@@ -2235,12 +2266,14 @@ function BlockEditor({
         />
       ) : null}
       {block.type === "image" ? (
-        <input
-          aria-label="Image URL"
-          placeholder="Image URL"
+        <ImageUploader
+          category="block"
+          label="Image"
           value={block.imageUrl}
-          onBlur={(event) => onCommit({ imageUrl: event.target.value })}
-          onChange={(event) => onUpdate({ imageUrl: event.target.value })}
+          onChange={(imageUrl) => {
+            onUpdate({ imageUrl });
+            onCommit({ imageUrl });
+          }}
         />
       ) : null}
       {block.type === "video" ? (
