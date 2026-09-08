@@ -1987,6 +1987,25 @@ so the card reads as the theme it applies. */
   font-size: 28px;
 }
 
+/* A video that YouTube/Vimeo refuse to embed (age-restricted, private,
+   removed) falls back to this instead of their own broken embed card. */
+a.videoBlocked {
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 180ms ease;
+}
+
+a.videoBlocked svg {
+  width: 26px;
+  height: 26px;
+}
+
+@media (hover: hover) {
+  a.videoBlocked:hover {
+    transform: translateY(-2px);
+  }
+}
+
 .editControls {
   display: grid;
   gap: 12px;

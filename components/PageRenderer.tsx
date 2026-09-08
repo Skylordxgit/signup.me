@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Camera,
   CircleHelp,
@@ -403,6 +403,45 @@ function IconImage({ src }: { src: string }) {
 
 function PlayableVideo({ preview, src, title }: { preview: boolean; src: string; title: string }) {
   const embed = videoEmbedUrl(src);
+  // Some videos (age-restricted, private, or removed) refuse to be embedded
+  // at all — YouTube/Vimeo enforce that server-side, so no iframe trick can
+  // play them here. Checking first avoids ever showing their broken-looking
+  // "can't play this video" card inside the page. Keyed by src so a stale
+  // result from a previous video can never apply to this one.
+  const [checked, setChecked] = useState<{ src: string; blocked: boolean } | null>(null);
+
+  useEffect(() => {
+    if (embed.type !== "iframe" || !embed.oembedUrl) return;
+    let cancelled = false;
+    fetch(embed.oembedUrl)
+      .then((response) => {
+        if (!cancelled) setChecked({ src: embed.src, blocked: !response.ok });
+      })
+      .catch(() => {
+        /* Network hiccup — fall back to attempting the embed, as before. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [embed]);
+
+  const blocked = embed.type === "iframe" && checked?.src === embed.src && checked.blocked;
+
+  if (embed.type === "iframe" && blocked) {
+    return (
+      <a
+        className="videoPlaceholder videoBlocked"
+        href={embed.watchUrl}
+        target={preview ? undefined : "_blank"}
+        rel={preview ? undefined : "noreferrer"}
+        onClick={preview ? (event) => event.preventDefault() : undefined}
+        tabIndex={preview ? -1 : 0}
+      >
+        <Play fill="currentColor" aria-hidden="true" />
+        <strong>Watch on YouTube</strong>
+      </a>
+    );
+  }
 
   if (embed.type === "iframe") {
     return (
@@ -419,7 +458,17 @@ function PlayableVideo({ preview, src, title }: { preview: boolean; src: string;
   }
 
   if (embed.type === "video") {
-    return <video src={embed.src} controls={!preview} playsInline style={preview ? { pointerEvents: "none" } : undefined} />;
+    return (
+      <video
+        src={embed.src}
+        autoPlay
+        muted
+        loop
+        controls={!preview}
+        playsInline
+        style={preview ? { pointerEvents: "none" } : undefined}
+      />
+    );
   }
 
   return (
@@ -430,25 +479,47 @@ function PlayableVideo({ preview, src, title }: { preview: boolean; src: string;
   );
 }
 
-function videoEmbedUrl(src: string) {
-  if (!src) return { type: "empty" as const, src: "" };
+type VideoEmbed =
+  | { type: "empty"; src: "" }
+  | { type: "video"; src: string }
+  | { type: "iframe"; src: string; watchUrl: string; oembedUrl: string | null };
+
+function videoEmbedUrl(src: string): VideoEmbed {
+  if (!src) return { type: "empty", src: "" };
   try {
     const url = new URL(src);
     if (url.hostname.includes("youtube.com")) {
       const id = url.searchParams.get("v");
-      if (id) return { type: "iframe" as const, src: `https://www.youtube.com/embed/${id}` };
+      if (id) return youtubeEmbed(id);
     }
     if (url.hostname.includes("youtu.be")) {
-      return { type: "iframe" as const, src: `https://www.youtube.com/embed/${url.pathname.slice(1)}` };
+      return youtubeEmbed(url.pathname.slice(1));
     }
     if (url.hostname.includes("vimeo.com")) {
-      return { type: "iframe" as const, src: `https://player.vimeo.com/video/${url.pathname.split("/").filter(Boolean).pop()}` };
+      const id = url.pathname.split("/").filter(Boolean).pop() ?? "";
+      const watchUrl = `https://vimeo.com/${id}`;
+      return {
+        type: "iframe",
+        src: `https://player.vimeo.com/video/${id}?autoplay=1&muted=1`,
+        watchUrl,
+        oembedUrl: `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(watchUrl)}`,
+      };
     }
     if (/\.(mp4|webm|ogg)$/i.test(url.pathname)) {
-      return { type: "video" as const, src };
+      return { type: "video", src };
     }
+    return { type: "iframe", src, watchUrl: src, oembedUrl: null };
   } catch {
-    return { type: "empty" as const, src: "" };
+    return { type: "empty", src: "" };
   }
-  return { type: "iframe" as const, src };
+}
+
+function youtubeEmbed(id: string): VideoEmbed {
+  const watchUrl = `https://www.youtube.com/watch?v=${id}`;
+  return {
+    type: "iframe",
+    src: `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&playsinline=1&rel=0`,
+    watchUrl,
+    oembedUrl: `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`,
+  };
 }

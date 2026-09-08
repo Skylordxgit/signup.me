@@ -163,9 +163,12 @@ export function AdminDashboard() {
   async function savePageNow(patch: Partial<SmartPage>) {
     if (!activePage) return;
     setStatus("Saving");
+    // Fold in whatever the debounced autosave hasn't sent yet (e.g. an image
+    // picked moments ago elsewhere in the editor) so this save can never
+    // discard it — clearing pendingPagePatch below would otherwise drop it.
     const page = await api<SmartPage>(`/api/pages/${activePage.id}`, {
       method: "PUT",
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...(pendingPagePatch ?? {}), ...patch }),
     });
     setActivePage(page);
     setPendingPagePatch(null);
@@ -243,9 +246,12 @@ export function AdminDashboard() {
   async function updateBlockNow(blockId: number, patch: Partial<PageBlock>) {
     if (!activePage) return;
     setStatus("Saving");
+    // Same reasoning as savePageNow: fold in this block's queued-but-unsent
+    // edits so an immediate commit (e.g. an image finishing upload) can never
+    // wipe out a field the user is still mid-typing elsewhere on the block.
     await api<PageBlock>(`/api/blocks/${blockId}`, {
       method: "PUT",
-      body: JSON.stringify(patch),
+      body: JSON.stringify({ ...(pendingBlockPatches[blockId] ?? {}), ...patch }),
     });
     setPendingBlockPatches((current) => {
       const next = { ...current };
