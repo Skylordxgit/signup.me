@@ -93,8 +93,8 @@
 .admQuickActions > button > svg:first-child { color: #5474a8; }
 .admQuickActions > button > svg:last-child { margin-left: auto; color: #929ba8; }
 .admQuickActions > button:hover { background: #edf2f8; }
-.admPageTable { width: 100%; }
-.admPageTableHead, .admPageRow { display: grid; grid-template-columns: minmax(145px, 1fr) 96px 66px 66px 80px auto; align-items: center; gap: 14px; }
+.admPageTable { width: 100%; display: grid; grid-template-columns: minmax(145px, 1fr) 96px 66px 66px 80px auto; column-gap: 14px; }
+.admPageTableHead, .admPageRow { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; column-gap: inherit; }
 .admPageTableHead { min-height: 42px; border-block: 1px solid var(--adm-line); color: #818a96; font-size: 12px; }
 .admPageRow { padding-block: 15px; border-bottom: 1px solid var(--adm-line); font-size: 13px; }
 .admPageRow > * { min-width: 0; }
@@ -270,7 +270,7 @@ body:has(.admDialog[open]) { overflow: hidden; }
 @media (max-width: 1250px) {
   .admShell { --adm-sidebar: 190px; }
   .admHomeGrid { grid-template-columns: minmax(0, 1fr) 230px; gap: 22px; }
-  .admHomeGrid .admPageTableHead, .admHomeGrid .admPageRow { grid-template-columns: minmax(100px, 1fr) 83px 55px 34px; gap: 8px; }
+  .admHomeGrid .admPageTable { grid-template-columns: minmax(100px, 1fr) 83px 55px 34px; column-gap: 8px; }
   .admHomeGrid .admPageTableHead > :nth-child(4), .admHomeGrid .admPageRow > :nth-child(4), .admHomeGrid .admPageTableHead > :nth-child(5), .admHomeGrid .admPageRow > :nth-child(5) { display: none; }
   .admMetric { padding: 17px; }
   .admBuilder { grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; padding-inline: 20px; }
@@ -319,7 +319,7 @@ body:has(.admDialog[open]) { overflow: hidden; }
   .admMetric strong { font-size: 25px; }
   .admMetric > div > span { font-size: 12px; }
   .admHomeGrid { grid-template-columns: minmax(0, 1fr); gap: 30px; padding-block: 24px; }
-  .admPageTableHead, .admPageRow, .admHomeGrid .admPageTableHead, .admHomeGrid .admPageRow { grid-template-columns: minmax(100px, 1fr) 80px auto; gap: 8px; }
+  .admPageTable, .admHomeGrid .admPageTable { grid-template-columns: minmax(100px, 1fr) 80px auto; column-gap: 8px; }
   .admPageTableHead > :nth-child(3), .admPageRow > :nth-child(3), .admPageTableHead > :nth-child(4), .admPageRow > :nth-child(4), .admPageTableHead > :nth-child(5), .admPageRow > :nth-child(5) { display: none; }
   .admPageGlyph { display: none; }
   .admPageRow .admActionRow { gap: 0; }

@@ -22,7 +22,7 @@ export function Metrics({ pages }: { pages: PageSummary[] }) {
 
 export function PagesTable({ pages, onOpen, onDuplicate, onDelete, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; busy?: boolean }) {
   return !pages.length ? <EmptyState title="No pages found" /> : <div className="admPageTable" role="table" aria-label="Pages">
-    <div className="admPageTableHead" role="row"><span role="columnheader">Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader" className="admSrOnly">Actions</span></div>
+    <div className="admPageTableHead" role="row"><span role="columnheader">Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader"><span className="admSrOnly">Actions</span></span></div>
     {pages.map(page => <div className="admPageRow" role="row" key={page.id}>
       <div role="cell"><button type="button" className="admPageIdentity" onClick={() => onOpen(page.id)} disabled={busy}><span className="admPageGlyph"><Link2 size={18} /></span><span><strong>{page.name}</strong><small>/{page.slug}</small></span></button></div>
       <div role="cell"><StatusBadge status={page.status} /></div><span role="cell" className="admTableNumber">{number(page.views)}</span><span role="cell" className="admTableNumber">{number(page.clicks)}</span>
