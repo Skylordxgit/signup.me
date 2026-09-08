@@ -21,3 +21,12 @@ export const reorderBlocks: typeof jsonStore.reorderBlocks = (...args) => store(
 export const trackView: typeof jsonStore.trackView = (...args) => store().trackView(...args);
 export const trackClick: typeof jsonStore.trackClick = (...args) => store().trackClick(...args);
 export const analyticsForPage: typeof jsonStore.analyticsForPage = (...args) => store().analyticsForPage(...args);
+export const getVapidKeys: typeof jsonStore.getVapidKeys = (...args) => store().getVapidKeys(...args);
+export const setVapidKeys: typeof jsonStore.setVapidKeys = (...args) => store().setVapidKeys(...args);
+export const addPushSubscription: typeof jsonStore.addPushSubscription = (...args) => store().addPushSubscription(...args);
+export const removePushSubscriptionByEndpoint: typeof jsonStore.removePushSubscriptionByEndpoint = (...args) =>
+  store().removePushSubscriptionByEndpoint(...args);
+export const listPushSubscriptions: typeof jsonStore.listPushSubscriptions = (...args) => store().listPushSubscriptions(...args);
+export const countPushSubscriptions: typeof jsonStore.countPushSubscriptions = (...args) => store().countPushSubscriptions(...args);
+export const recordCampaign: typeof jsonStore.recordCampaign = (...args) => store().recordCampaign(...args);
+export const listCampaigns: typeof jsonStore.listCampaigns = (...args) => store().listCampaigns(...args);

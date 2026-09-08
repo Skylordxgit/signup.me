@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type { PageBlock, SmartPage } from "@/lib/types";
+import { NotificationPrompt } from "./NotificationPrompt";
 import { PageRenderer } from "./PageRenderer";
 
 /**
@@ -33,6 +34,7 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   return (
     <main className="publicExperience">
       <PageRenderer page={page} onTrack={track} />
+      {!preview && <NotificationPrompt page={page} />}
     </main>
   );
 }

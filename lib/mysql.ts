@@ -90,6 +90,29 @@ const schemaStatements = [
     setting_value JSON NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
   )`,
+  `CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    page_id BIGINT UNSIGNED NOT NULL,
+    endpoint VARCHAR(700) NOT NULL UNIQUE,
+    p256dh VARCHAR(255) NOT NULL,
+    auth VARCHAR(255) NOT NULL,
+    user_agent VARCHAR(255) NOT NULL DEFAULT '',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_push_subscriptions_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+    INDEX idx_push_subscriptions_page (page_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS push_campaigns (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    page_id BIGINT UNSIGNED NOT NULL,
+    title VARCHAR(120) NOT NULL,
+    body VARCHAR(500) NOT NULL,
+    url VARCHAR(700) NOT NULL DEFAULT '',
+    sent_count INT UNSIGNED NOT NULL DEFAULT 0,
+    failed_count INT UNSIGNED NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_push_campaigns_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+    INDEX idx_push_campaigns_page (page_id, created_at)
+  )`,
 ];
 
 export function hasMysqlConfig() {

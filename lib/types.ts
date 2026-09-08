@@ -96,6 +96,19 @@ export type SeoSettings = {
 export type IntegrationSettings = {
   metaPixelId: string;
   gtmId: string;
+  /** Whether visitors are asked to allow browser push notifications. Defaults to on. */
+  pushEnabled?: boolean;
+};
+
+export type PushCampaign = {
+  id: number;
+  pageId: number;
+  title: string;
+  body: string;
+  url: string;
+  sentCount: number;
+  failedCount: number;
+  createdAt: string;
 };
 
 export type PageBlock = {

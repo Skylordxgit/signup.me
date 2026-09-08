@@ -1,13 +1,26 @@
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, BlockType, PageBlock, PageStatus, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, PageBlock, PageStatus, PushCampaign, SmartPage } from "../types";
 import { defaultTheme, seedPages } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
+
+type PushSubscriptionRecord = {
+  id: number;
+  pageId: number;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent: string;
+  createdAt: string;
+};
 
 type DatabaseShape = {
   pages: SmartPage[];
   pageViews: { id: number; pageId: number; date: string; device: string; referrer: string; visitorKey: string }[];
   linkClicks: { id: number; pageId: number; blockId: number; date: string; device: string; referrer: string }[];
+  pushSubscriptions: PushSubscriptionRecord[];
+  pushCampaigns: PushCampaign[];
+  vapidKeys: { publicKey: string; privateKey: string } | null;
 };
 
 const dataFile = path.join(process.cwd(), "data", "db.json");
@@ -15,9 +28,21 @@ const dataFile = path.join(process.cwd(), "data", "db.json");
 async function readJsonDb(): Promise<DatabaseShape> {
   try {
     const file = await fs.readFile(dataFile, "utf8");
-    return JSON.parse(file) as DatabaseShape;
+    const db = JSON.parse(file) as Partial<DatabaseShape>;
+    // Older db.json files predate the push-notification tables.
+    db.pushSubscriptions ??= [];
+    db.pushCampaigns ??= [];
+    db.vapidKeys ??= null;
+    return db as DatabaseShape;
   } catch {
-    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [] };
+    const initial: DatabaseShape = {
+      pages: seedPages(),
+      pageViews: [],
+      linkClicks: [],
+      pushSubscriptions: [],
+      pushCampaigns: [],
+      vapidKeys: null,
+    };
     await writeJsonDb(initial);
     return initial;
   }
@@ -336,4 +361,80 @@ export async function analyticsForPage(pageId: number): Promise<AnalyticsReport 
         }, {}),
     ).map(([referrer, count]) => ({ referrer, count })),
   };
+}
+
+export async function getVapidKeys() {
+  const db = await readJsonDb();
+  return db.vapidKeys;
+}
+
+export async function setVapidKeys(keys: { publicKey: string; privateKey: string }) {
+  const db = await readJsonDb();
+  db.vapidKeys = keys;
+  await writeJsonDb(db);
+}
+
+export async function addPushSubscription(
+  pageId: number,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+  userAgent: string,
+) {
+  const db = await readJsonDb();
+  if (db.pushSubscriptions.some((sub) => sub.endpoint === subscription.endpoint)) return;
+
+  db.pushSubscriptions.push({
+    id: nextId(db.pushSubscriptions),
+    pageId,
+    endpoint: subscription.endpoint,
+    p256dh: subscription.keys.p256dh,
+    auth: subscription.keys.auth,
+    userAgent,
+    createdAt: nowIso(),
+  });
+  await writeJsonDb(db);
+}
+
+export async function removePushSubscriptionByEndpoint(endpoint: string) {
+  const db = await readJsonDb();
+  db.pushSubscriptions = db.pushSubscriptions.filter((sub) => sub.endpoint !== endpoint);
+  await writeJsonDb(db);
+}
+
+export async function listPushSubscriptions(pageId: number) {
+  const db = await readJsonDb();
+  return db.pushSubscriptions
+    .filter((sub) => sub.pageId === pageId)
+    .map((sub) => ({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth }));
+}
+
+export async function countPushSubscriptions(pageId: number) {
+  const db = await readJsonDb();
+  return db.pushSubscriptions.filter((sub) => sub.pageId === pageId).length;
+}
+
+export async function recordCampaign(
+  pageId: number,
+  input: { title: string; body: string; url: string; sentCount: number; failedCount: number },
+): Promise<PushCampaign> {
+  const db = await readJsonDb();
+  const campaign: PushCampaign = {
+    id: nextId(db.pushCampaigns),
+    pageId,
+    title: input.title,
+    body: input.body,
+    url: input.url,
+    sentCount: input.sentCount,
+    failedCount: input.failedCount,
+    createdAt: nowIso(),
+  };
+  db.pushCampaigns.push(campaign);
+  await writeJsonDb(db);
+  return campaign;
+}
+
+export async function listCampaigns(pageId: number) {
+  const db = await readJsonDb();
+  return db.pushCampaigns
+    .filter((campaign) => campaign.pageId === pageId)
+    .sort((a, b) => b.id - a.id);
 }

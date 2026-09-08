@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import type { AnalyticsReport, BlockType, PageBlock, PageStatus, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, PageBlock, PageStatus, PushCampaign, SmartPage } from "../types";
 import { defaultTheme } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
@@ -533,4 +533,109 @@ export async function analyticsForPage(pageId: number): Promise<AnalyticsReport 
     })),
     referrers: referrerRows.map((row) => ({ referrer: row.referrer, count: Number(row.count) })),
   };
+}
+
+const vapidSettingKey = "vapid_keys";
+
+export async function getVapidKeys() {
+  const rows = await mysqlQuery<{ setting_value: unknown }[]>(
+    "SELECT setting_value FROM settings WHERE setting_key = ?",
+    [vapidSettingKey],
+  );
+  if (!rows.length) return null;
+  return toJson<{ publicKey: string; privateKey: string } | null>(rows[0].setting_value, null);
+}
+
+export async function setVapidKeys(keys: { publicKey: string; privateKey: string }) {
+  await mysqlQuery(
+    `INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+    [vapidSettingKey, JSON.stringify(keys)],
+  );
+}
+
+export async function addPushSubscription(
+  pageId: number,
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+  userAgent: string,
+) {
+  await mysqlQuery(
+    `INSERT INTO push_subscriptions (page_id, endpoint, p256dh, auth, user_agent) VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE p256dh = VALUES(p256dh), auth = VALUES(auth), user_agent = VALUES(user_agent)`,
+    [pageId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, userAgent],
+  );
+}
+
+export async function removePushSubscriptionByEndpoint(endpoint: string) {
+  await mysqlQuery("DELETE FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+}
+
+type PushSubscriptionRow = { endpoint: string; p256dh: string; auth: string };
+
+export async function listPushSubscriptions(pageId: number) {
+  const rows = await mysqlQuery<PushSubscriptionRow[]>(
+    "SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE page_id = ?",
+    [pageId],
+  );
+  return rows;
+}
+
+export async function countPushSubscriptions(pageId: number) {
+  const rows = await mysqlQuery<{ count: number }[]>(
+    "SELECT COUNT(*) AS count FROM push_subscriptions WHERE page_id = ?",
+    [pageId],
+  );
+  return Number(rows[0]?.count ?? 0);
+}
+
+export async function recordCampaign(
+  pageId: number,
+  input: { title: string; body: string; url: string; sentCount: number; failedCount: number },
+): Promise<PushCampaign> {
+  const result = await mysqlQuery<{ insertId: number }>(
+    "INSERT INTO push_campaigns (page_id, title, body, url, sent_count, failed_count) VALUES (?, ?, ?, ?, ?, ?)",
+    [pageId, input.title, input.body, input.url, input.sentCount, input.failedCount],
+  );
+  const rows = await mysqlQuery<{ created_at: string | Date }[]>(
+    "SELECT created_at FROM push_campaigns WHERE id = ?",
+    [result.insertId],
+  );
+  return {
+    id: result.insertId,
+    pageId,
+    title: input.title,
+    body: input.body,
+    url: input.url,
+    sentCount: input.sentCount,
+    failedCount: input.failedCount,
+    createdAt: toIso(rows[0].created_at),
+  };
+}
+
+type PushCampaignRow = {
+  id: number;
+  page_id: number;
+  title: string;
+  body: string;
+  url: string;
+  sent_count: number;
+  failed_count: number;
+  created_at: string | Date;
+};
+
+export async function listCampaigns(pageId: number) {
+  const rows = await mysqlQuery<PushCampaignRow[]>(
+    "SELECT * FROM push_campaigns WHERE page_id = ? ORDER BY created_at DESC",
+    [pageId],
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    pageId: row.page_id,
+    title: row.title,
+    body: row.body,
+    url: row.url,
+    sentCount: row.sent_count,
+    failedCount: row.failed_count,
+    createdAt: toIso(row.created_at),
+  }));
 }

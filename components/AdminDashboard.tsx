@@ -69,6 +69,7 @@ import type {
   PageSummary,
   ProfileAlignment,
   ProfileLayout,
+  PushCampaign,
   SmartPage,
 } from "@/lib/types";
 import { blockTypes, parseBlockIcon, publicPageUrl, readableTextColor, slugify, themePresets } from "@/lib/utils";
@@ -93,6 +94,7 @@ export function AdminDashboard() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
   const [websiteSettingsOpen, setWebsiteSettingsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [decorationOpen, setDecorationOpen] = useState(false);
   const [addLinkFlowOpen, setAddLinkFlowOpen] = useState(false);
   const [profileEditorRequested, setProfileEditorRequested] = useState(false);
@@ -414,17 +416,23 @@ export function AdminDashboard() {
   }
 
   if (adminMode === "detail") {
-    const detailActions: { label: string; icon: LucideIcon; tab: EditorTab }[] = [
+    const detailActions: { label: string; icon: LucideIcon; tab?: EditorTab; onClick?: () => void }[] = [
       { label: "Edit", icon: Pencil, tab: "content" },
       { label: "Audience", icon: UsersRound, tab: "analytics" },
       { label: "Analytics", icon: BarChart3, tab: "analytics" },
+      { label: "Push Notifications", icon: Bell, onClick: () => setNotificationsOpen(true) },
       { label: "Requests", icon: MessageCircle, tab: "integrations" },
       { label: "Products", icon: Package, tab: "blocks" },
       { label: "Settings", icon: Settings, tab: "design" },
     ];
 
     return (
-      <PhoneFrame label={activePage.name}>
+      <PhoneFrame
+        label={activePage.name}
+        overlays={notificationsOpen && (
+          <PushNotificationsSheet page={activePage} onClose={() => setNotificationsOpen(false)} />
+        )}
+      >
         <div className="detailScreen">
           <header className="detailHeader">
             <button type="button" aria-label="Back to websites" onClick={() => setAdminMode("list")}>
@@ -468,6 +476,11 @@ export function AdminDashboard() {
                 type="button"
                 key={action.label}
                 onClick={() => {
+                  if (action.onClick) {
+                    action.onClick();
+                    return;
+                  }
+                  if (!action.tab) return;
                   setTab(action.tab);
                   setAdminMode("editor");
                   if (action.tab === "analytics") void loadAnalytics();
@@ -1208,6 +1221,145 @@ function WebsiteSettingsSheet({
             </div>
             <span className={`statusPill ${page.status}`}>{page.status === "published" ? "Published" : "Draft"}</span>
           </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/**
+ * Push campaigns for one page: how many visitors have allowed notifications,
+ * a composer to send a new one, and the history of what was sent before.
+ */
+function PushNotificationsSheet({ onClose, page }: { onClose: () => void; page: SmartPage }) {
+  const [loading, setLoading] = useState(true);
+  const [subscribers, setSubscribers] = useState(0);
+  const [campaigns, setCampaigns] = useState<PushCampaign[]>([]);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [url, setUrl] = useState("");
+  const [sending, setSending] = useState(false);
+  const [status, setStatus] = useState("");
+
+  async function refresh() {
+    try {
+      const response = await fetch(`/api/pages/${page.id}/notifications`);
+      const data = (await response.json()) as { subscribers: number; campaigns: PushCampaign[] };
+      setSubscribers(data.subscribers ?? 0);
+      setCampaigns(data.campaigns ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page.id]);
+
+  async function send() {
+    if (!title.trim() || !body.trim()) {
+      setStatus("Add a title and a message before sending.");
+      return;
+    }
+    setSending(true);
+    setStatus("");
+    try {
+      const response = await fetch(`/api/pages/${page.id}/notifications`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ title, body, url }),
+      });
+      const data = (await response.json()) as PushCampaign & { error?: string };
+      if (!response.ok) throw new Error(data.error || "Could not send the campaign");
+
+      if (subscribers === 0) {
+        setStatus("No subscribers to send to yet.");
+      } else if (data.sentCount === 0) {
+        setStatus(`Could not deliver to any subscriber (${data.failedCount} failed). They may need to re-enable notifications.`);
+      } else if (data.failedCount > 0) {
+        setStatus(`Sent to ${data.sentCount} subscriber${data.sentCount === 1 ? "" : "s"}, ${data.failedCount} failed.`);
+      } else {
+        setStatus(`Sent to ${data.sentCount} subscriber${data.sentCount === 1 ? "" : "s"}.`);
+      }
+      setTitle("");
+      setBody("");
+      setUrl("");
+      await refresh();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not send the campaign");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Push notifications">
+      <section className="settingsSheet websiteSettingsSheet">
+        <header className="settingsHeader">
+          <button type="button" aria-label="Close push notifications" onClick={onClose}><X /></button>
+          <h2>Push Notifications</h2>
+          <span aria-hidden="true" />
+        </header>
+        <div className="websiteSettingsFields">
+          <div className="pushSubscriberRow">
+            <span className="settingsIcon"><UsersRound /></span>
+            <div>
+              <strong>{loading ? "…" : subscribers}</strong>
+              <span>{subscribers === 1 ? "subscriber has" : "subscribers have"} allowed notifications</span>
+            </div>
+          </div>
+
+          <section className="editorSection">
+            <h3>New campaign</h3>
+            <Field label="Title *">
+              <input
+                value={title}
+                maxLength={120}
+                placeholder="New update"
+                onChange={(event) => setTitle(event.target.value)}
+              />
+            </Field>
+            <Field label="Message *">
+              <textarea
+                value={body}
+                maxLength={500}
+                placeholder="What's new? Keep it short and clear."
+                onChange={(event) => setBody(event.target.value)}
+              />
+            </Field>
+            <Field label="Link (optional)">
+              <input
+                value={url}
+                placeholder="https://…"
+                onChange={(event) => setUrl(event.target.value)}
+              />
+            </Field>
+            {status && <p className="pushCampaignStatus">{status}</p>}
+            <button type="button" className="profileSaveButton" onClick={() => void send()} disabled={sending}>
+              <Send aria-hidden="true" />
+              {sending ? "Sending…" : `Send to ${subscribers} subscriber${subscribers === 1 ? "" : "s"}`}
+            </button>
+          </section>
+
+          <section className="editorSection">
+            <h3>History</h3>
+            {campaigns.length === 0 && !loading && <p className="pushCampaignEmpty">No campaigns sent yet.</p>}
+            {campaigns.length > 0 && (
+              <ul className="pushCampaignList">
+                {campaigns.map((campaign) => (
+                  <li key={campaign.id}>
+                    <strong>{campaign.title}</strong>
+                    <p>{campaign.body}</p>
+                    <span>
+                      {new Date(campaign.createdAt).toLocaleString()} · Sent to {campaign.sentCount}
+                      {campaign.failedCount > 0 ? ` · ${campaign.failedCount} failed` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </div>
       </section>
     </div>
