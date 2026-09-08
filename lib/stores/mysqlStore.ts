@@ -3,7 +3,7 @@ import type { AnalyticsReport, BlockType, NotificationSendInput, NotificationSen
 import { defaultTheme } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
-import { configureWebPush, isGonePushError, notificationPayload, webpush } from "../push";
+import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 
 type PageRow = {
   id: number;
@@ -633,26 +633,11 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
      WHERE (? IS NULL OR ps.page_id = ?)`,
     [input.pageId ?? null, input.pageId ?? null],
   );
-  const result: NotificationSendResult = { attempted: rows.length, sent: 0, removed: 0, failed: 0 };
-  const payload = notificationPayload(input);
-  const expired: string[] = [];
-
-  for (const row of rows) {
-    try {
-      await webpush.sendNotification(toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }), payload);
-      result.sent += 1;
-    } catch (error) {
-      if (isGonePushError(error)) {
-        expired.push(row.endpoint_hash);
-        result.removed += 1;
-      } else {
-        result.failed += 1;
-      }
-    }
-  }
-
+  const subscriptions = rows.map(row => toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }));
+  const { result, expired } = await sendPushBatch(subscriptions, notificationPayload(input));
   if (expired.length) {
-    await mysqlQuery("DELETE FROM push_subscriptions WHERE endpoint_hash IN (?)", [expired]);
+    const hashes = expired.map(subscriptionHash);
+    await mysqlQuery(`DELETE FROM push_subscriptions WHERE endpoint_hash IN (${hashes.map(() => '?').join(',')})`, hashes);
   }
 
   return result;

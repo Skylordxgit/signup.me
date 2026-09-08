@@ -2432,91 +2432,23 @@ so the card reads as the theme it applies. */
   overflow-x: hidden;
 }
 
-.pushPrompt {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  z-index: 60;
-  width: min(480px, calc(100vw - 20px));
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
-  padding: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
-  border-radius: 18px;
-  background: rgba(15, 23, 42, 0.94);
-  color: #ffffff;
-  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.32);
-  transform: translate(-50%, -50%);
-  backdrop-filter: blur(18px);
-}
-
-.pushPromptIcon {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #1d4ed8, #db2777);
-  color: #ffffff;
-}
-
-.pushPrompt strong {
-  display: block;
-  font-size: 15px;
-  line-height: 1.25;
-}
-
-.pushPrompt p {
-  margin: 3px 0 0;
-  color: #cbd5e1;
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.pushPromptAllow,
-.pushPromptClose {
-  border: 0;
-  border-radius: 999px;
-}
-
-.pushPromptAllow {
-  grid-column: 1 / -1;
-  width: 100%;
-  min-height: 38px;
-  margin-top: 4px;
-  background: #ffffff;
-  color: #111827;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 850;
-}
-
-.pushPromptClose {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
-  padding: 0;
-}
-
-.pushPromptClose:hover {
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.16);
-}
-
-@media (max-width: 520px) {
-  .pushPrompt {
-    width: min(482px, calc(100vw - 12px));
-    padding: 14px;
-  }
-}
+.pushPrompt { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; padding: 36px 28px 24px; border: 1px solid #dce2e9; border-radius: 8px; background: #fff; color: #17212f; text-align: center; box-shadow: 0 24px 80px #00000030; }
+.pushPrompt::backdrop { background: #11182770; }
+.pushPromptIcon { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 8px; color: #2465d7; background: #edf4ff; }
+.pushPrompt strong { display: block; font-size: 28px; line-height: 1.2; overflow-wrap: anywhere; }
+.pushPrompt p { margin: 14px 0; color: #586579; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
+.pushPrompt .pushPromptPage { color: #17212f; font-weight: 650; }
+.pushPromptAllow, .pushPromptSkip { width: 100%; min-height: 48px; padding: 12px 16px; font-size: 15px; border-radius: 6px; font-weight: 650; }
+.pushPromptAllow { margin-top: 12px; color: white; background: #2465d7; border: 0; }
+.pushPromptAllow:hover { background: #1955bd; }
+.pushPromptAllow:disabled { opacity: .65; cursor: wait; }
+.pushPromptSkip { margin-top: 8px; color: #465469; background: white; border: 1px solid #dce2e9; }
+.pushPromptSkip:hover { background: #f3f6fa; }
+.pushPromptClose { position: absolute; right: 10px; top: 10px; display: grid; place-items: center; width: 40px; height: 40px; color: #586579; background: #f3f6fa; border: 0; border-radius: 6px; }
+.pushPrompt small { display: block; margin-top: 16px; color: #6c788a; font-size: 13px; line-height: 1.5; }
+.pushPrompt .pushPromptError { color: #a12845; font-size: 14px; }
+.pushPrompt button:focus-visible { outline: 3px solid #3378e5; outline-offset: 3px; }
+@media (max-width: 520px) { .pushPrompt { padding: 32px 20px 20px; } .pushPrompt strong { font-size: 24px; } }
 
 /* Card surface treatments,
 shared by the theme swatches and the real page. */

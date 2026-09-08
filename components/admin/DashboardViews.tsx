@@ -197,7 +197,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
     </div>
     {!loading && !configured && <details className="admNotificationSetup"><summary>Notifications need setup before you can send</summary><p>Add these keys in your hosting settings, then redeploy:</p><ul><li><code>WEB_PUSH_PUBLIC_KEY</code></li><li><code>NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY</code></li><li><code>WEB_PUSH_PRIVATE_KEY</code></li></ul><p>Both public keys must use the same value.</p></details>}
     {error && <p className="admError" role="alert">{error}</p>}
-    {result && <p className="admSuccess" role="status">{number(result.sent)} sent · {number(result.failed)} failed · {number(result.removed)} expired subscriptions removed</p>}
+    {result && <p className={result.failed && !result.sent ? 'admError' : 'admSuccess'} role="status">{number(result.sent)} accepted for delivery · {number(result.failed)} failed · {number(result.removed)} expired subscriptions removed</p>}
     <div className="admNotificationGrid">
     <form onSubmit={send} className="admNotificationComposer">
       <SectionHeading title="New notification" />
@@ -207,7 +207,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
         <Field label="Title"><input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} /></Field>
         <Field label="Message"><textarea rows={4} maxLength={180} required value={body} onChange={event => setBody(event.target.value)} placeholder="Write a short update or offer." /></Field>
         <span className="admMessageCount">{body.length}/180</span>
-        <Field label="Destination link"><input required value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com or /your-page" /></Field>
+        <Field label="Destination link"><input required pattern="/(?!/).*" value={url} onChange={event => setUrl(event.target.value)} placeholder="/your-page" /></Field>
         {selectedPage && <button type="button" className="admTextButton" onClick={() => setUrl('/' + selectedPage.slug)}><Link2 size={15} />Use selected page</button>}
       </div>
       </fieldset>

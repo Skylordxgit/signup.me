@@ -4,7 +4,7 @@ import path from "path";
 import type { AnalyticsReport, BlockType, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
 import { defaultTheme, seedPages } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
-import { configureWebPush, isGonePushError, notificationPayload, webpush } from "../push";
+import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 
 type DatabaseShape = {
   pages: SmartPage[];
@@ -404,27 +404,13 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   configureWebPush();
   const db = await readJsonDb();
   const subscribers = db.pushSubscriptions.filter((item) => !input.pageId || item.pageId === input.pageId);
-  const result: NotificationSendResult = { attempted: subscribers.length, sent: 0, removed: 0, failed: 0 };
-  const payload = notificationPayload(input);
-  const expired = new Set<string>();
-
-  for (const subscriber of subscribers) {
-    try {
-      await webpush.sendNotification(subscriber.subscription, payload);
-      result.sent += 1;
-    } catch (error) {
-      if (isGonePushError(error)) {
-        expired.add(subscriber.endpointHash);
-        result.removed += 1;
-      } else {
-        result.failed += 1;
-      }
-    }
-  }
-
-  if (expired.size) {
-    db.pushSubscriptions = db.pushSubscriptions.filter((item) => !expired.has(item.endpointHash));
-    await writeJsonDb(db);
+  const { result, expired } = await sendPushBatch(subscribers.map(item => item.subscription), notificationPayload(input));
+  if (expired.length) {
+    const hashes = new Set(expired.map(subscriptionHash));
+    // Re-read after delivery so subscribers added while sending are retained.
+    const latest = await readJsonDb();
+    latest.pushSubscriptions = latest.pushSubscriptions.filter(item => !hashes.has(item.endpointHash));
+    await writeJsonDb(latest);
   }
 
   return result;

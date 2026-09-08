@@ -19,6 +19,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url || "/";
-  event.waitUntil(clients.openWindow(url));
+  const destination = new URL(event.notification.data?.url || "/", self.location.origin);
+  const url = destination.origin === self.location.origin ? destination.href : self.location.origin;
+  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
+    const existing = windows.find(client => client.url === url);
+    if (existing) return existing.focus();
+    return clients.openWindow(url);
+  }));
 });

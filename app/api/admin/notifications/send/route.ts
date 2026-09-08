@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     if (!message) throw new Error("Notification message is required");
     if (title.length > 80) throw new Error("Keep the title under 80 characters");
     if (message.length > 180) throw new Error("Keep the message under 180 characters");
-    if (!url.startsWith("/")) throw new Error("Notification URL must start with /");
+    if (!url.startsWith("/") || url.startsWith("//") || url.includes("\\")) throw new Error("Use a link to a page on this site, starting with /");
 
     return NextResponse.json(await sendPushNotification({ title, body: message, url, pageId }));
   } catch (error) {

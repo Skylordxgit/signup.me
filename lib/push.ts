@@ -51,4 +51,26 @@ export function isGonePushError(error: unknown) {
   return statusCode === 404 || statusCode === 410;
 }
 
+export async function sendPushBatch(subscriptions: PushSubscriptionRecord[], payload: string) {
+  const result = { attempted: subscriptions.length, sent: 0, removed: 0, failed: 0 };
+  const expired: string[] = [];
+  let next = 0;
+  // Bound concurrent network requests so one slow endpoint cannot block everyone.
+  await Promise.all(Array.from({ length: Math.min(5, subscriptions.length) }, async () => {
+    while (next < subscriptions.length) {
+      const subscription = subscriptions[next++];
+      try {
+        await webpush.sendNotification(subscription, payload, { TTL: 86400, urgency: 'normal', timeout: 10000 });
+        result.sent += 1;
+      } catch (error) {
+        if (isGonePushError(error)) {
+          expired.push(subscription.endpoint);
+          result.removed += 1;
+        } else result.failed += 1;
+      }
+    }
+  }));
+  return { result, expired };
+}
+
 export { webpush };
