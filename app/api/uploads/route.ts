@@ -69,6 +69,6 @@ export async function POST(request: NextRequest) {
     const stored = await storeUpload(category, bytes, kind);
     return NextResponse.json(stored, { status: 201 });
   } catch {
-    return fail("Could not save the file. Check that the uploads directory is writable.", 500);
+    return fail("Could not save the image to persistent storage. Please try again or check the server storage configuration.", 500);
   }
 }

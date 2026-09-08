@@ -1,16 +1,13 @@
 import { randomBytes } from "crypto";
 import { existsSync } from "fs";
-import { mkdir, readdir, stat, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import { hasMysqlConfig, mysqlQuery } from "./mysql";
 
 /**
- * Uploaded files live on disk, never in the database — the database only ever
- * stores the public path (e.g. "/uploads/profile/ab12….webp").
- *
- * The directory sits outside `public/` and is served by app/uploads/[...path],
- * so files written at runtime are served correctly regardless of how the
- * production build handles static assets.
+ * MySQL deployments store image bytes and metadata together. Disk storage is
+ * retained for local development and migration of older uploads.
  */
 
 function moduleDirectory() {
@@ -78,7 +75,7 @@ export const uploadRoots = distinctPaths([
 
 export const uploadRoot = uploadRoots[0];
 
-if (!configuredRoot && process.env.NODE_ENV === "production") {
+if (!hasMysqlConfig() && !configuredRoot && process.env.NODE_ENV === "production") {
   console.warn(
     `[uploads] UPLOAD_DIR is not set, so uploads are written to ${uploadRoot}. `
     + "Point UPLOAD_DIR at a directory outside the deploy folder to keep them across deployments.",
@@ -152,9 +149,26 @@ export type StoredUpload = { path: string; bytes: number; mime: string };
 
 export type MediaFile = StoredUpload & { name: string; category: UploadCategory; updatedAt: string };
 
+async function persistMedia(file: MediaFile, bytes: Uint8Array) {
+  await mysqlQuery(
+    `INSERT IGNORE INTO media_files (storage_path, file_name, category, mime_type, file_size, file_data, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [file.path, file.name, file.category, file.mime, bytes.byteLength, Buffer.from(bytes), new Date(file.updatedAt)],
+  );
+}
+
 export async function listMediaUploads(): Promise<MediaFile[]> {
   const files: MediaFile[] = [];
   const seen = new Set<string>();
+  if (hasMysqlConfig()) {
+    const rows = await mysqlQuery<{ path: string; name: string; category: UploadCategory; mime: string; bytes: number; updatedAt: Date | string }[]>(
+      "SELECT storage_path AS path, file_name AS name, category, mime_type AS mime, file_size AS bytes, created_at AS updatedAt FROM media_files ORDER BY created_at DESC",
+    );
+    for (const row of rows) {
+      files.push({ ...row, updatedAt: new Date(row.updatedAt).toISOString() });
+      seen.add(`${row.category}/${row.name}`);
+    }
+  }
   for (const root of uploadRoots) {
     for (const category of uploadCategories) {
       const directory = path.join(root, category);
@@ -170,7 +184,9 @@ export async function listMediaUploads(): Promise<MediaFile[]> {
         if (!mime) continue;
         seen.add(key);
         const info = await stat(filePath);
-        files.push({ name: entry.name, category, path: `/uploads/${category}/${encodeURIComponent(entry.name)}`, mime, bytes: info.size, updatedAt: info.mtime.toISOString() });
+        const file = { name: entry.name, category, path: `/uploads/${category}/${encodeURIComponent(entry.name)}`, mime, bytes: info.size, updatedAt: info.mtime.toISOString() };
+        if (hasMysqlConfig()) await persistMedia(file, await readFile(filePath));
+        files.push(file);
       }
     }
   }
@@ -182,11 +198,40 @@ export async function storeUpload(
   bytes: Uint8Array,
   kind: ImageKind,
 ): Promise<StoredUpload> {
+  const name = safeFileName(kind.ext);
+  const stored = { path: `/uploads/${category}/${name}`, bytes: bytes.byteLength, mime: kind.mime };
+  if (hasMysqlConfig()) {
+    await persistMedia({ ...stored, name, category, updatedAt: new Date().toISOString() }, bytes);
+    return stored;
+  }
   const directory = path.join(uploadRoot, category);
   await mkdir(directory, { recursive: true });
-  const name = safeFileName(kind.ext);
   await writeFile(path.join(directory, name), bytes);
-  return { path: `/uploads/${category}/${name}`, bytes: bytes.byteLength, mime: kind.mime };
+  return stored;
+}
+
+export async function readUpload(segments: string[]) {
+  if (segments.length !== 2 || !isUploadCategory(segments[0]) || !/^[a-zA-Z0-9_.-]+$/.test(segments[1])) return null;
+  const filePath = resolveUploadPath(segments);
+  if (!filePath) return null;
+  const mime = contentTypeFor(filePath);
+  if (!mime) return null;
+  const publicPath = `/uploads/${segments[0]}/${encodeURIComponent(segments[1])}`;
+  if (hasMysqlConfig()) {
+    const rows = await mysqlQuery<{ data: Buffer }[]>("SELECT file_data AS data FROM media_files WHERE storage_path = ?", [publicPath]);
+    if (rows[0]) return { bytes: new Uint8Array(rows[0].data), mime };
+  }
+  try {
+    const bytes = await readFile(filePath);
+    if (hasMysqlConfig()) {
+      const info = await stat(filePath);
+      await persistMedia({ path: publicPath, name: segments[1], category: segments[0], bytes: bytes.byteLength, mime, updatedAt: info.mtime.toISOString() }, bytes);
+    }
+    return { bytes: new Uint8Array(bytes), mime };
+  } catch (error) {
+    if (["ENOENT", "EISDIR"].includes((error as NodeJS.ErrnoException).code || "")) return null;
+    throw error;
+  }
 }
 
 /**

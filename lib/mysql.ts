@@ -4,6 +4,15 @@ let pool: mysql.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
 const schemaStatements = [
+  `CREATE TABLE IF NOT EXISTS media_files (
+    storage_path VARCHAR(255) PRIMARY KEY,
+    file_name VARCHAR(120) NOT NULL,
+    category VARCHAR(20) NOT NULL,
+    mime_type VARCHAR(120) NOT NULL,
+    file_size INT UNSIGNED NOT NULL,
+    file_data MEDIUMBLOB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
   `CREATE TABLE IF NOT EXISTS admins (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     email VARCHAR(190) NOT NULL UNIQUE,
