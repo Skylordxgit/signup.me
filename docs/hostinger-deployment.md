@@ -54,6 +54,8 @@ ADMIN_EMAIL=
 ADMIN_PASSWORD_HASH=
 NEXT_PUBLIC_APP_URL=
 COOKIE_SECURE=true
+UPLOAD_DIR=/home/USER/smartlink-uploads
+MAX_UPLOAD_BYTES=5242880
 ```
 
 For the supplied Hostinger database, use the database and user names exactly as created in hPanel. The database host is shown in **hPanel -> Databases -> Management**. Individual variables take priority when both options are present. URL-encode special characters in the password (for example, `@` becomes `%40`) only when placing it in `DATABASE_URL`.
@@ -68,6 +70,32 @@ npm run start
 ```
 
 `npm run start` reads the `PORT` environment variable (falling back to 3000), which matches how Hostinger's Node.js hosting assigns a port to your app — no extra configuration needed.
+
+## Uploaded Images
+
+Admins upload images through the admin panel; no image URLs are entered by hand.
+Files are written to `UPLOAD_DIR` (default `data/uploads`) under a per-type
+folder, and only the resulting path — for example
+`/uploads/profile/mkq1a2-9f3c.webp` — is stored in the database. Image bytes are
+never written to MySQL.
+
+Point `UPLOAD_DIR` at a directory **outside** the deploy folder so uploads are
+not wiped by a redeploy, and make sure the Node process can write to it:
+
+```bash
+mkdir -p /home/USER/smartlink-uploads
+chmod 750 /home/USER/smartlink-uploads
+```
+
+Images are resized and converted to WebP in the browser before upload, so
+uploads stay small without a native image library on the server. The server
+still validates every file independently: it identifies the type from the file's
+bytes (not its name or the browser-supplied content type), enforces
+`MAX_UPLOAD_BYTES`, generates its own random filename, and requires an
+authenticated admin session. Uploaded files are served from `/uploads/*` with
+`nosniff` and a sandboxing CSP so an SVG cannot execute script on your domain.
+
+Back this directory up alongside the database — the two are only useful together.
 
 ## Backups
 

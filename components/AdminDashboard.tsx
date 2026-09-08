@@ -1,16 +1,18 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
   ArrowLeft,
-  ArrowUpRight,
   BarChart3,
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
   Bell,
   Blocks,
+  Check,
   ChevronRight,
-  Circle,
-  CircleDot,
   CircleHelp,
   CircleOff,
   ClipboardCopy,
@@ -22,7 +24,7 @@ import {
   FormInput,
   GalleryVerticalEnd,
   Globe2,
-  GripVertical,
+  Hand,
   Heart,
   ImageIcon,
   LayoutPanelTop,
@@ -33,6 +35,7 @@ import {
   Menu,
   MessageCircle,
   Minus,
+  MoreHorizontal,
   Music2,
   MoveDown,
   MoveUp,
@@ -61,8 +64,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PublicPage } from "@/components/PublicPage";
-import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
+import type { AnalyticsReport, BlockType, PageBlock, PageSummary, ProfileAlignment, SmartPage } from "@/lib/types";
 import { blockTypes, parseBlockIcon, publicPageUrl, readableTextColor, slugify, themePresets } from "@/lib/utils";
+import { applyThemeDefinition, resolveAlignment, themeDefinition, themeLibrary } from "@/lib/themes";
+import { PhoneFrame } from "./PhoneFrame";
+import { PageRenderer } from "./PageRenderer";
+import { ImageUploader } from "./ImageUploader";
 
 type EditorTab = "content" | "blocks" | "design" | "seo" | "integrations" | "analytics";
 type AdminMode = "list" | "detail" | "editor";
@@ -79,7 +86,6 @@ export function AdminDashboard() {
   const [blockPickerOpen, setBlockPickerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
-  const [websiteSettingsOpen, setWebsiteSettingsOpen] = useState(false);
   const [decorationOpen, setDecorationOpen] = useState(false);
   const [addLinkFlowOpen, setAddLinkFlowOpen] = useState(false);
   const [profileEditorRequested, setProfileEditorRequested] = useState(false);
@@ -87,7 +93,6 @@ export function AdminDashboard() {
   const [onboardingOpen, setOnboardingOpen] = useState(false);
   const [pendingPagePatch, setPendingPagePatch] = useState<Partial<SmartPage> | null>(null);
   const [pendingBlockPatches, setPendingBlockPatches] = useState<Record<number, Partial<PageBlock>>>({});
-
   const filteredPages = useMemo(
     () => pages.filter((page) => `${page.name} ${page.slug}`.toLowerCase().includes(query.toLowerCase())),
     [pages, query],
@@ -126,15 +131,6 @@ export function AdminDashboard() {
 
   function publicUrl(slug: string) {
     return publicPageUrl(slug);
-  }
-
-  function publicHost(slug: string) {
-    try {
-      const url = new URL(publicUrl(slug));
-      return `${url.host}${url.pathname}`;
-    } catch {
-      return `/${slug}`;
-    }
   }
 
   function editPage(patch: Partial<SmartPage>) {
@@ -355,9 +351,11 @@ export function AdminDashboard() {
 
   if (!activePage || adminMode === "list") {
     return (
-      <main className="websiteShell">
-        <section className="websitePhone">
-          <div className="upgradeBar">
+      <PhoneFrame
+        label="My websites"
+        overlays={settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} onLogout={logout} />}
+      >
+        <div className="upgradeBar">
             <button type="button" aria-label="Dismiss upgrade message">
               <X />
             </button>
@@ -378,14 +376,12 @@ export function AdminDashboard() {
           <div className="websiteContent">
             <h1>My Websites</h1>
 
-            {settingsOpen && <SettingsSheet onClose={() => setSettingsOpen(false)} onLogout={logout} />}
-
             <div className="websiteList">
               {filteredPages.map((page) => (
                 <button type="button" className="websiteCard" key={page.id} onClick={() => loadPage(page.id)}>
                   <div>
                     <strong>{page.name}</strong>
-                    <span>{publicHost(page.slug)}</span>
+                    <span>{page.slug}.smartlink.local</span>
                   </div>
                   <ChevronRight aria-hidden="true" />
                 </button>
@@ -396,8 +392,7 @@ export function AdminDashboard() {
               <Plus /> Create new website
             </button>
           </div>
-        </section>
-      </main>
+      </PhoneFrame>
     );
   }
 
@@ -412,8 +407,8 @@ export function AdminDashboard() {
     ];
 
     return (
-      <main className="websiteShell detailShell">
-        <section className="websitePhone detailPhone">
+      <PhoneFrame label={activePage.name}>
+        <div className="detailScreen">
           <header className="detailHeader">
             <button type="button" aria-label="Back to websites" onClick={() => setAdminMode("list")}>
               <ArrowLeft />
@@ -424,7 +419,7 @@ export function AdminDashboard() {
             </button>
           </header>
 
-          <div className="detailUrl">{publicHost(activePage.slug)}</div>
+          <div className="detailUrl">{activePage.slug}.smartlink.local</div>
 
           <div className="quickActions">
             <button type="button" onClick={() => navigator.clipboard?.writeText(publicUrl(activePage.slug))}>
@@ -467,15 +462,63 @@ export function AdminDashboard() {
               </button>
             ))}
           </nav>
-        </section>
-      </main>
+        </div>
+      </PhoneFrame>
     );
   }
 
   if (adminMode === "editor") {
     return (
-      <main className="homepageEditorShell">
-        <section className="homepageEditor">
+      <PhoneFrame
+        label={`${activePage.name} editor`}
+        overlays={
+          <>
+            {blockPickerOpen && (
+              <BlockPickerSheet
+                onClose={() => setBlockPickerOpen(false)}
+                onProfile={() => {
+                  setBlockPickerOpen(false);
+                  setProfileEditorRequested(true);
+                }}
+                onAddLink={() => {
+                  setBlockPickerOpen(false);
+                  setAddLinkFlowOpen(true);
+                }}
+                onSelect={addBlock}
+              />
+            )}
+
+            {addLinkFlowOpen && (
+              <AddLinkSheet
+                onClose={() => setAddLinkFlowOpen(false)}
+                onCreate={(patch) => {
+                  setAddLinkFlowOpen(false);
+                  void addBlock("link", patch);
+                }}
+              />
+            )}
+
+            {themeEditorOpen && (
+              <ThemeEditorSheet
+                page={activePage}
+                onClose={() => setThemeEditorOpen(false)}
+                onChange={(theme) => editPage({ theme })}
+              />
+            )}
+
+            {decorationOpen && (
+              <PageDecorationSheet
+                page={activePage}
+                onClose={() => setDecorationOpen(false)}
+                onChange={(theme) => editPage({ theme })}
+              />
+            )}
+
+            {onboardingOpen && <EditorOnboarding onClose={() => setOnboardingOpen(false)} />}
+          </>
+        }
+      >
+        <div className="homepageEditor">
           <header className="homepageEditorTop">
             <button type="button" aria-label="Back to website menu" onClick={() => setAdminMode("detail")}>
               <ArrowLeft />
@@ -498,6 +541,7 @@ export function AdminDashboard() {
               profileEditorRequested={profileEditorRequested}
               onProfileEditorDismiss={() => setProfileEditorRequested(false)}
               onBlockSelectionChange={setHasSelectedBlock}
+              onAddFirstBlock={() => setBlockPickerOpen(true)}
             />
           </div>
 
@@ -518,68 +562,14 @@ export function AdminDashboard() {
                 <span><Eye /></span>
                 Preview
               </button>
-              <button type="button" onClick={() => setWebsiteSettingsOpen(true)}>
+              <button type="button" onClick={() => setThemeEditorOpen(true)}>
                 <span><Settings /></span>
                 Settings
               </button>
             </nav>
           )}
-
-          {blockPickerOpen && (
-            <BlockPickerSheet
-              onClose={() => setBlockPickerOpen(false)}
-              onProfile={() => {
-                setBlockPickerOpen(false);
-                setProfileEditorRequested(true);
-              }}
-              onAddLink={() => {
-                setBlockPickerOpen(false);
-                setAddLinkFlowOpen(true);
-              }}
-              onSelect={addBlock}
-            />
-          )}
-
-          {addLinkFlowOpen && (
-            <AddLinkSheet
-              onClose={() => setAddLinkFlowOpen(false)}
-              onCreate={(patch) => {
-                setAddLinkFlowOpen(false);
-                void addBlock("link", patch);
-              }}
-            />
-          )}
-
-          {themeEditorOpen && (
-            <ThemeEditorSheet
-              page={activePage}
-              onClose={() => setThemeEditorOpen(false)}
-              onChange={(theme) => editPage({ theme })}
-            />
-          )}
-
-          {websiteSettingsOpen && (
-            <WebsiteSettingsSheet
-              page={activePage}
-              onClose={() => setWebsiteSettingsOpen(false)}
-              onSave={(patch) => {
-                savePageNow(patch);
-                setWebsiteSettingsOpen(false);
-              }}
-            />
-          )}
-
-          {decorationOpen && (
-            <PageDecorationSheet
-              page={activePage}
-              onClose={() => setDecorationOpen(false)}
-              onChange={(theme) => editPage({ theme })}
-            />
-          )}
-
-          {onboardingOpen && <EditorOnboarding onClose={() => setOnboardingOpen(false)} />}
-        </section>
-      </main>
+        </div>
+      </PhoneFrame>
     );
   }
 
@@ -629,7 +619,6 @@ export function AdminDashboard() {
                 <input name="slug" placeholder="URL slug, e.g. mik" required />
                 <input name="title" placeholder="Profile heading" required />
                 <textarea name="bio" placeholder="Short bio or description" required />
-                <input name="profileImage" placeholder="Profile image URL" />
                 <button type="submit">Create and Publish</button>
               </form>
             )}
@@ -713,9 +702,13 @@ export function AdminDashboard() {
                     <Field label="Bio">
                       <textarea value={activePage.bio} onChange={(event) => editPage({ bio: event.target.value })} />
                     </Field>
-                    <Field label="Profile image URL">
-                      <input value={activePage.profileImage} onChange={(event) => editPage({ profileImage: event.target.value })} />
-                    </Field>
+                    <ImageUploader
+                      category="profile"
+                      label="Profile image"
+                      round
+                      value={activePage.profileImage}
+                      onChange={(profileImage) => editPage({ profileImage })}
+                    />
                   </div>
                 )}
 
@@ -784,12 +777,12 @@ export function AdminDashboard() {
                         />
                       </Field>
                     </div>
-                    <Field label="Background image URL">
-                      <input
-                        value={activePage.theme.backgroundImage}
-                        onChange={(event) => editPage({ theme: { ...activePage.theme, backgroundImage: event.target.value } })}
-                      />
-                    </Field>
+                    <ImageUploader
+                      category="background"
+                      label="Background image"
+                      value={activePage.theme.backgroundImage}
+                      onChange={(backgroundImage) => editPage({ theme: { ...activePage.theme, backgroundImage } })}
+                    />
                     <Range label="Button radius" value={activePage.theme.buttonRadius} min={4} max={36} onChange={(value) => editPage({ theme: { ...activePage.theme, buttonRadius: value } })} />
                     <Range label="Glass blur" value={activePage.theme.glassBlur} min={0} max={30} onChange={(value) => editPage({ theme: { ...activePage.theme, glassBlur: value } })} />
                     <Range label="Spacing" value={activePage.theme.spacing} min={6} max={26} onChange={(value) => editPage({ theme: { ...activePage.theme, spacing: value } })} />
@@ -807,9 +800,20 @@ export function AdminDashboard() {
                     <Field label="Social share title">
                       <input value={activePage.seo.socialTitle} onChange={(event) => editPage({ seo: { ...activePage.seo, socialTitle: event.target.value } })} />
                     </Field>
-                    <Field label="OG image URL">
-                      <input value={activePage.seo.ogImage} onChange={(event) => editPage({ seo: { ...activePage.seo, ogImage: event.target.value } })} />
-                    </Field>
+                    <ImageUploader
+                      category="og"
+                      label="Social sharing image"
+                      hint="Used when the page is shared. 1200x630 works well."
+                      value={activePage.seo.ogImage}
+                      onChange={(ogImage) => editPage({ seo: { ...activePage.seo, ogImage } })}
+                    />
+                    <ImageUploader
+                      category="favicon"
+                      label="Favicon"
+                      hint="A small square icon. PNG, SVG or ICO."
+                      value={activePage.seo.favicon}
+                      onChange={(favicon) => editPage({ seo: { ...activePage.seo, favicon } })}
+                    />
                     <a className="qrButton" href={`https://api.qrserver.com/v1/create-qr-code/?size=800x800&data=${encodeURIComponent(publicUrl(activePage.slug))}`}>
                       View or download QR code
                     </a>
@@ -1141,48 +1145,6 @@ function SettingsSheet({ onClose, onLogout }: { onClose: () => void; onLogout: (
   );
 }
 
-function WebsiteSettingsSheet({
-  onClose,
-  onSave,
-  page,
-}: {
-  onClose: () => void;
-  onSave: (patch: Partial<SmartPage>) => void;
-  page: SmartPage;
-}) {
-  const [name, setName] = useState(page.name);
-  const [slug, setSlug] = useState(page.slug);
-  const pageUrl = publicPageUrl(slugify(slug) || "your-page");
-
-  return (
-    <div className="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Website settings">
-      <section className="settingsSheet websiteSettingsSheet">
-        <header className="settingsHeader">
-          <button type="button" aria-label="Close website settings" onClick={onClose}><X /></button>
-          <h2>Website Settings</h2>
-          <button type="button" className="websiteSettingsSave" onClick={() => onSave({ name, slug: slugify(slug) })}>Save</button>
-        </header>
-        <div className="websiteSettingsFields">
-          <Field label="Website name *">
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field label="Page URL *">
-            <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
-            <small className="subdomainPreview">{pageUrl}</small>
-          </Field>
-          <div className="websiteStatusRow">
-            <div>
-              <strong>Publishing</strong>
-              <span>{page.status === "published" ? "Visible to visitors" : "Not visible to visitors"}</span>
-            </div>
-            <span className={`statusPill ${page.status}`}>{page.status === "published" ? "Published" : "Draft"}</span>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function ThemeEditorSheet({
   onChange,
   onClose,
@@ -1220,9 +1182,12 @@ function ThemeEditorSheet({
               <input type="color" value={theme.buttonBackground} onChange={(event) => update({ buttonBackground: event.target.value })} />
             </Field>
           </div>
-          <Field label="Background image URL">
-            <input value={theme.backgroundImage} onChange={(event) => update({ backgroundImage: event.target.value })} />
-          </Field>
+          <ImageUploader
+            category="background"
+            label="Background image"
+            value={theme.backgroundImage}
+            onChange={(backgroundImage) => update({ backgroundImage })}
+          />
           <Range label="Button corner radius" value={theme.buttonRadius} min={4} max={36} onChange={(buttonRadius) => update({ buttonRadius })} />
           <Range label="Content spacing" value={theme.spacing} min={6} max={26} onChange={(spacing) => update({ spacing })} />
         </div>
@@ -1239,55 +1204,6 @@ const decorationMenuItems: { view: DecorationView; label: string; icon: LucideIc
   { view: "backgroundImage", label: "Background image", icon: ImageIcon },
   { view: "fonts", label: "Fonts", icon: Type },
 ];
-
-const themeGallery: Array<{
-  id: string;
-  label: string;
-  settings: Pick<SmartPage["theme"], "preset" | "backgroundColor" | "gradientFrom" | "gradientTo" | "textColor" | "headingColor" | "buttonBackground" | "buttonTextColor" | "buttonBorderColor">;
-}> = [
-  { id: "classic-light", label: "Classic Light", settings: { preset: "minimal-white", backgroundColor: "#f8fafc", gradientFrom: "#ffffff", gradientTo: "#e9eef5", textColor: "#30333a", headingColor: "#17191e", buttonBackground: "#eef1f5", buttonTextColor: "#1f2937", buttonBorderColor: "#e5e7eb" } },
-  { id: "new-dark", label: "New Dark", settings: { preset: "glass-dark", backgroundColor: "#191b20", gradientFrom: "#333842", gradientTo: "#16181c", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#ffffff", buttonTextColor: "#20232a", buttonBorderColor: "rgba(255,255,255,.24)" } },
-  { id: "midnight", label: "Strong", settings: { preset: "midnight", backgroundColor: "#151618", gradientFrom: "#26282d", gradientTo: "#111214", textColor: "#f8fafc", headingColor: "#ffffff", buttonBackground: "#ffb55b", buttonTextColor: "#261706", buttonBorderColor: "rgba(255,181,91,.4)" } },
-  { id: "taxi", label: "Taxi", settings: { preset: "custom", backgroundColor: "#ffd934", gradientFrom: "#ffdf3d", gradientTo: "#ffcd22", textColor: "#151515", headingColor: "#111111", buttonBackground: "#050505", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(0,0,0,.25)" } },
-  { id: "pink", label: "Pink", settings: { preset: "custom", backgroundColor: "#3433bd", gradientFrom: "#3935ce", gradientTo: "#2f2dae", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#ff3f72", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(255,255,255,.2)" } },
-  { id: "neon", label: "Neon", settings: { preset: "neon-glass", backgroundColor: "#2c2744", gradientFrom: "#322e4d", gradientTo: "#271f3d", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#9431c3", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(177,76,230,.45)" } },
-  { id: "coral", label: "Coral", settings: { preset: "custom", backgroundColor: "#8bd2cf", gradientFrom: "#9bddd9", gradientTo: "#72c5c0", textColor: "#102a2b", headingColor: "#102a2b", buttonBackground: "#d6f2ee", buttonTextColor: "#183536", buttonBorderColor: "rgba(24,53,54,.12)" } },
-  { id: "purple", label: "Purple", settings: { preset: "purple-glass", backgroundColor: "#7770c6", gradientFrom: "#9994d9", gradientTo: "#6258b6", textColor: "#100c33", headingColor: "#100c33", buttonBackground: "#cbc8ee", buttonTextColor: "#19123d", buttonBorderColor: "rgba(25,18,61,.15)" } },
-  { id: "fire", label: "Fire", settings: { preset: "custom", backgroundColor: "#ff4a60", gradientFrom: "#ff5f51", gradientTo: "#ff3d71", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#8d2630", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(255,255,255,.22)" } },
-  { id: "sky", label: "Sky", settings: { preset: "gradient", backgroundColor: "#70b4e8", gradientFrom: "#8cc5f1", gradientTo: "#60a6df", textColor: "#11212f", headingColor: "#0e1d2b", buttonBackground: "#cde8ff", buttonTextColor: "#142c43", buttonBorderColor: "rgba(20,44,67,.15)" } },
-  { id: "lavender", label: "Lavender", settings: { preset: "custom", backgroundColor: "#8732dc", gradientFrom: "#a349ec", gradientTo: "#711fd3", textColor: "#ffffff", headingColor: "#ffffff", buttonBackground: "#4e0f9d", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(255,255,255,.2)" } },
-  { id: "cream", label: "Cream", settings: { preset: "custom", backgroundColor: "#f6e3e3", gradientFrom: "#f8e9e7", gradientTo: "#f3dcdc", textColor: "#211919", headingColor: "#161010", buttonBackground: "#050505", buttonTextColor: "#ffffff", buttonBorderColor: "rgba(0,0,0,.2)" } },
-];
-
-function ThemeGallery({
-  activeTheme,
-  onChange,
-}: {
-  activeTheme: SmartPage["theme"];
-  onChange: (theme: SmartPage["theme"]) => void;
-}) {
-  return (
-    <div className="themeGallery" aria-label="Theme gallery">
-      {themeGallery.map((item) => {
-        const selected = activeTheme.gradientFrom === item.settings.gradientFrom && activeTheme.gradientTo === item.settings.gradientTo;
-        return (
-          <button
-            type="button"
-            className={`themeTile ${selected ? "active" : ""}`}
-            key={item.id}
-            onClick={() => onChange({ ...activeTheme, ...item.settings })}
-          >
-            <span className="themeTilePreview" style={{ background: `linear-gradient(145deg, ${item.settings.gradientFrom}, ${item.settings.gradientTo})`, color: item.settings.headingColor }}>
-              <strong>Text</strong>
-              <i style={{ background: item.settings.buttonBackground }} />
-            </span>
-            <span>{item.label}</span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 const fontOptions: { value: SmartPage["theme"]["font"]; label: string }[] = [
   { value: "inter", label: "Inter" },
@@ -1341,9 +1257,7 @@ function PageDecorationSheet({
           <span aria-hidden="true" />
         </header>
         <div className="decorationFields">
-          {view === "theme" && (
-            <ThemeGallery activeTheme={theme} onChange={onChange} />
-          )}
+          {view === "theme" && <ThemeGallery onSelect={onChange} theme={theme} />}
           {view === "backgroundColor" && (
             <div className="appearanceColorGrid">
               <Field label="Background">
@@ -1358,9 +1272,13 @@ function PageDecorationSheet({
             </div>
           )}
           {view === "backgroundImage" && (
-            <Field label="Background image URL">
-              <input value={theme.backgroundImage} onChange={(event) => update({ backgroundImage: event.target.value })} />
-            </Field>
+            <ImageUploader
+              category="background"
+              label="Background image"
+              hint="Sits behind the whole page. Drag an image here, or click to choose."
+              value={theme.backgroundImage}
+              onChange={(backgroundImage) => update({ backgroundImage })}
+            />
           )}
           {view === "fonts" && (
             <Field label="Font">
@@ -1373,6 +1291,67 @@ function PageDecorationSheet({
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+/**
+ * Theme cards render a miniature of the real page — background, card surface and
+ * button treatment — so the theme is recognisable before it is applied.
+ */
+function ThemeGallery({
+  onSelect,
+  theme,
+}: {
+  onSelect: (theme: SmartPage["theme"]) => void;
+  theme: SmartPage["theme"];
+}) {
+  const activeId = themeDefinition(theme.preset)?.id;
+
+  return (
+    <div className="themeGallery">
+      {themeLibrary.map((item) => {
+        const preview = item.settings;
+        const isActive = activeId === item.id;
+        return (
+          <button
+            type="button"
+            key={item.id}
+            className={`themeCard ${isActive ? "themeCardActive" : ""}`}
+            aria-pressed={isActive}
+            onClick={() => onSelect(applyThemeDefinition(item, theme))}
+          >
+            <span
+              className={`themeSwatch surface-${preview.surface}`}
+              style={{
+                backgroundImage: `linear-gradient(135deg, ${preview.gradientFrom}, ${preview.gradientTo})`,
+              }}
+            >
+              <span className="themeSwatchAvatar" style={{ background: preview.headingColor, opacity: 0.9 }} />
+              <span className="themeSwatchLine" style={{ background: preview.headingColor }} />
+              <span className="themeSwatchLine themeSwatchLineShort" style={{ background: preview.textColor }} />
+              {[0, 1].map((row) => (
+                <span
+                  key={row}
+                  className={`themeSwatchButton buttonStyle-${preview.buttonStyle}`}
+                  style={{
+                    background: preview.buttonBackground,
+                    borderColor: preview.buttonBorderColor,
+                    borderRadius: Math.min(preview.buttonRadius, 12),
+                  }}
+                />
+              ))}
+            </span>
+            <strong>{item.label}</strong>
+            <small>{item.description}</small>
+            {isActive && (
+              <span className="themeCardCheck" aria-hidden="true">
+                <Check />
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -1448,6 +1427,7 @@ function EditablePublicCanvas({
   onProfileEditorDismiss,
   profileEditorRequested,
   onBlockSelectionChange,
+  onAddFirstBlock,
   page,
 }: {
   onDeleteBlock: (blockId: number) => void;
@@ -1459,17 +1439,17 @@ function EditablePublicCanvas({
   onProfileEditorDismiss: () => void;
   profileEditorRequested: boolean;
   onBlockSelectionChange: (selected: boolean) => void;
+  onAddFirstBlock: () => void;
   page: SmartPage;
 }) {
   const blocks = [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder);
   const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<number | null>(null);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [emptyCtaDismissed, setEmptyCtaDismissed] = useState(false);
   const selectedBlock = blocks.find((block) => block.id === selectedBlockId) ?? null;
   const editingBlock = blocks.find((block) => block.id === editingBlockId) ?? null;
   const selectedIndex = selectedBlock ? blocks.findIndex((block) => block.id === selectedBlock.id) : -1;
-  const theme = page.theme;
-  const buttonBackground = editorWithAlpha(theme.buttonBackground, theme.buttonTransparency / 100);
 
   const isProfileEditorOpen = profileEditorOpen || profileEditorRequested;
 
@@ -1479,92 +1459,55 @@ function EditablePublicCanvas({
     setProfileEditorOpen(true);
   }
 
+  if (blocks.length === 0) {
+    return (
+      <div className="canvasEmptyState">
+        <h2>Start building your website</h2>
+        <p>Press the button below to add your first block</p>
+        <ArrowDown className="canvasEmptyArrow" aria-hidden="true" />
+        {!emptyCtaDismissed && (
+          <button type="button" className="canvasEmptyCta" onClick={onAddFirstBlock}>
+            <Hand size={16} aria-hidden="true" />
+            Create free website
+            <span
+              className="canvasEmptyCtaClose"
+              role="button"
+              tabIndex={0}
+              aria-label="Dismiss"
+              onClick={(event) => {
+                event.stopPropagation();
+                setEmptyCtaDismissed(true);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.stopPropagation();
+                event.preventDefault();
+                setEmptyCtaDismissed(true);
+              }}
+            >
+              <X size={14} />
+            </span>
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={`homepagePreviewWrap editorThemePreview ${theme.preset}`}
-      style={
-        {
-          "--from": theme.gradientFrom,
-          "--to": theme.gradientTo,
-          "--bg": theme.backgroundColor,
-          "--glass": theme.glassBlur,
-          "--button-bg": theme.buttonBackground,
-          "--button-bg-glass": buttonBackground,
-          "--button-text": theme.buttonTextColor,
-          "--button-border": theme.buttonBorderColor,
-          "--button-radius": `${theme.buttonRadius}px`,
-          "--shadow": `0 ${Math.max(10, theme.shadow)}px ${Math.max(24, theme.shadow * 2)}px rgba(15, 23, 42, 0.22)`,
-          "--spacing": `${theme.spacing}px`,
-          "--heading": theme.headingColor,
-          "--text": theme.textColor,
-        } as CSSProperties
-      }
-    >
-      <PublicPage
+    <div className="homepagePreviewWrap">
+      <PageRenderer
         page={page}
-        preview
-        editable
-        selectedBlockId={selectedBlockId}
-        onProfileSelect={openProfileEditor}
-        onBlockSelect={(blockId) => {
-          setSelectedBlockId(blockId);
-          onBlockSelectionChange(true);
+        edit={{
+          selectedBlockId,
+          onSelectBlock: (blockId) => {
+            setSelectedBlockId(blockId);
+            onBlockSelectionChange(true);
+          },
+          onEditProfile: openProfileEditor,
         }}
       />
 
-      <div className="homepagePreview editorThemeCard editorLegacyControls">
-        <button type="button" className="editRow editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
-          <span className="leftHandle" aria-hidden="true">
-            <Circle />
-          </span>
-          <div className="bannerPreview" style={{ backgroundImage: `url(${page.theme.backgroundImage})` }} />
-          <span className="rightHandle" aria-hidden="true">
-            <GripVertical />
-          </span>
-        </button>
-
-        <button type="button" className="profileEditBlock editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
-          <img key={page.profileImage} src={page.profileImage} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
-          <div>
-            <strong>{page.title}</strong>
-            <p>{page.bio}</p>
-          </div>
-        </button>
-
-        <div className="editorBlockStack">
-          {blocks.map((block) => {
-            const selected = selectedBlockId === block.id;
-            return (
-              <div className={`editRow ${selected ? "selectedEditRow" : ""}`} key={block.id}>
-                <button
-                  type="button"
-                  aria-label={`Select ${block.title || block.type}`}
-                  className="leftHandle selectBlockHandle"
-                  onClick={() => {
-                    setSelectedBlockId(block.id);
-                    onBlockSelectionChange(true);
-                  }}
-                >
-                  {selected ? <CircleDot aria-hidden="true" /> : <Circle aria-hidden="true" />}
-                </button>
-                <EditableCanvasBlock
-                  block={block}
-                  selected={selected}
-                  onSelect={() => {
-                    setSelectedBlockId(block.id);
-                    onBlockSelectionChange(true);
-                  }}
-                />
-                <span className="rightHandle" aria-hidden="true">
-                  <GripVertical />
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {selectedBlock && !editingBlock && (
+      {selectedBlock && (
         <div className="selectedBlockToolbar" aria-label="Selected block actions">
           <button type="button" className="closeToolbarButton" onClick={() => {
             setSelectedBlockId(null);
@@ -1641,72 +1584,39 @@ function EditablePublicCanvas({
   );
 }
 
-function EditableCanvasBlock({
-  block,
-  onSelect,
-  selected,
+const alignmentOptions: { value: ProfileAlignment; label: string; icon: LucideIcon }[] = [
+  { value: "left", label: "Left", icon: AlignLeft },
+  { value: "center", label: "Center", icon: AlignCenter },
+  { value: "right", label: "Right", icon: AlignRight },
+];
+
+/** Segmented control for how the whole profile block sits on the page. */
+function AlignmentControl({
+  onChange,
+  value,
 }: {
-  block: PageBlock;
-  onSelect: () => void;
-  selected: boolean;
+  onChange: (value: ProfileAlignment) => void;
+  value: ProfileAlignment;
 }) {
-  if (block.type === "video") {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        className={`canvasVideo canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
-        onClick={onSelect}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") onSelect();
-        }}
-      >
-        <PlayableVideo src={block.videoUrl || block.url} title={block.title || "Video"} />
-        {block.title && <strong>{block.title}</strong>}
-      </div>
-    );
-  }
-
-  if (["heading", "text", "divider", "image"].includes(block.type)) {
-    return (
-      <button
-        type="button"
-        className={`canvasTextBlock canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
-        onClick={onSelect}
-      >
-        <strong>{block.title || block.type}</strong>
-        {block.subtitle && <span>{block.subtitle}</span>}
-      </button>
-    );
-  }
-
-  const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
-  const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
-
   return (
-    <button
-      type="button"
-      className={`canvasLinkButton canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
-      style={buttonStyle}
-      onClick={onSelect}
-    >
-      <span className="canvasBlockIcon">{resolveIconElement(block.icon, block.type)}</span>
-      <div>
-        <strong>{block.title || "Untitled link"}</strong>
-        {block.subtitle && <small>{block.subtitle}</small>}
-      </div>
-      <ArrowUpRight aria-hidden="true" />
-    </button>
+    <div className="segmented" role="group" aria-label="Profile alignment">
+      {alignmentOptions.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            type="button"
+            key={option.value}
+            className={`segmentedOption ${active ? "segmentedOptionActive" : ""}`}
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+          >
+            <option.icon aria-hidden="true" />
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
   );
-}
-
-function editorWithAlpha(hex: string, alpha: number) {
-  const clean = hex.replace("#", "");
-  if (!/^[0-9a-f]{6}$/i.test(clean)) return hex;
-  const r = Number.parseInt(clean.slice(0, 2), 16);
-  const g = Number.parseInt(clean.slice(2, 4), 16);
-  const b = Number.parseInt(clean.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${Math.min(1, Math.max(0.15, alpha))})`;
 }
 
 function ProfileEditorSheet({
@@ -1724,9 +1634,7 @@ function ProfileEditorSheet({
   const [slug, setSlug] = useState(page.slug);
   const [title, setTitle] = useState(page.title);
   const [bio, setBio] = useState(page.bio);
-  const [layout, setLayout] = useState(page.theme.profileLayout ?? "hero");
-  const [changing, setChanging] = useState<"cover" | "photo" | null>(null);
-  const pageUrl = publicPageUrl(slugify(slug) || "your-page");
+  const [align, setAlign] = useState<ProfileAlignment>(resolveAlignment(page.theme));
 
   function save() {
     onSave({
@@ -1734,7 +1642,7 @@ function ProfileEditorSheet({
       name,
       profileImage: photo,
       slug: slugify(slug),
-      theme: { ...page.theme, backgroundImage: cover, profileLayout: layout },
+      theme: { ...page.theme, backgroundImage: cover, profileAlignment: align },
       title,
     });
   }
@@ -1745,15 +1653,13 @@ function ProfileEditorSheet({
         <header className="profileSheetHeader">
           <button type="button" aria-label="Close profile editor" onClick={onClose}><X /></button>
           <h2>Profile</h2>
-          <button type="button" className="profileHeaderSave" onClick={save}>Save</button>
+          <button type="button" aria-label="More profile options"><MoreHorizontal /></button>
         </header>
 
-        <div className={`profileSheetPreview profilePreview-${layout}`}>
-          {layout !== "avatar" && layout !== "none" && (
-            <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
-          )}
+        <div className="profileSheetPreview">
+          <div className="profileSheetBanner" style={{ backgroundImage: `url(${cover})` }} />
           <div className="profileSheetIdentity">
-            {layout !== "none" && <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />}
+            <img key={photo} src={photo} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
             <div>
               <strong>{title || "Your name"}</strong>
               <p>{bio || "Add a short description"}</p>
@@ -1762,75 +1668,49 @@ function ProfileEditorSheet({
         </div>
 
         <div className="profileSheetFields">
-          <Field label="Website name *">
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </Field>
-          <Field label="Page URL *">
-            <input value={slug} placeholder="your-page" onChange={(event) => setSlug(slugify(event.target.value))} />
-            <small className="subdomainPreview">{pageUrl}</small>
-          </Field>
-          {layout !== "avatar" && layout !== "none" && (
-            <MediaChangeRow label="Cover" preview={cover} active={changing === "cover"} onChange={() => setChanging(changing === "cover" ? null : "cover")}>
-              <input value={cover} aria-label="Cover image URL" placeholder="Cover image URL" onChange={(event) => setCover(event.target.value)} />
-            </MediaChangeRow>
-          )}
-          {layout !== "none" && (
-            <MediaChangeRow label="Profile photo" preview={photo} active={changing === "photo"} onChange={() => setChanging(changing === "photo" ? null : "photo")}>
-              <input value={photo} aria-label="Profile photo URL" placeholder="Profile photo URL" onChange={(event) => setPhoto(event.target.value)} />
-            </MediaChangeRow>
-          )}
-          <Field label="Title *">
-            <input value={title} onChange={(event) => setTitle(event.target.value)} />
-          </Field>
-          <Field label="Subtitle">
-            <textarea value={bio} onChange={(event) => setBio(event.target.value)} />
-          </Field>
-          <div className="profileLayoutPicker" aria-label="Header layout">
-            {[
-              { value: "hero", label: "Hero", icon: LayoutPanelTop },
-              { value: "centered", label: "Centered", icon: Circle },
-              { value: "avatar", label: "Avatar", icon: User },
-              { value: "none", label: "None", icon: Minus },
-            ].map((option) => (
-              <button
-                type="button"
-                className={layout === option.value ? "active" : ""}
-                key={option.value}
-                onClick={() => setLayout(option.value as typeof layout)}
-              >
-                <option.icon aria-hidden="true" />
-                <span>{option.label}</span>
-              </button>
-            ))}
-          </div>
+          <section className="editorSection">
+            <h3>Profile</h3>
+            <Field label="Website name *">
+              <input value={name} onChange={(event) => setName(event.target.value)} />
+            </Field>
+            <Field label="Public URL *">
+              <input value={slug} onChange={(event) => setSlug(event.target.value)} />
+            </Field>
+            <Field label="Title *">
+              <input value={title} onChange={(event) => setTitle(event.target.value)} />
+            </Field>
+            <Field label="Subtitle">
+              <textarea value={bio} onChange={(event) => setBio(event.target.value)} />
+            </Field>
+          </section>
+
+          <section className="editorSection">
+            <h3>Images</h3>
+            <ImageUploader
+              category="banner"
+              label="Cover"
+              hint="The hero image across the top. Drag one here, or click to choose."
+              value={cover}
+              onChange={setCover}
+            />
+            <ImageUploader
+              category="profile"
+              label="Profile photo"
+              hint="Square images look best. Drag one here, or click to choose."
+              round
+              value={photo}
+              onChange={setPhoto}
+            />
+          </section>
+
+          <section className="editorSection">
+            <h3>Alignment</h3>
+            <AlignmentControl onChange={setAlign} value={align} />
+          </section>
+
           <button type="button" className="profileSaveButton" onClick={save}>Save changes</button>
         </div>
       </section>
-    </div>
-  );
-}
-
-function MediaChangeRow({
-  active,
-  children,
-  label,
-  onChange,
-  preview,
-}: {
-  active: boolean;
-  children: React.ReactNode;
-  label: string;
-  onChange: () => void;
-  preview: string;
-}) {
-  return (
-    <div className="mediaChangeGroup">
-      <div className="mediaChangeRow">
-        <img key={preview} src={preview} alt="" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} />
-        <strong>{label}</strong>
-        <button type="button" onClick={onChange}>Change</button>
-      </div>
-      {active && <div className="mediaUrlField">{children}</div>}
     </div>
   );
 }
@@ -1849,6 +1729,7 @@ function LinkEditSheet({
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const isPhoneAction = draft.type === "whatsapp" || draft.type === "phone";
   const isVideo = draft.type === "video";
+  const isImage = draft.type === "image";
   const buttonStyle = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
 
   function save() {
@@ -1860,6 +1741,7 @@ function LinkEditSheet({
       settings: { ...draft.settings, buttonColor },
       subtitle: draft.subtitle,
       title: draft.title,
+      imageUrl: draft.imageUrl,
       url: isVideo ? draft.videoUrl || draft.url : draft.url,
       videoUrl: isVideo ? draft.videoUrl || draft.url : draft.videoUrl,
     });
@@ -1872,7 +1754,7 @@ function LinkEditSheet({
           <button type="button" aria-label="Close link editor" onClick={onClose}>
             <X />
           </button>
-          <h2>{isVideo ? "Video" : "Link"}</h2>
+          <h2>{isVideo ? "Video" : isImage ? "Image" : "Link"}</h2>
           <button type="button" onClick={save}>
             Save
           </button>
@@ -1881,16 +1763,33 @@ function LinkEditSheet({
         <div className="sheetPreview">
           {isVideo ? (
             <PlayableVideo src={draft.videoUrl || draft.url} title={draft.title || "Video"} />
+          ) : isImage ? (
+            <img
+              className="sheetPreviewImage"
+              key={draft.imageUrl || draft.url}
+              src={draft.imageUrl || draft.url}
+              alt={draft.title}
+              onError={(event) => { event.currentTarget.style.visibility = "hidden"; }}
+            />
           ) : (
-            <div className="canvasLinkButton" style={buttonStyle}>
-              <span className="canvasBlockIcon">{resolveIconElement(draft.icon, draft.type)}</span>
+            <div className="sheetPreviewButton" style={buttonStyle}>
+              <span className="sheetPreviewIcon">{resolveIconElement(draft.icon, draft.type)}</span>
               <strong>{draft.title || "Untitled link"}</strong>
             </div>
           )}
         </div>
 
         <div className="sheetFields">
-          {!isVideo && (
+          {isImage && (
+            <ImageUploader
+              category="block"
+              label="Image"
+              hint="Shown full width on your page. Drag one here, or click to choose."
+              value={draft.imageUrl || draft.url}
+              onChange={(imageUrl) => setDraft({ ...draft, imageUrl })}
+            />
+          )}
+          {!isVideo && !isImage && (
             <Field label="Icon">
               <div className="iconChooser">
                 <span>{resolveIconElement(draft.icon, draft.type)}</span>
@@ -1898,18 +1797,20 @@ function LinkEditSheet({
               </div>
             </Field>
           )}
-          <Field label={isVideo ? "Video title" : "Link title"}>
+          <Field label={isVideo ? "Video title" : isImage ? "Caption" : "Link title"}>
             <input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} />
           </Field>
-          <Field label="Action *">
-            <select
-              value={isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}
-              onChange={() => undefined}
-            >
-              <option>{isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}</option>
-            </select>
-          </Field>
-          {isPhoneAction ? (
+          {!isImage && (
+            <Field label="Action *">
+              <select
+                value={isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}
+                onChange={() => undefined}
+              >
+                <option>{isVideo ? "Play video" : isPhoneAction ? "Call or message" : "Open link"}</option>
+              </select>
+            </Field>
+          )}
+          {isImage ? null : isPhoneAction ? (
             <Field label="Phone number *">
               <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} />
             </Field>
@@ -2084,9 +1985,14 @@ function IconPickerSheet({ onClose, onSelect }: { onClose: () => void; onSelect:
           <span aria-hidden="true" />
         </header>
         <div className="decorationFields">
-          <Field label="Image URL">
-            <input value={imageUrl} placeholder="https://..." onChange={(event) => setImageUrl(event.target.value)} />
-          </Field>
+          <ImageUploader
+            category="icon"
+            label="Icon image"
+            hint="A small square image works best. Drag one here, or click to choose."
+            round
+            value={imageUrl}
+            onChange={setImageUrl}
+          />
           <button type="button" className="onboardingPrimaryButton" disabled={!imageUrl} onClick={() => onSelect(imageUrl)}>
             Use image
           </button>
@@ -2127,8 +2033,8 @@ function AddLinkSheet({ onClose, onCreate }: { onClose: () => void; onCreate: (p
           </header>
 
           <div className="sheetPreview">
-            <div className="canvasLinkButton" style={buttonStyle}>
-              <span className="canvasBlockIcon">{previewIcon}</span>
+            <div className="sheetPreviewButton" style={buttonStyle}>
+              <span className="sheetPreviewIcon">{previewIcon}</span>
               <strong>{title || "Link title"}</strong>
             </div>
           </div>
@@ -2156,8 +2062,8 @@ function AddLinkSheet({ onClose, onCreate }: { onClose: () => void; onCreate: (p
         </header>
 
         <div className="sheetPreview">
-          <div className="canvasLinkButton" style={buttonStyle}>
-            <span className="canvasBlockIcon">{previewIcon}</span>
+          <div className="sheetPreviewButton" style={buttonStyle}>
+            <span className="sheetPreviewIcon">{previewIcon}</span>
             <strong>{title || "Untitled link"}</strong>
           </div>
         </div>
@@ -2410,12 +2316,14 @@ function BlockEditor({
         />
       ) : null}
       {block.type === "image" ? (
-        <input
-          aria-label="Image URL"
-          placeholder="Image URL"
+        <ImageUploader
+          category="block"
+          label="Image"
           value={block.imageUrl}
-          onBlur={(event) => onCommit({ imageUrl: event.target.value })}
-          onChange={(event) => onUpdate({ imageUrl: event.target.value })}
+          onChange={(imageUrl) => {
+            onUpdate({ imageUrl });
+            onCommit({ imageUrl });
+          }}
         />
       ) : null}
       {block.type === "video" ? (

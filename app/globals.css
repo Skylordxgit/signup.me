@@ -9,7 +9,20 @@
   --ink: #111827;
   --blue: #2563eb;
   --teal: #0f9f8f;
+
+  /* The one phone frame. Every builder section and every overlay sheet sizes
+     itself from these, so switching sections cannot change the frame. */
+  /* A 9:16 handset. Width is the design width; height follows the ratio so the
+     frame never changes shape, and shrinks to fit a short window. */
+  --phone-w: 390px;
+  --phone-radius: 30px;
 }
+
+@media (max-width: 520px) {
+  :root {
+    --phone-h: 100dvh;
+    --phone-radius: 0px;
+  }}
 
 @theme inline {
   --color-background: var(--background);
@@ -345,27 +358,66 @@ textarea {
   text-align: center;
 }
 
-.websiteShell {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 26px 14px;
-  background: #f6f7fb;
+.phoneStage {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 14px;
+  background: #eceef4;
 }
 
-.websitePhone {
+.phoneDevice {
   position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  width: min(100%, 390px);
-  min-height: 720px;
-  border-radius: 16px;
+  /* Capped by the design width and by what the window can show, so the 9:16
+     ratio holds on any screen and the frame never depends on content. */
+  width: min(100%, var(--phone-w), calc((100dvh - 40px) * 9 / 16));
+  aspect-ratio: 9 / 16;
+  border-radius: var(--phone-radius);
   background: linear-gradient(180deg, #f6f6f8 0%, #ffffff 45%);
   box-shadow: 0 20px 54px rgba(17, 24, 39, 0.12);
 }
 
+@media (max-width: 520px) {
+  /* On a real handset the device is the frame: fill it. */
+  .phoneDevice {
+    width: 100%;
+    height: 100dvh;
+    aspect-ratio: auto;
+  }
+}
+
+/* The scrolling viewport inside the frame. min-height:0 lets it shrink so the
+   frame keeps its height instead of being stretched by tall content. */
+.phoneScreen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+/* Nothing inside the phone may be wider than the phone. Sections still wrap
+   and truncate on their own; this is the backstop that keeps a single long
+   word from widening the whole frame. */
+.phoneScreen > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 520px) {
+  .phoneStage {
+    padding: 0;
+  }}
+
 .upgradeBar {
   display: grid;
-  grid-template-columns: 20px 1fr auto;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   min-height: 52px;
@@ -375,8 +427,8 @@ textarea {
 }
 
 .upgradeBar button {
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   border: 0;
   border-radius: 50%;
   background: transparent;
@@ -386,9 +438,10 @@ textarea {
 }
 
 .upgradeBar strong {
-  max-width: 240px;
+  min-width: 0;
   font-size: 13px;
-  line-height: 1.2;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .upgradeBar span {
@@ -466,7 +519,7 @@ textarea {
 
 .websiteCard {
   display: grid;
-  grid-template-columns: 1fr 22px;
+  grid-template-columns: minmax(0, 1fr) 22px;
   gap: 10px;
   width: 100%;
   min-height: 76px;
@@ -486,11 +539,14 @@ textarea {
 .websiteCard strong,
 .websiteCard span {
   display: block;
+  min-width: 0;
+  /* Long site names and slugs wrap instead of widening the card. */
+  overflow-wrap: anywhere;
 }
 
 .websiteCard strong {
   font-size: 20px;
-  line-height: 1.05;
+  line-height: 1.2;
 }
 
 .websiteCard span {
@@ -506,7 +562,6 @@ textarea {
   font-style: normal;
   line-height: 1;
 }
-
 
 .mobileCreatePanel {
   display: grid;
@@ -533,20 +588,14 @@ textarea {
   margin: 32px auto 0;
 }
 
-.detailShell {
-  place-items: start center;
-}
-
-.detailPhone {
-  min-height: 700px;
-  padding: 0 14px 58px;
+.detailScreen {
+  padding: 0 14px 24px;
   background: #f7f7fa;
-  box-shadow: 0 18px 54px rgba(17, 24, 39, 0.1);
 }
 
 .detailHeader {
   display: grid;
-  grid-template-columns: 34px 1fr auto;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 18px 0 14px;
@@ -568,14 +617,17 @@ textarea {
 
 .detailHeader h1 {
   margin: 0;
+  min-width: 0;
   color: #2b2d34;
-  font-size: 25px;
-  line-height: 1.05;
+  font-size: clamp(18px, 5.5vw, 25px);
+  line-height: 1.2;
   letter-spacing: 0;
+  overflow-wrap: anywhere;
 }
 
 .outlinePill {
-  min-width: 98px;
+  flex: none;
+  min-width: 88px;
   min-height: 42px;
   border: 1.5px solid #0b7cff !important;
   border-radius: 14px;
@@ -588,7 +640,8 @@ textarea {
   align-items: center;
   min-height: 50px;
   margin-bottom: 10px;
-  padding: 0 14px;
+  padding: 12px 14px;
+  overflow-wrap: anywhere;
   border-radius: 13px;
   background: #ffffff;
   color: #30323a;
@@ -665,21 +718,19 @@ textarea {
   line-height: 1;
 }
 
-.homepageEditorShell {
-  min-height: 100vh;
-  display: grid;
-  place-items: start center;
-  padding: 16px 12px;
-  background: #f6f7fb;
-}
-
 .homepageEditor {
-  width: min(100%, 390px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 0;
+  background: #f6f7fb;
 }
 
 .homepageEditorTop {
   display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  padding: 0 12px;
   align-items: center;
   gap: 10px;
   margin-bottom: 18px;
@@ -704,10 +755,13 @@ textarea {
 }
 
 .homepageCanvas {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: max(540px, calc(100dvh - 210px));
-  padding: 12px 10px 22px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   background: #ffffff;
   box-shadow: 0 18px 50px rgba(17, 24, 39, 0.09);
 }
@@ -772,7 +826,7 @@ textarea {
 }
 
 .onboardingBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 90;
   inset: 0;
   display: grid;
@@ -781,7 +835,7 @@ textarea {
 }
 
 .onboardingCard {
-  width: min(100%, 430px);
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -866,15 +920,13 @@ textarea {
 
 .editorDock {
   position: sticky;
-  bottom: 12px;
+  bottom: 0;
   z-index: 10;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   align-items: end;
   min-height: 76px;
-  margin: 0 -4px 16px;
   padding: 10px 8px 8px;
-  border-radius: 0 0 18px 18px;
   background: rgba(247, 248, 251, 0.96);
   box-shadow: 0 -12px 30px rgba(17, 24, 39, 0.07);
   backdrop-filter: blur(12px);
@@ -898,15 +950,18 @@ textarea {
 }
 
 .editorDock .addBlockDockButton {
-  display: grid;
-  place-items: center;
   width: 52px;
   height: 52px;
   min-height: 52px;
   align-self: center;
   justify-self: center;
-  margin: 0;
-  padding: 0;
+  /* The shared dock button is a grid for icon-over-label; this one has only
+     the glyph, so centre it on both axes instead of stacking from the top. */
+  display: grid;
+  place-content: center;
+  place-items: center;
+  gap: 0;
+  margin-top: -20px;
   border: 2px solid #ffffff;
   border-radius: 50%;
   background: #087cff;
@@ -918,15 +973,15 @@ textarea {
 }
 
 .blockPickerBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 50;
   inset: 0;
   background: #ffffff;
 }
 
 .blockPickerSheet {
-  width: min(100%, 430px);
-  min-height: 100vh;
+  width: 100%;
+  min-height: 100%;
   margin: 0 auto;
   overflow: auto;
   background: #ffffff;
@@ -1008,7 +1063,7 @@ textarea {
 }
 
 .settingsBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 60;
   inset: 0;
   display: flex;
@@ -1018,72 +1073,12 @@ textarea {
 }
 
 .settingsSheet {
-  width: min(100%, 430px);
-  max-height: 92vh;
+  width: 100%;
+  max-height: 100%;
   overflow: auto;
   border-radius: 22px 22px 0 0;
   background: #ffffff;
   box-shadow: 0 -18px 54px rgba(17, 24, 39, 0.22);
-}
-
-.websiteSettingsSheet {
-  max-width: 540px;
-}
-
-.websiteSettingsSave {
-  border: 0;
-  background: transparent;
-  color: #087cff;
-  font-weight: 800;
-}
-
-.websiteSettingsFields {
-  display: grid;
-  gap: 18px;
-  padding: 24px;
-}
-
-.websiteSettingsFields input {
-  border: 0;
-  border-radius: 12px;
-  background: #f3f4f8;
-  color: #2e3138;
-  font-size: 17px;
-}
-
-.websiteStatusRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 16px;
-  border-radius: 12px;
-  background: #f3f4f8;
-}
-
-.websiteStatusRow > div {
-  display: grid;
-  gap: 4px;
-}
-
-.websiteStatusRow span:not(.statusPill) {
-  color: #757a85;
-  font-size: 14px;
-}
-
-.statusPill {
-  flex: 0 0 auto;
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: #e6e8ed;
-  color: #505663;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.statusPill.published {
-  background: #e4f7eb;
-  color: #19733a;
 }
 
 .settingsHeader {
@@ -1175,6 +1170,109 @@ textarea {
 .decorationFields input:not([type="color"]) {
   border: 0;
   background: #f3f4f8;
+}
+
+/* Theme gallery */
+.themeGallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.themeCard {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 8px 8px 12px;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: #f3f4f8;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.themeCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.35);
+}
+
+.themeCardActive {
+  border-color: #2563eb;
+  background: #e8f0fe;
+}
+
+.themeCard strong {
+  color: #1f2430;
+  font-size: 13px;
+  font-weight: 800;
+  /* Long theme names must wrap inside the card, never spill out of it. */
+  overflow-wrap: anywhere;
+}
+
+.themeCard small {
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.themeCardCheck {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.themeCardCheck svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Miniature of the real page,
+so the card reads as the theme it applies. */
+.themeSwatch {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 4px;
+  height: 96px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.themeSwatchAvatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.themeSwatchLine {
+  width: 54px;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.themeSwatchLineShort {
+  width: 34px;
+  height: 3px;
+  opacity: 0.75;
+  margin-bottom: 3px;
+}
+
+.themeSwatchButton {
+  width: 100%;
+  height: 11px;
+  border: 1px solid transparent;
+  border-radius: 6px;
 }
 
 .accountForm {
@@ -1314,309 +1412,19 @@ textarea {
   font-weight: 800;
 }
 
+/* The canvas paints the live theme so the builder shows the real page. */
+/* Builder wrapper only. It contributes no padding or background so the shared
+   renderer inside it lays out exactly as it does on the public route.
+   Deliberately not positioned: the sheets it contains use position:absolute
+   and must anchor to the phone frame, not to this scrolling content. */
 .homepagePreviewWrap {
-  position: relative;
-}
-
-.homepagePreview {
-  display: grid;
-  gap: 8px;
-  padding-bottom: 96px;
-}
-
-/* The editor uses the same visual tokens as the visitor-facing page. */
-.editorThemePreview {
-  position: relative;
-  overflow: hidden;
-  padding: 14px;
-  border-radius: 20px;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.18), transparent 18rem),
-    linear-gradient(135deg, var(--from), var(--to));
-  color: var(--text);
-}
-
-.editorThemeBackdrop {
-  position: absolute;
-  inset: -24px;
-  background-position: center;
-  background-size: cover;
-  filter: blur(calc(var(--glass) * 1px)) saturate(1.1);
-  opacity: 0.2;
-  transform: scale(1.06);
-}
-
-.editorThemeCard {
-  position: relative;
-  gap: var(--spacing);
-  padding: 14px 14px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 30px;
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
-  color: var(--text);
-}
-
-.editorThemePreview.glass-dark .editorThemeCard,
-.editorThemePreview.midnight .editorThemeCard,
-.editorThemePreview.neon-glass .editorThemeCard {
-  background: rgba(15, 23, 42, 0.34);
-}
-
-.editorThemePreview.minimal-white {
-  background: #f8fafc;
-  color: #111827;
-}
-
-.editorThemePreview.minimal-white .editorThemeCard {
-  background: rgba(255, 255, 255, 0.88);
-  color: #111827;
-}
-
-.editorThemeCard .bannerPreview {
-  min-height: 175px;
-  border-radius: 20px;
-}
-
-.editorThemeCard .profileEditBlock {
-  display: block;
-  margin: -58px 0 0;
-  text-align: center;
-}
-
-.editorThemeCard .profileEditBlock img {
-  display: block;
-  width: 104px;
-  height: 104px;
-  margin-inline: auto;
-  border: 4px solid rgba(255, 255, 255, 0.7);
-  border-radius: 30px;
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
-}
-
-.editorThemeCard .profileEditBlock > div {
-  padding-top: 0;
-}
-
-.editorThemeCard .profileEditBlock strong {
-  margin: 12px 0 8px;
-  color: var(--heading);
-  font-size: 31px;
-  line-height: 1.04;
-}
-
-.editorThemeCard .profileEditBlock p {
-  margin: 0;
-  color: color-mix(in srgb, var(--text), transparent 18%);
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.48;
-}
-
-.editorBlockStack {
-  display: grid;
-  gap: var(--spacing);
-}
-
-.editorThemeCard .editRow {
-  grid-template-columns: 18px minmax(0, 1fr) 18px;
-  gap: 4px;
-}
-
-.editorThemeCard .canvasLinkButton,
-.editorThemeCard .canvasVideo {
-  min-height: 70px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: var(--button-radius);
-  background: var(--button-bg-glass);
-  color: var(--button-text);
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
-}
-
-.editorThemeCard .canvasLinkButton {
-  grid-template-columns: 48px minmax(0, 1fr) 24px;
-  gap: 12px;
-}
-
-.editorThemeCard .canvasBlockIcon {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.1);
-}
-
-.editorThemeCard .canvasLinkButton strong,
-.editorThemeCard .canvasLinkButton small {
-  text-align: left;
-}
-
-.editorThemeCard .canvasLinkButton small {
-  color: inherit;
-  opacity: 0.72;
-}
-
-.editorThemeCard .canvasLinkButton > svg {
-  width: 20px;
-  height: 20px;
-}
-
-.editorThemeCard .canvasVideo {
-  grid-template-columns: 1fr;
-  text-align: center;
-}
-
-.editorThemeCard .canvasVideo strong {
-  color: inherit;
-}
-
-/* In edit mode the visitor renderer is used directly, so preview and live page cannot drift. */
-.homepageCanvas:has(.homepagePreviewWrap) {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.homepagePreviewWrap.editorThemePreview {
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.editorLegacyControls {
-  display: none;
-}
-
-.editablePublicProfile,
-.editablePublicBlock {
-  cursor: pointer;
-}
-
-.editablePublicProfile:focus-visible,
-.editablePublicBlock:focus-visible {
-  outline: 2px solid #087cff;
-  outline-offset: 4px;
-}
-
-button.publicButton {
-  width: 100%;
-  font: inherit;
-  text-align: left;
-}
-
-.editorPublicSelected {
-  outline: 2px solid #087cff;
-  outline-offset: 4px;
-}
-
-.editRow {
-  display: grid;
-  grid-template-columns: 18px 1fr 26px;
-  align-items: center;
-  gap: 10px;
-}
-
-.editableProfile {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-
-.editableProfile:hover .bannerPreview,
-.editableProfile:hover img {
-  outline: 2px solid rgba(8, 124, 255, 0.62);
-  outline-offset: 3px;
-}
-
-.selectedEditRow {
-  outline: 2px solid #1f7cff;
-  outline-offset: 5px;
-}
-
-.leftHandle,
-.rightHandle {
-  display: grid;
-  place-items: center;
-  color: #b9bcc4;
-}
-
-.leftHandle svg,
-.rightHandle svg {
-  width: 16px;
-  height: 16px;
-}
-
-.selectBlockHandle {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 42px;
-  border: 0;
-  background: transparent;
-  color: #c0c3cb;
-  padding: 0;
-}
-
-.selectBlockHandle svg {
-  width: 10px;
-  height: 10px;
-}
-
-.selectedEditRow .selectBlockHandle {
-  color: #087cff;
-}
-
-.rightHandle button {
-  width: 22px;
-  height: 20px;
-  border: 0;
-  border-radius: 8px;
-  background: #eef1f5;
-  color: #7a7f8a;
-  font-weight: 900;
-}
-
-.bannerPreview {
-  min-height: 132px;
-  border-radius: 16px;
-  background-color: #eef0f4;
-  background-image: linear-gradient(135deg, #e4e7ee, #eef0f4);
-  background-position: center;
-  background-size: cover;
-}
-
-.profileEditBlock {
-  display: grid;
-  grid-template-columns: 82px 1fr;
-  align-items: start;
-  gap: 16px;
-  margin: -22px 24px 16px;
-  padding: 0;
-}
-
-.profileEditBlock img {
-  width: 82px;
-  height: 82px;
-  border: 5px solid #ffffff;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #f2f3f7;
-  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.14);
-}
-
-.profileEditBlock strong,
-.profileEditBlock p {
-  display: block;
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .profileSheetBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 60;
   inset: 0;
   overflow-y: auto;
@@ -1624,7 +1432,7 @@ button.publicButton {
 }
 
 .appearanceSheetBackdrop {
-  position: fixed;
+  position: absolute;
   z-index: 60;
   inset: 0;
   display: grid;
@@ -1633,8 +1441,8 @@ button.publicButton {
 }
 
 .appearanceSheet {
-  width: min(100%, 430px);
-  max-height: min(88vh, 680px);
+  width: 100%;
+  max-height: 100%;
   overflow: auto;
   border-radius: 18px 18px 0 0;
   background: #ffffff;
@@ -1673,52 +1481,6 @@ button.publicButton {
   padding: 20px 24px 30px;
 }
 
-.themeGallery {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px 14px;
-  padding: 20px;
-}
-
-.themeTile {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: #30333a;
-  font-size: 14px;
-  text-align: center;
-}
-
-.themeTilePreview {
-  display: grid;
-  place-items: center;
-  gap: 18px;
-  aspect-ratio: 1 / 1.1;
-  border: 3px solid transparent;
-  border-radius: 12px;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
-  font-size: 16px;
-}
-
-.themeTilePreview i {
-  display: block;
-  width: 62%;
-  height: 20px;
-  border-radius: 6px;
-}
-
-.themeTile.active .themeTilePreview {
-  border-color: #087cff;
-  box-shadow: 0 0 0 3px rgba(8, 124, 255, 0.18), 0 8px 16px rgba(15, 23, 42, 0.12);
-}
-
-.themeTile.active > span:last-child {
-  color: #087cff;
-  font-weight: 800;
-}
-
 .appearanceFields select,
 .appearanceFields input:not([type="color"]) {
   border: 0;
@@ -1740,8 +1502,8 @@ button.publicButton {
 }
 
 .profileEditSheet {
-  width: min(100%, 430px);
-  min-height: 100vh;
+  width: 100%;
+  min-height: 100%;
   margin: 0 auto;
   overflow: auto;
   background: #ffffff;
@@ -1776,12 +1538,6 @@ button.publicButton {
   font-size: 20px;
   font-weight: 900;
   letter-spacing: 2px;
-}
-
-.profileSheetHeader .profileHeaderSave {
-  color: #087cff;
-  font-size: 16px;
-  letter-spacing: 0;
 }
 
 .profileSheetPreview {
@@ -1833,67 +1589,6 @@ button.publicButton {
   color: #34373f;
   font-size: 16px;
   line-height: 1.35;
-}
-
-.profilePreview-centered .profileSheetIdentity,
-.profilePreview-avatar .profileSheetIdentity,
-.profilePreview-none .profileSheetIdentity {
-  grid-template-columns: 1fr;
-  justify-items: center;
-  margin: -42px 24px 0;
-  text-align: center;
-}
-
-.profilePreview-centered .profileSheetIdentity img,
-.profilePreview-avatar .profileSheetIdentity img {
-  border-radius: 50%;
-}
-
-.profilePreview-centered .profileSheetIdentity > div,
-.profilePreview-avatar .profileSheetIdentity > div,
-.profilePreview-none .profileSheetIdentity > div {
-  padding-top: 0;
-}
-
-.profilePreview-avatar,
-.profilePreview-none {
-  padding-top: 30px;
-}
-
-.profilePreview-avatar .profileSheetIdentity,
-.profilePreview-none .profileSheetIdentity {
-  margin-top: 0;
-}
-
-.profileLayoutPicker {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.profileLayoutPicker button {
-  display: grid;
-  min-height: 68px;
-  place-items: center;
-  gap: 5px;
-  border: 1px solid transparent;
-  border-radius: 10px;
-  background: #f4f5f8;
-  color: #525762;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.profileLayoutPicker button svg {
-  width: 19px;
-  height: 19px;
-}
-
-.profileLayoutPicker button.active {
-  border-color: #087cff;
-  background: #eef6ff;
-  color: #087cff;
 }
 
 .profileSheetFields {
@@ -1958,203 +1653,10 @@ button.publicButton {
   min-height: 74px;
 }
 
-.subdomainInput {
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-  border: 1px solid #e1e4eb;
-  border-radius: 12px;
-  background: #f3f4f8;
-}
-
-.profileSheetFields .subdomainInput input {
-  min-width: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-}
-
-.subdomainInput span {
-  flex: 0 0 auto;
-  padding: 0 14px 0 4px;
-  color: #757a85;
-  font-size: 16px;
-  font-weight: 700;
-}
-
-.subdomainPreview {
-  display: block;
-  margin-top: 7px;
-  overflow: hidden;
-  color: #757a85;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .profileSaveButton {
   min-height: 50px;
   margin-top: 4px;
   font-size: 16px;
-}
-
-.profileEditBlock strong {
-  color: #000000;
-  font-size: 20px;
-  line-height: 1.05;
-}
-
-.profileEditBlock > div {
-  padding-top: 42px;
-  min-width: 0;
-}
-
-.profileEditBlock p {
-  margin-top: 5px;
-  color: #3f4148;
-  font-size: 14px;
-  line-height: 1.35;
-}
-
-.canvasLinkButton {
-  display: grid;
-  grid-template-columns: 36px 1fr;
-  gap: 9px;
-  align-items: center;
-  min-height: 62px;
-  border: 0;
-  border-radius: 14px;
-  background: #000000;
-  color: #ffffff;
-  padding: 12px;
-  text-align: left;
-}
-
-.canvasSelectable {
-  width: 100%;
-  cursor: pointer;
-}
-
-.canvasSelected {
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.72),
-    0 0 0 1px rgba(8, 124, 255, 0.18);
-}
-
-.canvasLinkButton strong,
-.canvasLinkButton small {
-  display: block;
-}
-
-.canvasLinkButton strong {
-  overflow: hidden;
-  font-size: 16px;
-  line-height: 1.1;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.canvasLinkButton small {
-  margin-top: 4px;
-  color: rgba(255, 255, 255, 0.68);
-  font-size: 12px;
-  text-align: center;
-}
-
-.canvasBlockIcon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 16px;
-  font-weight: 900;
-  text-align: center;
-}
-
-.canvasBlockFields,
-.canvasVideo,
-.canvasTextBlock {
-  min-width: 0;
-}
-
-.canvasBlockFields {
-  display: grid;
-  gap: 7px;
-}
-
-.canvasLinkButton label,
-.canvasVideo label,
-.canvasTextBlock label {
-  display: grid;
-  gap: 3px;
-}
-
-.canvasLinkButton label span,
-.canvasVideo label span,
-.canvasTextBlock label span {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 10px;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.canvasTextBlock label span {
-  color: #6b7280;
-}
-
-.canvasLinkButton input,
-.canvasVideo input,
-.canvasTextBlock input {
-  min-height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.1);
-  color: inherit;
-  padding: 6px 8px;
-  font-weight: 780;
-}
-
-.canvasTextBlock input {
-  border-color: rgba(17, 24, 39, 0.12);
-  background: #ffffff;
-  color: #111827;
-}
-
-.canvasVideo {
-  overflow: hidden;
-  display: grid;
-  gap: 8px;
-  border-radius: 16px;
-  background: #202400;
-  color: #ffffff;
-  padding: 10px;
-}
-
-.canvasVideo label span {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.canvasVideo iframe,
-.canvasVideo video,
-.publicVideo iframe,
-.publicVideo video {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 0;
-  border-radius: 12px;
-  background: #111827;
-}
-
-.canvasTextBlock {
-  display: grid;
-  gap: 7px;
-  padding: 12px;
-  border-radius: 14px;
-  background: #f3f4f6;
-  color: #111827;
 }
 
 .inlineToggle {
@@ -2237,23 +1739,19 @@ button.publicButton {
 }
 
 .selectedBlockToolbar {
-  position: fixed;
-  z-index: 70;
-  left: 50%;
-  bottom: max(14px, env(safe-area-inset-bottom));
-  width: min(calc(100vw - 28px), 610px);
-  transform: translateX(-50%);
+  position: sticky;
+  bottom: 10px;
+  z-index: 12;
   display: grid;
-  grid-template-columns: 56px repeat(6, minmax(0, 1fr));
+  grid-template-columns: 68px repeat(6, 1fr);
   align-items: center;
-  gap: 1px;
-  min-height: 86px;
-  margin: 0;
-  padding: 8px 10px;
-  border: 1px solid rgba(17, 24, 39, 0.06);
-  border-radius: 18px;
+  gap: 5px;
+  min-height: 82px;
+  margin: -80px -10px 0;
+  padding: 10px 8px;
+  border-radius: 24px;
   background: rgba(246, 247, 251, 0.95);
-  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.2);
+  box-shadow: 0 -18px 32px rgba(17, 24, 39, 0.14);
   backdrop-filter: blur(18px);
 }
 
@@ -2269,9 +1767,9 @@ button.publicButton {
 
 .selectedBlockToolbar button span {
   display: block;
-  margin: 0 auto 3px;
+  margin: 0 auto 5px;
   color: #2c2f36;
-  font-size: 20px;
+  font-size: 24px;
   line-height: 1;
 }
 
@@ -2282,18 +1780,18 @@ button.publicButton {
 .selectedBlockToolbar .closeToolbarButton {
   display: grid;
   place-items: center;
-  width: 48px;
-  height: 48px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   background: #ffffff;
   color: #30323a;
-  font-size: 28px;
+  font-size: 34px;
   font-weight: 350;
-  box-shadow: 0 3px 12px rgba(17, 24, 39, 0.08);
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.12);
 }
 
 .linkSheetBackdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 50;
   display: grid;
@@ -2303,7 +1801,7 @@ button.publicButton {
 
 .linkEditSheet {
   overflow: hidden;
-  width: min(100%, 430px);
+  width: 100%;
   max-height: min(92vh, 680px);
   border-radius: 18px 18px 0 0;
   background: #ffffff;
@@ -2928,236 +2426,98 @@ button.publicButton {
   box-shadow: 0 22px 60px rgba(17, 24, 39, 0.24);
 }
 
-.phoneFrame .publicExperience {
-  min-height: 100%;
-  padding: 14px;
-}
-
-.phoneFrame .publicCard {
-  width: 100%;
-}
-
+/* Public route wrapper. All page design lives in .pageSurface below, which the
+   builder preview renders too - this only provides full height. */
 .publicExperience {
   position: relative;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 26px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.18), transparent 18rem),
-    linear-gradient(135deg, var(--from), var(--to));
-  color: var(--text);
-  font-family: Inter, Arial, Helvetica, sans-serif;
-}
-
-.publicBackdrop {
-  position: absolute;
-  inset: -24px;
-  background-position: center;
-  background-size: cover;
-  filter: blur(calc(var(--glass) * 1px)) saturate(1.1);
-  opacity: 0.2;
-  transform: scale(1.06);
-}
-
-.publicCard {
-  position: relative;
-  width: min(100%, 430px);
-  display: grid;
-  gap: var(--spacing);
-  padding: 14px 14px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 30px;
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
-  color: var(--text);
-}
-
-.publicBanner {
-  min-height: 175px;
-  border-radius: 20px;
-  background-color: rgba(255, 255, 255, 0.12);
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
-  background-position: center;
-  background-size: cover;
-}
-
-.glass-dark .publicCard,
-.midnight .publicCard,
-.neon-glass .publicCard {
-  background: rgba(15, 23, 42, 0.34);
-}
-
-.minimal-white.publicExperience {
-  background: #f8fafc;
-  color: #111827;
-}
-
-.minimal-white .publicCard {
-  background: rgba(255, 255, 255, 0.88);
-  color: #111827;
-}
-
-.publicProfile {
-  text-align: center;
-  margin-top: -58px;
-}
-
-.publicProfile img {
-  display: block;
-  margin-inline: auto;
-  width: 104px;
-  height: 104px;
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.16);
-  border: 4px solid rgba(255, 255, 255, 0.7);
-  border-radius: 30px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
-}
-
-.publicProfile h1 {
-  margin: 12px 0 8px;
-  color: var(--heading);
-  font-size: 31px;
-  line-height: 1.04;
-  letter-spacing: 0;
-}
-
-.publicProfile p {
-  margin: 0;
-  color: color-mix(in srgb, var(--text), transparent 18%);
-  font-weight: 700;
-  line-height: 1.48;
-}
-
-.publicProfile.profile-centered {
-  margin-top: -42px;
-}
-
-.publicProfile.profile-centered img,
-.publicProfile.profile-avatar img {
-  border-radius: 50%;
-}
-
-.publicProfile.profile-avatar,
-.publicProfile.profile-none {
-  margin-top: 0;
-}
-
-.publicProfile.profile-avatar {
-  padding-top: 10px;
-}
-
-.publicProfile.profile-none {
-  padding-top: 12px;
-}
-
-.blockStack {
-  display: grid;
-  gap: var(--spacing);
-}
-
-.publicButton,
-.publicVideo {
-  display: grid;
-  grid-template-columns: 48px 1fr 24px;
-  align-items: center;
-  gap: 12px;
-  min-height: 70px;
-  padding: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: var(--button-radius);
-  background: var(--button-bg-glass);
-  color: var(--button-text);
-  text-decoration: none;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.publicButton:hover,
-.publicVideo:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
-}
-
-.publicButton:active,
-.publicVideo:active {
-  transform: translateY(1px) scale(0.99);
-}
-
-.publicButton > span {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.1);
-  font-size: 12px;
-  font-weight: 950;
-}
-
-.publicButton strong,
-.publicButton small {
-  display: block;
-}
-
-.publicButton small {
-  margin-top: 3px;
-  opacity: 0.72;
-  font-weight: 750;
-}
-
-.publicButton em {
-  font-style: normal;
-  font-weight: 950;
-}
-
-.publicHeading {
-  margin: 8px 0 0;
-  color: var(--heading);
-  font-size: 22px;
-}
-
-.publicText {
-  margin: 0;
-  line-height: 1.5;
-  font-weight: 700;
-}
-
-.publicDivider {
-  width: 100%;
-  border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.36);
-}
-
-.publicImage {
-  width: 100%;
-  min-height: 120px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 22px;
-}
-
-.publicVideo {
-  grid-template-columns: 1fr;
-  text-align: center;
-}
-
-.publicFooter {
+  min-height: 100dvh;
   display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  color: color-mix(in srgb, var(--text), transparent 20%);
-  font-size: 13px;
-  font-weight: 800;
+  flex-direction: column;
+  overflow-x: hidden;
 }
 
-.publicFooter a {
-  color: inherit;
+/* Card surface treatments,
+shared by the theme swatches and the real page. */
+.surface-glass {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.34);
+}
+
+.surface-glass-dark {
+  background: rgba(15, 23, 42, 0.34);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.surface-solid {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(15, 23, 42, 0.08);
+  backdrop-filter: none;
+}
+
+.surface-plain {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.surface-plain-dark {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+/* Button treatments. Each supplies background, border and shadow; .pageButton
+   provides layout only. */
+.buttonStyle-glass {
+  background: var(--button-bg-glass);
+  border: 1px solid var(--button-border);
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
+.buttonStyle-solid {
+  background: var(--button-bg);
+  border: 1px solid transparent;
+}
+
+.buttonStyle-soft {
+  background: var(--button-bg-glass);
+  border: 1px solid transparent;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+}
+
+.buttonStyle-outline {
+  background: transparent;
+  border: 1.5px solid var(--button-border);
+  box-shadow: none;
+}
+
+.buttonStyle-pill {
+  background: var(--button-bg);
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+}
+
+.buttonStyle-minimal {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--button-border);
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.buttonStyle-elevated {
+  background: var(--button-bg);
+  border: 1px solid transparent;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.32);
+}
+
+.buttonStyle-neon {
+  background: transparent;
+  border: 1.5px solid var(--button-bg);
+  color: var(--button-bg);
+  box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15), 0 0 22px rgba(34, 211, 238, 0.35);
 }
 
 .notFound {
@@ -3187,8 +2547,7 @@ button.publicButton {
   .livePreview {
     grid-column: 1 / -1;
     position: static;
-  }
-}
+  }}
 
 @media (max-width: 860px) {
   .adminShell {
@@ -3201,7 +2560,7 @@ button.publicButton {
   }
 
   .dashboardHeader,
-  .editorTop {
+.editorTop {
     display: grid;
   }
 
@@ -3211,12 +2570,12 @@ button.publicButton {
   }
 
   .colorGrid,
-  .analyticsPanel {
+.analyticsPanel {
     grid-template-columns: 1fr;
   }
 
   .chart,
-  .topLinks {
+.topLinks {
     grid-column: auto;
   }
 
@@ -3225,21 +2584,9 @@ button.publicButton {
     min-height: 0;
     border: 0;
     border-radius: 24px;
-  }
-}
+  }}
 
 @media (max-width: 560px) {
-  .websiteShell {
-    padding: 0;
-    place-items: stretch;
-  }
-
-  .websitePhone {
-    width: 100%;
-    min-height: 100vh;
-    border-radius: 0;
-  }
-
   .upgradeBar {
     min-height: 64px;
   }
@@ -3269,7 +2616,7 @@ button.publicButton {
   }
 
   .homeHero,
-  .loginCard {
+.loginCard {
     padding: 26px;
     border-radius: 22px;
   }
@@ -3278,8 +2625,7 @@ button.publicButton {
     font-size: 36px;
   }
 
-  .pageManager,
-  .publicExperience {
+  .pageManager {
     padding: 14px;
   }
 
@@ -3288,17 +2634,13 @@ button.publicButton {
   }
 
   .blockActions,
-  .cardActions {
+.cardActions {
     justify-content: start;
-  }
+  }}
 
-  .publicCard {
-    padding: 18px;
-    border-radius: 24px;
-  }
-}
-
-/* Final UI polish: shared interaction, icon, and responsive layout rules. */
+/* Final UI polish: shared interaction,
+icon,
+and responsive layout rules. */
 button,
 a,
 input,
@@ -3317,10 +2659,6 @@ a svg {
 
 button:hover:not(:disabled) {
   filter: brightness(0.98);
-}
-
-.websitePhone {
-  min-height: min(760px, calc(100vh - 52px));
 }
 
 .upgradeBar button,
@@ -3368,9 +2706,7 @@ button:hover:not(:disabled) {
 .quickActions span,
 .detailMenu span,
 .editorDock button span,
-.blockPickerIcon,
-.canvasBlockIcon,
-.publicButton > span {
+.blockPickerIcon {
   display: grid;
   place-items: center;
 }
@@ -3378,9 +2714,7 @@ button:hover:not(:disabled) {
 .quickActions span svg,
 .detailMenu span svg,
 .editorDock button span svg,
-.blockPickerIcon svg,
-.canvasBlockIcon svg,
-.publicButton > span svg {
+.blockPickerIcon svg {
   width: 20px;
   height: 20px;
 }
@@ -3389,22 +2723,8 @@ button:hover:not(:disabled) {
   justify-self: end;
 }
 
-.homepageEditorShell {
-  padding: 24px 16px 40px;
-}
-
-.homepageEditor {
-  width: min(100%, 430px);
-}
-
 .homepageCanvas {
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  border-radius: 16px;
-}
-
-.homepagePreview {
-  gap: 12px;
-  padding-bottom: 24px;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .editorDock {
@@ -3427,20 +2747,8 @@ button:hover:not(:disabled) {
   height: 24px;
 }
 
-.editableProfile:focus-visible .bannerPreview,
-.editableProfile:focus-visible img {
-  outline: 3px solid rgba(8, 124, 255, 0.52);
-  outline-offset: 4px;
-}
-
-.profileEditBlock strong,
-.profileEditBlock p,
 .profileSheetIdentity strong,
-.profileSheetIdentity p,
-.publicProfile h1,
-.publicProfile p,
-.publicButton strong,
-.publicButton small {
+.profileSheetIdentity p {
   overflow-wrap: anywhere;
 }
 
@@ -3487,39 +2795,28 @@ button:hover:not(:disabled) {
   height: 24px;
 }
 
-.publicButton > svg {
-  width: 18px;
-  height: 18px;
-  opacity: 0.8;
-}
-
 .videoPlaceholder > svg {
   width: 28px;
   height: 28px;
 }
 
 @media (min-width: 561px) {
-  .websiteShell {
-    padding: 32px 24px;
-  }
-
   .profileSheetBackdrop,
-  .blockPickerBackdrop,
-  .appearanceSheetBackdrop {
+.blockPickerBackdrop,
+.appearanceSheetBackdrop {
     display: grid;
     place-items: center;
     padding: 24px;
   }
 
   .profileEditSheet,
-  .blockPickerSheet,
-  .appearanceSheet {
+.blockPickerSheet,
+.appearanceSheet {
     min-height: 0;
     max-height: min(88vh, 760px);
     border-radius: 18px;
     box-shadow: 0 24px 72px rgba(15, 23, 42, 0.24);
-  }
-}
+  }}
 
 @media (max-width: 860px) {
   .adminNav {
@@ -3543,25 +2840,15 @@ button:hover:not(:disabled) {
 
   .dashboardHeader {
     align-items: start;
-  }
-}
+  }}
 
 @media (max-width: 560px) {
-  .homepageEditorShell {
-    padding: 12px 0 28px;
-  }
-
-  .homepageEditor {
-    width: 100%;
-  }
-
   .homepageEditorTop {
     padding: 0 12px;
     margin-bottom: 12px;
   }
 
   .homepageCanvas {
-    min-height: max(520px, calc(100dvh - 184px));
     border-inline: 0;
     border-radius: 0;
   }
@@ -3573,12 +2860,8 @@ button:hover:not(:disabled) {
     margin: 12px 12px 0;
   }
 
-  .profileEditBlock {
-    margin-inline: 18px;
-  }
-
   .profileSheetPreview,
-  .profileSheetFields {
+.profileSheetFields {
     padding-inline: 18px;
   }
 
@@ -3610,5 +2893,724 @@ button:hover:not(:disabled) {
 
   .quickActions {
     margin-inline: 20px;
+  }}
+/* ==========================================================================
+   Shared page design system
+
+   Every rule below styles the output of <PageRenderer/>, which the public
+   route and the admin builder's phone preview both render. There is no
+   separate "preview" styling: the builder only adds selection affordances
+   (.pageBlockRow*) around this markup, so the two views cannot drift.
+   ========================================================================== */
+
+.smartPage {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  color: var(--text);
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.16), transparent 18rem),
+    linear-gradient(135deg, var(--from), var(--to));
+}
+
+/* Caps content at the phone width so a desktop browser centres the mobile
+   layout instead of stretching it. Identical width inside the builder frame. */
+/* No padding: the cover is flush with the top and sides, so the page reads as
+   a full mobile screen rather than a card floating on a background. */
+.pageColumn {
+  width: 100%;
+  max-width: var(--phone-w);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.smartCard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing);
+  min-width: 0;
+  padding: 0 0 32px;
+  border: 0;
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
+/* Hero band at the very top of the page. object-fit-style cover behaviour via
+   background-size so the image fills the band without distortion. */
+.pageCover {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+  flex: none;
+  background-color: rgba(255, 255, 255, 0.12);
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.pageCoverEdit {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* Pulled up so the avatar straddles the cover's bottom edge. */
+.pageProfile {
+  display: grid;
+  gap: 10px;
+  margin-top: -46px;
+  padding: 0 18px;
+  flex: none;
+}
+
+/* Identity wrapper. A <div> publicly, a <button> in the builder - same class,
+   so both produce the same box and the layout cannot differ. */
+.pageIdentity {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+/* One switch drives the entire identity block — avatar, title, subtitle — plus
+   the social row, so alignment is never applied to the text alone. */
+[data-align="center"] .pageIdentity {
+  justify-items: center;
+  text-align: center;
+}
+
+[data-align="left"] .pageIdentity {
+  justify-items: start;
+  text-align: left;
+}
+
+[data-align="right"] .pageIdentity {
+  justify-items: end;
+  text-align: right;
+}
+
+[data-align="center"] .pageSocials {
+  justify-content: center;
+}
+
+[data-align="left"] .pageSocials {
+  justify-content: flex-start;
+}
+
+[data-align="right"] .pageSocials {
+  justify-content: flex-end;
+}
+
+/* The bio is width-capped for readability; keep that cap anchored to the
+   chosen side instead of always centring it. */
+[data-align="center"] .pageBio {
+  margin-inline: auto;
+}
+
+[data-align="left"] .pageBio {
+  margin-inline: 0 auto;
+}
+
+[data-align="right"] .pageBio {
+  margin-inline: auto 0;
+}
+
+.pageAvatar {
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.18);
+  border: 4px solid rgba(255, 255, 255, 0.72);
+  border-radius: 28px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.24);
+}
+
+.pageAvatarFallback {
+  background: color-mix(in srgb, var(--button-bg, #ffffff), transparent 22%);
+  color: var(--button-text, #111827);
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.pageTitle {
+  margin: 0;
+  color: var(--heading);
+  font-size: clamp(21px, 6.6vw, 27px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.pageBio {
+  margin: 0;
+  max-width: 34ch;
+  color: color-mix(in srgb, var(--text), transparent 15%);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+/* Glass circle over the cover's top-right. Sits above .pageCoverEdit and well
+   clear of the avatar, which overlaps the cover's bottom edge. */
+.pageShare {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.32);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
+}
+
+.pageShare svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* Label is for assistive tech only; the control is an icon button. */
+.pageShare span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pageBlocks {
+  display: grid;
+  gap: var(--spacing);
+  padding: 2px 18px 0;
+}
+
+/* Layout only. Background, border and shadow come from the .buttonStyle-*
+   class so a theme can restyle buttons without fighting this rule.
+
+   The label is centred on the button itself, not on the space left over beside
+   the icon, so it reads as a title bar with a badge rather than a list row. */
+.pageButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+  padding: 11px 16px;
+  border-radius: var(--button-radius);
+  color: var(--button-text);
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+/* With an icon present, reserve the same width on both sides so the title
+   stays centred and long text can never run underneath the badge. */
+.pageButton:has(.pageButtonIcon:not(:empty)) {
+  padding-inline: 62px;
+}
+
+.pageButtonIcon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.pageButtonIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pageButtonIcon:empty {
+  display: none;
+}
+
+.pageButtonLabel {
+  display: block;
+  min-width: 0;
+  text-align: center;
+}
+
+.pageButtonLabel strong,
+.pageButtonLabel small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pageButtonLabel strong {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.pageButtonLabel small {
+  margin-top: 2px;
+  opacity: 0.72;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pageHeading {
+  margin: 6px 0 0;
+  color: var(--heading);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pageText {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pageDivider {
+  width: 100%;
+  height: 1px;
+  margin: 6px 0;
+  border: 0;
+  background: color-mix(in srgb, var(--text), transparent 72%);
+}
+
+.pageImage {
+  display: block;
+  width: 100%;
+  border-radius: var(--button-radius);
+  object-fit: cover;
+}
+
+.pageImageFallback {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  background: rgba(255, 255, 255, 0.14);
+  color: color-mix(in srgb, var(--text), transparent 40%);
+}
+
+.pageImageFallback svg {
+  width: 30px;
+  height: 30px;
+}
+
+.pageVideo {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg-glass);
+  color: var(--button-text);
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
+.pageVideo iframe,
+.pageVideo video,
+.pageVideo .videoPlaceholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.pageVideo strong {
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pageSocials {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 0 18px;
+}
+
+.pageSocialIcon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--button-border);
+  border-radius: 50%;
+  background: var(--button-bg-glass);
+  color: var(--button-text);
+  text-decoration: none;
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+  transition: transform 180ms ease;
+}
+
+.pageSocialIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pageSocialWrap {
+  display: contents;
+}
+
+@media (hover: hover) {
+  .pageButton:hover,
+  .pageVideo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
   }
+
+  .pageSocialIcon:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.pageButton:active,
+.pageSocialIcon:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* --------------------------------------------------------------------------
+   Builder-only affordances. These wrap the shared markup without altering its
+   size or styling, so the preview stays a faithful copy of the public page.
+   -------------------------------------------------------------------------- */
+
+.pageBlockRow {
+  position: relative;
+  border-radius: var(--button-radius);
+  cursor: pointer;
+}
+
+.pageBlockRowSelected::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid #0b7cff;
+  border-radius: calc(var(--button-radius) + 4px);
+  pointer-events: none;
+}
+
+.pageBlockHidden {
+  opacity: 0.45;
+}
+
+.pageCoverEdit,
+.pageIdentityEditable,
+.pageBlockRow {
+  cursor: pointer;
+}
+
+.pageCoverEdit:hover,
+.pageIdentityEditable:hover .pageAvatar {
+  outline: 2px solid rgba(11, 124, 255, 0.6);
+  outline-offset: 3px;
+}
+
+/* ==========================================================================
+   Image uploader — the one image control used across the admin panel
+   ========================================================================== */
+
+.uploaderField {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.uploaderLabel {
+  color: #2e3138;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.uploader {
+  position: relative;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1.5px dashed rgba(17, 24, 39, 0.16);
+  border-radius: 14px;
+  background: #f3f4f8;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.uploaderDragging {
+  border-color: #2563eb;
+  background: #e8f0fe;
+}
+
+.uploaderBusy {
+  opacity: 0.75;
+}
+
+.uploaderPreview {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: #e4e7ee;
+  color: #9aa1ae;
+}
+
+.uploaderPreviewRound {
+  border-radius: 50%;
+}
+
+.uploaderPreview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.uploaderPreview svg {
+  width: 22px;
+  height: 22px;
+}
+
+.uploaderBody {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+/* A styled label drives the hidden file input, so no raw browser control shows. */
+.uploaderButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 10px;
+  background: #0b7cff;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.uploaderButton svg {
+  width: 16px;
+  height: 16px;
+}
+
+.uploaderBody small {
+  color: #6b7280;
+  font-size: 11.5px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.uploaderRemove {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.uploaderRemove svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Hidden but still reachable by keyboard through its label. */
+.uploaderInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+  min-height: 0;
+}
+
+.uploaderInput:focus-visible + * {
+  outline: 3px solid rgba(37, 99, 235, 0.32);
+}
+
+.uploaderError {
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.uploaderSpinner {
+  animation: uploaderSpin 900ms linear infinite;
+}
+
+@keyframes uploaderSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uploaderSpinner {
+    animation: none;
+  }
+}
+
+/* Preview chip inside the link/add-link sheets. Mirrors the real page button
+   (badge left, title centred on the whole chip) but uses fixed values, since a
+   sheet sits outside the themed page surface. */
+.sheetPreviewButton {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+  padding: 11px 16px;
+  border-radius: 16px;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.sheetPreviewButton:has(.sheetPreviewIcon:not(:empty)) {
+  padding-inline: 62px;
+}
+
+.sheetPreviewButton strong {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.sheetPreviewIcon {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.sheetPreviewIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sheetPreviewIcon:empty {
+  display: none;
+}
+
+.sheetPreviewImage {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  border-radius: 14px;
+  object-fit: cover;
+  background: #e4e7ee;
+}
+
+/* Grouped sections in the profile editor, so the controls read as
+   Profile / Images / Alignment rather than one flat list. */
+.editorSection {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #f7f8fb;
+}
+
+.editorSection h3 {
+  margin: 0;
+  color: #1f2430;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Segmented control */
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border-radius: 14px;
+  background: #e7e9f0;
+}
+
+.segmentedOption {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  min-height: 58px;
+  padding: 9px 4px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #5b6070;
+  font-size: 12px;
+  font-weight: 800;
+  transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.segmentedOption svg {
+  width: 18px;
+  height: 18px;
+}
+
+.segmentedOption:hover:not(.segmentedOptionActive) {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.segmentedOptionActive {
+  background: #ffffff;
+  color: #0b7cff;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12);
 }
