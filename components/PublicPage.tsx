@@ -23,7 +23,7 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   }, [page.slug, preview]);
 
   async function track(block: PageBlock) {
-    if (preview || ["heading", "text", "divider", "image", "video"].includes(block.type)) return;
+    if (preview || ["heading", "text", "divider", "image", "video", "youtube"].includes(block.type)) return;
     await fetch("/api/track/click", {
       method: "POST",
       headers: { "content-type": "application/json" },

@@ -101,16 +101,17 @@ function BlockFields({ block, selected, first, last, busy, onSelect, onEdit, onD
   onSelect: () => void; onEdit: (patch: Partial<PageBlock>) => void; onDelete: () => void; onDuplicate: () => void; onMove: (direction: number) => void;
 }) {
   const [iconsOpen, setIconsOpen] = useState(false);
-  const link = !['heading', 'text', 'divider', 'image', 'video'].includes(block.type);
+  const video = block.type === 'video' || block.type === 'youtube';
+  const link = !['heading', 'text', 'divider', 'image', 'video', 'youtube'].includes(block.type);
   return <article className={`admBlock ${!block.isActive ? 'admBlockHidden' : ''}`}>
     <header><button type="button" className="admBlockSummary" onClick={onSelect} aria-expanded={selected}><span>{resolveBlockIcon(block.icon, block.type)}</span><span><strong>{block.title || blockTypes.find(type => type.value === block.type)?.label}</strong><small>{block.type}</small></span></button><div className="admActionRow"><IconButton icon={block.isActive ? Eye : EyeOff} label={block.isActive ? 'Hide block' : 'Show block'} onClick={() => onEdit({ isActive: !block.isActive })} /><IconButton icon={ArrowUp} label="Move block up" disabled={first || busy} onClick={() => onMove(-1)} /><IconButton icon={ArrowDown} label="Move block down" disabled={last || busy} onClick={() => onMove(1)} /><IconButton icon={Copy} label="Duplicate block" disabled={busy} onClick={onDuplicate} /><IconButton icon={Trash2} label="Delete block" disabled={busy} onClick={onDelete} /></div></header>
     {selected && <div className="admBlockFields">
-      {block.type !== 'divider' && <Field label={block.type === 'video' ? 'Caption' : 'Title'}><input value={block.title} onChange={event => onEdit({ title: event.target.value })} /></Field>}
+      {block.type !== 'divider' && <Field label={video ? 'Caption' : 'Title'}><input value={block.title} onChange={event => onEdit({ title: event.target.value })} /></Field>}
       {block.type === 'text' ? <Field label="Text"><textarea rows={4} value={block.subtitle} onChange={event => onEdit({ subtitle: event.target.value })} /></Field> : link && <Field label="Subtitle"><input value={block.subtitle} onChange={event => onEdit({ subtitle: event.target.value })} /></Field>}
       {link && !['phone', 'whatsapp'].includes(block.type) && <Field label={block.type === 'email' ? 'Email' : 'URL or username'}><input value={block.url} onChange={event => onEdit({ url: event.target.value })} /></Field>}
       {['phone', 'whatsapp'].includes(block.type) && <Field label="Phone number"><input type="tel" value={block.phone} onChange={event => onEdit({ phone: event.target.value })} /></Field>}
       {['email', 'whatsapp'].includes(block.type) && <Field label="Prefilled message"><textarea value={block.message} onChange={event => onEdit({ message: event.target.value })} /></Field>}
-      {block.type === 'video' && <Field label="Video URL"><input type="url" value={block.videoUrl || block.url} onChange={event => onEdit({ videoUrl: event.target.value, url: event.target.value })} /></Field>}
+      {video && <Field label="Video URL"><input type="url" value={block.videoUrl || block.url} onChange={event => onEdit({ videoUrl: event.target.value, url: event.target.value })} /></Field>}
       {block.type === 'image' && <ImageUploader category="block" label="Image" value={block.imageUrl || block.url} onChange={imageUrl => onEdit({ imageUrl })} />}
       {link && <><div className="admFormGrid"><Field label="Icon"><button type="button" className="admButton" onClick={() => setIconsOpen(true)}>{resolveBlockIcon(block.icon, block.type)}Choose icon</button></Field><Field label="Button color"><div className="admActionRow"><input aria-label="Custom button color" type="color" value={typeof block.settings.buttonColor === 'string' ? block.settings.buttonColor : '#000000'} onChange={event => onEdit({ settings: { ...block.settings, buttonColor: event.target.value } })} /><IconButton icon={X} label="Use theme button color" onClick={() => onEdit({ settings: { ...block.settings, buttonColor: '' } })} /></div></Field></div></>}
     </div>}

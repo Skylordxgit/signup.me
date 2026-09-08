@@ -275,7 +275,7 @@ export function PageBlockView({
     return <BlockImage alt={block.title} src={block.imageUrl || block.url} />;
   }
 
-  if (block.type === "video") {
+  if (block.type === "video" || block.type === "youtube") {
     return (
       <div className="pageVideo">
         <PlayableVideo preview={preview} src={block.videoUrl || block.url} title={block.title || "Video"} />
@@ -449,12 +449,9 @@ function videoEmbedUrl(src: string) {
   if (!src) return { type: "empty" as const, src: "" };
   try {
     const url = new URL(src);
-    if (url.hostname.includes("youtube.com")) {
-      const id = url.searchParams.get("v");
-      if (id) return { type: "iframe" as const, src: `https://www.youtube.com/embed/${id}` };
-    }
-    if (url.hostname.includes("youtu.be")) {
-      return { type: "iframe" as const, src: `https://www.youtube.com/embed/${url.pathname.slice(1)}` };
+    const youtubeId = youtubeVideoId(url);
+    if (youtubeId) {
+      return { type: "iframe" as const, src: `https://www.youtube.com/embed/${youtubeId}` };
     }
     if (url.hostname.includes("vimeo.com")) {
       return { type: "iframe" as const, src: `https://player.vimeo.com/video/${url.pathname.split("/").filter(Boolean).pop()}` };
@@ -466,4 +463,15 @@ function videoEmbedUrl(src: string) {
     return { type: "empty" as const, src: "" };
   }
   return { type: "iframe" as const, src };
+}
+
+function youtubeVideoId(url: URL) {
+  const host = url.hostname.replace(/^www\./, "");
+  if (host === "youtu.be") return url.pathname.split("/").filter(Boolean)[0] || "";
+  if (!host.endsWith("youtube.com")) return "";
+  const direct = url.searchParams.get("v");
+  if (direct) return direct;
+  const parts = url.pathname.split("/").filter(Boolean);
+  const marker = parts.findIndex((part) => ["embed", "shorts", "live"].includes(part));
+  return marker >= 0 ? parts[marker + 1] || "" : "";
 }

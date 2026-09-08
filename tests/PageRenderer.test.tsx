@@ -70,6 +70,24 @@ test("links, consecutive social icons, and videos keep their saved order", () =>
   assert.deepEqual(page.blocks.map(({ id }) => id), [3, 4, 1, 2]);
 });
 
+test("youtube blocks render as embedded video players", () => {
+  const page = fixture();
+  const block = page.blocks[0];
+  page.blocks = [{
+    ...block,
+    id: 9,
+    type: "youtube",
+    title: "YouTube",
+    url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    videoUrl: "",
+    sortOrder: 1,
+  }];
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(html, /class="pageVideo"/);
+  assert.match(html, /https:\/\/www\.youtube\.com\/embed\/dQw4w9WgXcQ/);
+  assert.doesNotMatch(html, /class="pageButton/);
+});
+
 test("Share is shown only when enabled, including pages without a cover", () => {
   for (const backgroundImage of ["", "/uploads/banner.webp"]) {
     const page = fixture();
