@@ -76,8 +76,9 @@ test('MySQL automatically migrates existing subscriber table and saves details',
   const details = { device: 'iPhone', browser: 'Safari', ipAddress: '198.51.100.8', country: 'BD', city: '', timezone: 'Asia/Dhaka' };
   await mysqlStore.savePushSubscription('example', row().subscription_json, iphone, details);
   const summary = await mysqlStore.listPushSubscribers();
-  assert.equal(upgrades, 1);
+  assert.equal(upgrades, 3);
   assert.equal(summary.total, 1);
+  assert.equal(summary.inactive, 0);
   assert.equal(summary.recent?.[0].ipAddress, details.ipAddress);
   assert.ok(!JSON.stringify(summary).includes('secret'));
 });
@@ -91,6 +92,7 @@ test('JSON subscribers preserve older records and persist details for new subscr
   await jsonStore.savePushSubscription('example', { endpoint: 'https://push.example/new', keys: { auth: 'secret', p256dh: 'secret' } }, iphone, details);
   const summary = await jsonStore.listPushSubscribers();
   assert.equal(summary.total, 2);
+  assert.equal(summary.inactive, 0);
   assert.equal(summary.recent?.[0].ipAddress, '198.51.100.9');
   assert.equal(summary.recent?.[1].device, 'Android');
   assert.equal(summary.recent?.[1].ipAddress, '');

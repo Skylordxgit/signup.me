@@ -1,11 +1,13 @@
 import { isIP } from 'node:net';
 import type { SubscriberDetails, SubscriberListItem } from './types';
 
-export function subscriberListItem(item: { id: number; pageId: number; slug: string; createdAt: string; userAgent: string; details?: Partial<SubscriberDetails> | null }): SubscriberListItem {
+export function subscriberListItem(item: { id: number; pageId: number; slug: string; createdAt: string; userAgent: string; details?: Partial<SubscriberDetails> | null; isActive?: boolean; lastFailedAt?: string | null }): SubscriberListItem {
   const inferred = subscriberDevice(item.userAgent);
   const details = item.details;
   return {
     id: item.id, pageId: item.pageId, slug: item.slug, createdAt: item.createdAt,
+    isActive: item.isActive !== false,
+    lastFailedAt: item.lastFailedAt ?? null,
     device: details?.device || inferred.device,
     browser: details?.browser || inferred.browser,
     ipAddress: details?.ipAddress || '', country: details?.country || '', city: details?.city || '', timezone: details?.timezone || '',

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Check, Copy, Eye, EyeOff, Plus, Trash2, User, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, Plus, Trash2, User, X } from "lucide-react";
 import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "@/lib/types";
 import { blockTypes } from "@/lib/utils";
 import { applyThemeDefinition, resolveAlignment, resolveButtonStyle, resolveProfileLayout, themeLibrary } from "@/lib/themes";
@@ -9,39 +9,71 @@ import { ImageUploader } from "../ImageUploader";
 import { PageRenderer, resolveBlockIcon } from "../PageRenderer";
 import { PhoneFrame } from "../PhoneFrame";
 import { Dialog, EmptyState, Field, IconButton, SectionHeading } from "./AdminUI";
-import { notificationPromptDefaults, resolveNotificationPrompt } from '@/lib/notificationPrompt';
+import { notificationPromptDefaults, resolveNotificationPrompt, type NotificationPromptCopyKey } from '@/lib/notificationPrompt';
 
 export type BuilderTab = "profile" | "content" | "design" | "seo" | "integrations" | "notifications";
 
 export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; onEdit: (patch: Partial<SmartPage>) => void }) {
   const settings = page.integrations.notificationPrompt || {};
   const copy = resolveNotificationPrompt(settings);
-  const fields: { key: keyof typeof notificationPromptDefaults; label: string; long?: boolean }[] = [
-    { key: 'heading', label: 'Prompt heading' },
-    { key: 'message', label: 'Prompt message', long: true },
-    { key: 'allowLabel', label: 'Allow button' },
-    { key: 'footer', label: 'Footer text', long: true },
-    { key: 'successHeading', label: 'Success heading' },
-    { key: 'successMessage', label: 'Success message', long: true },
-    { key: 'continueLabel', label: 'Continue button' },
-    { key: 'busyLabel', label: 'Subscribing text' },
-    { key: 'retryLabel', label: 'Retry button' },
-    { key: 'errorMessage', label: 'Error message', long: true },
-    { key: 'closeLabel', label: 'Close button label' },
-    { key: 'installHeading', label: 'iPhone setup heading' },
-    { key: 'installMessage', label: 'iPhone requirements', long: true },
-    { key: 'installStepOne', label: 'iPhone setup step 1', long: true },
-    { key: 'installStepTwo', label: 'iPhone setup step 2', long: true },
-    { key: 'installStepThree', label: 'iPhone setup step 3', long: true },
-    { key: 'updateMessage', label: 'Older iPhone message', long: true },
-    { key: 'unsupportedMessage', label: 'Unsupported browser message', long: true },
-    { key: 'blockedMessage', label: 'Blocked permission message', long: true },
-    { key: 'secureMessage', label: 'HTTPS required message', long: true },
-    { key: 'dataNotice', label: 'Subscriber data notice', long: true },
-  ];
-  return <><SectionHeading title="Notification prompt" />
-    <div className="admFormStack">{fields.map(({ key, label, long }) => <Field key={key} label={label}>{long ? <textarea dir="auto" rows={3} maxLength={400} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} /> : <input dir="auto" maxLength={120} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} />}</Field>)}</div>
-    <section className="admPromptCopyPreview" dir="auto" aria-label="Notification prompt preview"><h3>{copy.heading}</h3><strong>{page.title}</strong><p>{copy.message}</p><div>{copy.allowLabel}</div><small>{copy.footer}</small></section>
+  const enabled = settings.enabled === true;
+  const updateSettings = (next: typeof settings) => onEdit({ integrations: { ...page.integrations, notificationPrompt: next } });
+  const setText = (key: NotificationPromptCopyKey, value: string) => updateSettings({ ...settings, [key]: value });
+  const renderPromptField = (name: NotificationPromptCopyKey, label: string, long = false) =>
+    <Field key={name} label={label}>{long ? <textarea dir="auto" rows={3} maxLength={400} placeholder={notificationPromptDefaults[name]} value={settings[name] ?? ''} onChange={event => setText(name, event.target.value)} /> : <input dir="auto" maxLength={120} placeholder={notificationPromptDefaults[name]} value={settings[name] ?? ''} onChange={event => setText(name, event.target.value)} />}</Field>;
+
+  return <><SectionHeading title="Notifications" />
+    <div className="admPromptLayout">
+      <div className="admFormStack">
+        <label className="admSwitchRow">
+          <span><strong>Visitor prompt</strong><small>{enabled ? 'Visitors can subscribe on this page.' : 'Visitors will not see the subscribe prompt.'}</small></span>
+          <input type="checkbox" checked={enabled} onChange={event => updateSettings({ ...settings, enabled: event.target.checked })} />
+        </label>
+        <section className="admFormSection">
+          <h3>Subscribe prompt</h3>
+          {renderPromptField('heading', 'Heading')}
+          {renderPromptField('message', 'Message', true)}
+          <div className="admFormGrid">{renderPromptField('allowLabel', 'Allow button')}{renderPromptField('closeLabel', 'Close label')}</div>
+          {renderPromptField('footer', 'Footer', true)}
+          {renderPromptField('dataNotice', 'Subscriber data note', true)}
+        </section>
+        <section className="admFormSection">
+          <h3>After subscription</h3>
+          {renderPromptField('successHeading', 'Success heading')}
+          {renderPromptField('successMessage', 'Success message', true)}
+          <div className="admFormGrid">{renderPromptField('continueLabel', 'Done button')}{renderPromptField('busyLabel', 'Loading text')}{renderPromptField('retryLabel', 'Retry button')}</div>
+          {renderPromptField('errorMessage', 'Error message', true)}
+        </section>
+        <details className="admFormSection admPromptAdvanced">
+          <summary>iPhone and unsupported browser text</summary>
+          <div className="admFormStack">
+            {renderPromptField('installHeading', 'iPhone heading')}
+            {renderPromptField('installMessage', 'iPhone requirement', true)}
+            {renderPromptField('installStepOne', 'iPhone step 1', true)}
+            {renderPromptField('installStepTwo', 'iPhone step 2', true)}
+            {renderPromptField('installStepThree', 'iPhone step 3', true)}
+            {renderPromptField('updateMessage', 'Older iPhone message', true)}
+            {renderPromptField('unsupportedMessage', 'Unsupported browser message', true)}
+            {renderPromptField('blockedMessage', 'Blocked permission message', true)}
+            {renderPromptField('secureMessage', 'HTTPS message', true)}
+          </div>
+        </details>
+      </div>
+      <aside className="admPromptPreviewWrap">
+        <SectionHeading title="Prompt preview" />
+        <section className={`admPromptCopyPreview ${!enabled ? 'admPromptCopyPreviewOff' : ''}`} dir="auto" aria-label="Notification prompt preview">
+          <button type="button" aria-label={copy.closeLabel}><X size={18} /></button>
+          <span aria-hidden="true"><Bell size={28} /></span>
+          <h3>{copy.heading}</h3>
+          <strong>{page.title || page.name}</strong>
+          <p>{copy.message}</p>
+          <div>{copy.allowLabel}</div>
+          <small>{copy.footer}</small>
+          <small>{copy.dataNotice}</small>
+          {!enabled && <em>Hidden on public page until Visitor prompt is turned on.</em>}
+        </section>
+      </aside>
+    </div>
   </>;
 }
 type Props = {

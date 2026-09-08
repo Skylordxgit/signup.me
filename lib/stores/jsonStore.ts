@@ -372,6 +372,8 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
     existing.subscription = subscription;
     existing.userAgent = userAgent.slice(0, 500);
     if (details) existing.details = details;
+    existing.isActive = true;
+    existing.lastFailedAt = null;
     existing.updatedAt = timestamp;
     await writeJsonDb(db);
     return existing;
@@ -385,6 +387,8 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
     subscription,
     userAgent: userAgent.slice(0, 500),
     details,
+    isActive: true,
+    lastFailedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -395,26 +399,28 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
 
 export async function listPushSubscribers(): Promise<NotificationSubscriberSummary> {
   const db = await readJsonDb();
-  const byPage = db.pushSubscriptions.reduce<Map<number, { pageId: number; slug: string; subscribers: number }>>((acc, item) => {
+  const active = db.pushSubscriptions.filter(item => item.isActive !== false);
+  const byPage = active.reduce<Map<number, { pageId: number; slug: string; subscribers: number }>>((acc, item) => {
     const current = acc.get(item.pageId) ?? { pageId: item.pageId, slug: item.slug, subscribers: 0 };
     current.subscribers += 1;
     acc.set(item.pageId, current);
     return acc;
   }, new Map());
-  const recent = [...db.pushSubscriptions].sort((a, b) => b.id - a.id).slice(0, 100).map(item => subscriberListItem({ ...item, slug: db.pages.find(page => page.id === item.pageId)?.slug || item.slug }));
-  return { total: db.pushSubscriptions.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers), recent };
+  const recent = [...db.pushSubscriptions].sort((a, b) => b.id - a.id).slice(0, 100).map(item => subscriberListItem({ ...item, isActive: item.isActive !== false, slug: db.pages.find(page => page.id === item.pageId)?.slug || item.slug }));
+  return { total: active.length, inactive: db.pushSubscriptions.length - active.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers), recent };
 }
 
 export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
   configureWebPush();
   const db = await readJsonDb();
-  const subscribers = db.pushSubscriptions.filter((item) => !input.pageId || item.pageId === input.pageId);
+  const subscribers = db.pushSubscriptions.filter((item) => item.isActive !== false && (!input.pageId || item.pageId === input.pageId));
   const { result, expired } = await sendPushBatch(subscribers.map(item => item.subscription), notificationPayload(input));
   if (expired.length) {
     const hashes = new Set(expired.map(subscriptionHash));
     // Re-read after delivery so subscribers added while sending are retained.
     const latest = await readJsonDb();
-    latest.pushSubscriptions = latest.pushSubscriptions.filter(item => !hashes.has(item.endpointHash));
+    const timestamp = nowIso();
+    latest.pushSubscriptions = latest.pushSubscriptions.map(item => hashes.has(item.endpointHash) ? { ...item, isActive: false, lastFailedAt: timestamp, updatedAt: timestamp } : item);
     await writeJsonDb(latest);
   }
 

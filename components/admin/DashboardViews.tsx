@@ -122,7 +122,7 @@ export function MediaView() {
 }
 
 export function NotificationsView({ pages }: { pages: PageSummary[] }) {
-  const [summary, setSummary] = useState<NotificationSubscriberSummary>({ total: 0, byPage: [] });
+  const [summary, setSummary] = useState<NotificationSubscriberSummary>({ total: 0, inactive: 0, byPage: [] });
   const [configured, setConfigured] = useState(false);
   const [pageId, setPageId] = useState('all');
   const [title, setTitle] = useState('New update from signup888');
@@ -199,7 +199,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
     </div>
     {!loading && !configured && <details className="admNotificationSetup"><summary>Notifications need setup before you can send</summary><p>Add these keys in your hosting settings, then redeploy:</p><ul><li><code>WEB_PUSH_PUBLIC_KEY</code></li><li><code>NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY</code></li><li><code>WEB_PUSH_PRIVATE_KEY</code></li></ul><p>Both public keys must use the same value.</p></details>}
     {error && <p className="admError" role="alert">{error}</p>}
-    {result && <p className={result.failed && !result.sent ? 'admError' : 'admSuccess'} role="status">{number(result.sent)} accepted for delivery · {number(result.failed)} failed · {number(result.removed)} expired subscriptions removed</p>}
+    {result && <p className={result.failed && !result.sent ? 'admError' : 'admSuccess'} role="status">{number(result.sent)} accepted for delivery · {number(result.failed)} failed · {number(result.removed)} expired marked inactive</p>}
     <div className="admNotificationGrid">
     <form onSubmit={send} className="admNotificationComposer">
       <SectionHeading title="New notification" />
@@ -222,12 +222,12 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
     </div>
     <section className="admSubscriberSection">
       <SectionHeading title="Subscriber details"><span className="admMuted">Latest 100 subscriptions</span></SectionHeading>
-      <p className="admMuted">Device and browser are reported by the visitor. IP location is approximate; a time zone is not a physical location.</p>
+      <p className="admMuted">Device and browser are reported by the visitor. IP location is approximate; a time zone is not a physical location. Inactive subscribers stay saved, but cannot receive pushes unless they subscribe again.</p>
       {loading ? <p role="status">Loading subscribers...</p> : !summary.recent?.length ? <p className="admMuted">No subscriber details yet.</p> : <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Subscriber details">
         <table className="admSubscriberTable">
-          <thead><tr><th scope="col">Subscriber</th><th scope="col">Page</th><th scope="col">Device / browser</th><th scope="col">IP address</th><th scope="col">Approx. location</th><th scope="col">Time zone</th><th scope="col">Subscribed</th></tr></thead>
+          <thead><tr><th scope="col">Subscriber</th><th scope="col">Page</th><th scope="col">Status</th><th scope="col">Device / browser</th><th scope="col">IP address</th><th scope="col">Approx. location</th><th scope="col">Time zone</th><th scope="col">Subscribed</th></tr></thead>
           <tbody>{summary.recent.map(item => <tr key={item.id}>
-            <td>#{item.id}</td><td>/{item.slug}</td><td>{item.device}<small>{item.browser}</small></td>
+            <td>#{item.id}</td><td>/{item.slug}</td><td>{item.isActive === false ? 'Inactive' : 'Active'}{item.lastFailedAt && <small>Last failed {new Date(item.lastFailedAt).toLocaleString()}</small>}</td><td>{item.device}<small>{item.browser}</small></td>
             <td>{item.ipAddress || 'Not recorded'}</td><td>{[item.city, item.country].filter(Boolean).join(', ') || 'Not recorded'}</td>
             <td>{item.timezone || 'Not recorded'}</td><td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></td>
           </tr>)}</tbody>

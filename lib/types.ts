@@ -181,6 +181,8 @@ export type NotificationSubscriber = {
   endpointHash: string;
   userAgent: string;
   details?: SubscriberDetails;
+  isActive?: boolean;
+  lastFailedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -194,10 +196,11 @@ export type SubscriberDetails = {
   timezone: string;
 };
 
-export type SubscriberListItem = Pick<NotificationSubscriber, 'id' | 'pageId' | 'slug' | 'createdAt'> & SubscriberDetails;
+export type SubscriberListItem = Pick<NotificationSubscriber, 'id' | 'pageId' | 'slug' | 'createdAt' | 'isActive' | 'lastFailedAt'> & SubscriberDetails;
 
 export type NotificationSubscriberSummary = {
   total: number;
+  inactive: number;
   byPage: { pageId: number; slug: string; subscribers: number }[];
   recent?: SubscriberListItem[];
 };

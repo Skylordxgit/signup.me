@@ -8,8 +8,9 @@ import { BuilderEditor } from "../components/admin/BuilderEditor";
 import { ProfileFields } from "../components/admin/BuilderEditor";
 import { NotificationPromptFields } from '../components/admin/BuilderEditor';
 import { editablePage } from '../lib/admin';
-import { resolveNotificationPrompt } from '../lib/notificationPrompt';
+import { isNotificationPromptEnabled, resolveNotificationPrompt } from '../lib/notificationPrompt';
 import { NotificationOptIn } from '../components/NotificationOptIn';
+import { PublicPage } from '../components/PublicPage';
 import { combineAnalytics } from "../lib/admin";
 import { seedPages } from "../lib/defaults";
 import { isValidImageUrl, parseBlockIcon } from "../lib/utils";
@@ -66,9 +67,11 @@ test("upload roots are absolute, anchored to the app, and still contain traversa
 
 test('page-specific prompt text survives the save payload and reaches the visitor prompt', () => {
   const page = seedPages()[0];
-  page.integrations.notificationPrompt = { heading: 'Noticias', allowLabel: 'Permitir', successHeading: 'Suscrito', message: '<script>plain text</script>' };
+  page.integrations.notificationPrompt = { enabled: true, heading: 'Noticias', allowLabel: 'Permitir', successHeading: 'Suscrito', message: '<script>plain text</script>' };
   const saved = JSON.parse(JSON.stringify(editablePage(page)));
+  assert.equal(saved.integrations.notificationPrompt.enabled, true);
   assert.equal(saved.integrations.notificationPrompt.heading, 'Noticias');
+  assert.equal(isNotificationPromptEnabled(saved.integrations.notificationPrompt), true);
   const html = renderToStaticMarkup(<NotificationOptIn slug={page.slug} title={page.title} settings={saved.integrations.notificationPrompt} />);
   assert.match(html, /Noticias/);
   assert.match(html, /Permitir/);
@@ -76,6 +79,15 @@ test('page-specific prompt text survives the save payload and reaches the visito
   assert.match(html, /&lt;script&gt;plain text&lt;\/script&gt;/);
   assert.equal(resolveNotificationPrompt({ heading: ' ' }).heading, 'Stay up to date');
   assert.match(renderToStaticMarkup(<NotificationPromptFields page={page} onEdit={() => {}} />), /value="Noticias"/);
+  assert.match(renderToStaticMarkup(<NotificationPromptFields page={page} onEdit={() => {}} />), /Prompt preview/);
+});
+
+test('public pages only render the notification prompt when the visitor prompt is enabled', () => {
+  const page = seedPages()[0];
+  page.integrations.notificationPrompt = { heading: 'Hidden prompt' };
+  assert.doesNotMatch(renderToStaticMarkup(<PublicPage page={page} />), /Hidden prompt/);
+  page.integrations.notificationPrompt = { enabled: true, heading: 'Visible prompt' };
+  assert.match(renderToStaticMarkup(<PublicPage page={page} />), /Visible prompt/);
 });
 
 test("workspace analytics merge daily and device totals and weight the click rate", () => {

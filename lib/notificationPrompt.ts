@@ -22,7 +22,14 @@ export const notificationPromptDefaults = {
   dataNotice: 'When you subscribe, the page owner can see your reported device/browser, time zone, and IP address and approximate location when available. This does not reveal your identity or precise location.',
 };
 
-export type NotificationPromptSettings = Partial<typeof notificationPromptDefaults>;
+export type NotificationPromptCopyKey = keyof typeof notificationPromptDefaults;
+export type NotificationPromptSettings = Partial<Record<NotificationPromptCopyKey, string>> & {
+  enabled?: boolean;
+};
+
+export function isNotificationPromptEnabled(settings?: NotificationPromptSettings) {
+  return settings?.enabled === true;
+}
 
 export function resolveNotificationPrompt(settings?: NotificationPromptSettings) {
   const result = { ...notificationPromptDefaults };

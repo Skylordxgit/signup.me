@@ -65,6 +65,7 @@ export async function sendPushBatch(subscriptions: PushSubscriptionRecord[], pay
       } catch (error) {
         if (isGonePushError(error)) {
           expired.push(subscription.endpoint);
+          // Kept for API compatibility: "removed" means inactive/expired, not deleted.
           result.removed += 1;
         } else result.failed += 1;
       }

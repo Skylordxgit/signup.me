@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import type { PageBlock, SmartPage } from "@/lib/types";
 import { NotificationOptIn } from "./NotificationOptIn";
 import { PageRenderer } from "./PageRenderer";
+import { isNotificationPromptEnabled } from "@/lib/notificationPrompt";
 
 /**
  * The public route. All page design lives in PageRenderer, which the admin
@@ -34,7 +35,7 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
   return (
     <main className="publicExperience">
       <PageRenderer page={page} onTrack={track} preview={preview} />
-      {!preview && <NotificationOptIn key={page.slug} slug={page.slug} title={page.title} settings={page.integrations.notificationPrompt} />}
+      {!preview && isNotificationPromptEnabled(page.integrations.notificationPrompt) && <NotificationOptIn key={page.slug} slug={page.slug} title={page.title} settings={page.integrations.notificationPrompt} />}
     </main>
   );
 }

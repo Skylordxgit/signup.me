@@ -268,12 +268,33 @@
 .admNotificationSetup p { margin: 12px 0 0; }
 .admNotificationSetup ul { padding-left: 20px; margin: 10px 0; }
 .admNotificationComposer { min-width: 0; }
-.admPromptCopyPreview { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--adm-line); text-align: center; overflow-wrap: anywhere; }
-.admPromptCopyPreview h3 { font-size: 22px; margin-bottom: 14px; }
-.admPromptCopyPreview p { margin: 14px 0; line-height: 1.6; }
-.admPromptCopyPreview > div { padding: 12px; margin: 8px 0; border: 1px solid var(--adm-line); border-radius: 6px; }
-.admPromptCopyPreview > div:first-of-type { background: #2465d7; color: white; }
-.admPromptCopyPreview small { display: block; margin-top: 12px; }
+.admPromptLayout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); align-items: start; gap: 28px; }
+.admSwitchRow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border: 1px solid var(--adm-line); border-radius: 8px; background: #f8fbff; }
+.admSwitchRow > span { min-width: 0; }
+.admSwitchRow strong, .admSwitchRow small { display: block; }
+.admSwitchRow strong { font-size: 15px; margin-bottom: 4px; }
+.admSwitchRow small { color: var(--adm-muted); line-height: 1.45; }
+.admSwitchRow input { flex: none; width: 46px; height: 26px; appearance: none; border: 1px solid #cbd6e5; border-radius: 999px; background: #d9e1ec; transition: background .16s ease, border-color .16s ease; }
+.admSwitchRow input::before { content: ""; display: block; width: 20px; height: 20px; margin: 2px; border-radius: 50%; background: white; box-shadow: 0 1px 4px #15223a26; transition: transform .16s ease; }
+.admSwitchRow input:checked { border-color: #2465d7; background: #2465d7; }
+.admSwitchRow input:checked::before { transform: translateX(20px); }
+.admSwitchRow input:focus-visible { outline: 3px solid #8eb7ff; outline-offset: 3px; }
+.admPromptAdvanced { padding: 16px; }
+.admPromptAdvanced summary { cursor: pointer; font-weight: 650; }
+.admPromptAdvanced .admFormStack { margin-top: 16px; }
+.admPromptPreviewWrap { position: sticky; top: 18px; min-width: 0; }
+.admPromptPreviewWrap .admSectionHeading { margin-bottom: 12px; }
+.admPromptCopyPreview { position: relative; padding: 72px 20px 22px; border: 1px solid #dce2eb; border-radius: 8px; background: white; text-align: center; overflow-wrap: anywhere; box-shadow: 0 18px 50px #14213512; }
+.admPromptCopyPreview > button { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 38px; height: 38px; padding: 0; color: #566276; background: #f2f6fc; border: 0; border-radius: 6px; }
+.admPromptCopyPreview > span { display: grid; place-items: center; width: 58px; height: 58px; margin: 0 auto 18px; border-radius: 8px; color: #2465d7; background: #edf4ff; }
+.admPromptCopyPreview h3 { font-size: 24px; line-height: 1.2; margin-bottom: 14px; }
+.admPromptCopyPreview p { margin: 14px 0; color: #586579; line-height: 1.6; }
+.admPromptCopyPreview > strong { display: block; font-size: 16px; }
+.admPromptCopyPreview > div { padding: 12px; margin: 16px 0 8px; border: 1px solid var(--adm-line); border-radius: 6px; font-weight: 650; }
+.admPromptCopyPreview > div:first-of-type { background: #2465d7; border-color: #2465d7; color: white; }
+.admPromptCopyPreview small { display: block; margin-top: 12px; color: #6c788a; font-size: 12px; line-height: 1.45; }
+.admPromptCopyPreview em { display: block; margin-top: 16px; padding: 10px 12px; border-radius: 6px; color: #7a520c; background: #fff5dc; font-size: 13px; font-style: normal; line-height: 1.45; }
+.admPromptCopyPreviewOff { opacity: .72; }
 .admSubscriberSection { min-width: 0; margin-top: 28px; border-top: 1px solid var(--adm-line); padding-top: 20px; }
 .admSubscriberScroll { max-width: 100%; overflow-x: auto; margin-top: 16px; }
 .admSubscriberTable { width: 100%; min-width: 880px; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: 14px; }
@@ -301,6 +322,8 @@
 @media (max-width: 1100px) {
   .admNotificationGrid { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .admNotificationAside { padding: 24px 0 0; border-left: 0; border-top: 1px solid var(--adm-line); }
+  .admPromptLayout { grid-template-columns: minmax(0, 1fr); }
+  .admPromptPreviewWrap { position: static; }
 }
 @media (max-width: 600px) {
   .admNotificationMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }

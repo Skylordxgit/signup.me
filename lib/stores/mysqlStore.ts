@@ -53,6 +53,8 @@ type PushRow = {
   subscription_json: unknown;
   user_agent: string | null;
   client_details: unknown;
+  is_active?: number | boolean;
+  last_failed_at?: string | Date | null;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -161,6 +163,8 @@ function ensurePushTable() {
       subscription_json JSON NOT NULL,
       user_agent VARCHAR(500) NULL,
       client_details JSON NULL,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      last_failed_at TIMESTAMP NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_push_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
@@ -168,10 +172,16 @@ function ensurePushTable() {
     )`,
   ).then(async () => {
     // Upgrade existing installations automatically; concurrent workers may race.
-    const columns = await mysqlQuery<{ Field: string }[]>("SHOW COLUMNS FROM push_subscriptions LIKE 'client_details'");
-    if (!columns.length) {
-      try { await mysqlQuery('ALTER TABLE push_subscriptions ADD COLUMN client_details JSON NULL'); }
-      catch (error) { if ((error as { code?: string }).code !== 'ER_DUP_FIELDNAME') throw error; }
+    for (const { name, sql } of [
+      { name: 'client_details', sql: 'ALTER TABLE push_subscriptions ADD COLUMN client_details JSON NULL' },
+      { name: 'is_active', sql: 'ALTER TABLE push_subscriptions ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1' },
+      { name: 'last_failed_at', sql: 'ALTER TABLE push_subscriptions ADD COLUMN last_failed_at TIMESTAMP NULL' },
+    ]) {
+      const columns = await mysqlQuery<{ Field: string }[]>(`SHOW COLUMNS FROM push_subscriptions LIKE '${name}'`);
+      if (!columns.length) {
+        try { await mysqlQuery(sql); }
+        catch (error) { if ((error as { code?: string }).code !== 'ER_DUP_FIELDNAME') throw error; }
+      }
     }
   }).catch(error => { pushTableReady = null; throw error; });
   return pushTableReady;
@@ -594,9 +604,9 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
 
   const endpointHash = subscriptionHash(subscription.endpoint);
   await mysqlQuery(
-    `INSERT INTO push_subscriptions (page_id, endpoint_hash, subscription_json, user_agent, client_details)
-     VALUES (?, ?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), client_details = COALESCE(VALUES(client_details), client_details)`,
+    `INSERT INTO push_subscriptions (page_id, endpoint_hash, subscription_json, user_agent, client_details, is_active, last_failed_at)
+     VALUES (?, ?, ?, ?, ?, 1, NULL)
+     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), client_details = COALESCE(VALUES(client_details), client_details), is_active = 1, last_failed_at = NULL`,
     [pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500), details ? JSON.stringify(details) : null],
   );
 
@@ -615,6 +625,8 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
     endpointHash: row.endpoint_hash,
     subscription: toJson<PushSubscriptionRecord>(row.subscription_json, subscription),
     userAgent: row.user_agent ?? "",
+    isActive: row.is_active == null ? true : Boolean(row.is_active),
+    lastFailedAt: row.last_failed_at ? toIso(row.last_failed_at) : null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -626,17 +638,20 @@ export async function listPushSubscribers(): Promise<NotificationSubscriberSumma
     `SELECT ps.page_id, p.slug, COUNT(*) AS subscribers
      FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
+     WHERE ps.is_active = 1
      GROUP BY ps.page_id, p.slug
      ORDER BY subscribers DESC`,
   );
-  const recent = await mysqlQuery<Pick<PushRow, 'id' | 'page_id' | 'slug' | 'user_agent' | 'client_details' | 'created_at'>[]>(
-    `SELECT ps.id, ps.page_id, p.slug, ps.user_agent, ps.client_details, ps.created_at
+  const totals = await mysqlQuery<{ inactive: number }[]>("SELECT COUNT(*) AS inactive FROM push_subscriptions WHERE is_active = 0");
+  const recent = await mysqlQuery<Pick<PushRow, 'id' | 'page_id' | 'slug' | 'user_agent' | 'client_details' | 'is_active' | 'last_failed_at' | 'created_at'>[]>(
+    `SELECT ps.id, ps.page_id, p.slug, ps.user_agent, ps.client_details, ps.is_active, ps.last_failed_at, ps.created_at
      FROM push_subscriptions ps INNER JOIN pages p ON p.id = ps.page_id ORDER BY ps.id DESC LIMIT 100`,
   );
   return {
     total: rows.reduce((sum, row) => sum + Number(row.subscribers), 0),
+    inactive: Number(totals[0]?.inactive ?? 0),
     byPage: rows.map((row) => ({ pageId: row.page_id, slug: row.slug, subscribers: Number(row.subscribers) })),
-    recent: recent.map(row => subscriberListItem({ id: Number(row.id), pageId: Number(row.page_id), slug: row.slug, userAgent: row.user_agent || '', createdAt: toIso(row.created_at), details: toJson<Partial<SubscriberDetails>>(row.client_details, {}) })),
+    recent: recent.map(row => subscriberListItem({ id: Number(row.id), pageId: Number(row.page_id), slug: row.slug, userAgent: row.user_agent || '', isActive: row.is_active == null ? true : Boolean(row.is_active), lastFailedAt: row.last_failed_at ? toIso(row.last_failed_at) : null, createdAt: toIso(row.created_at), details: toJson<Partial<SubscriberDetails>>(row.client_details, {}) })),
   };
 }
 
@@ -646,14 +661,14 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   const rows = await mysqlQuery<PushRow[]>(
     `SELECT ps.*, p.slug FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
-     WHERE (? IS NULL OR ps.page_id = ?)`,
+     WHERE ps.is_active = 1 AND (? IS NULL OR ps.page_id = ?)`,
     [input.pageId ?? null, input.pageId ?? null],
   );
   const subscriptions = rows.map(row => toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }));
   const { result, expired } = await sendPushBatch(subscriptions, notificationPayload(input));
   if (expired.length) {
     const hashes = expired.map(subscriptionHash);
-    await mysqlQuery(`DELETE FROM push_subscriptions WHERE endpoint_hash IN (${hashes.map(() => '?').join(',')})`, hashes);
+    await mysqlQuery(`UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE endpoint_hash IN (${hashes.map(() => '?').join(',')})`, hashes);
   }
 
   return result;

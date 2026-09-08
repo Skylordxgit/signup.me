@@ -145,6 +145,7 @@ does not substitute for location. VPNs and proxies can obscure the actual addres
 Subscriber data is returned only through the authenticated admin API with
 no-store caching. The visitor prompt discloses collection before subscribing.
 
-MySQL automatically adds a nullable client_details JSON column to the existing
-push_subscriptions table on first use; the database user needs ALTER privileges.
+MySQL automatically adds the nullable client_details JSON column plus inactive
+subscriber tracking columns to the existing push_subscriptions table on first
+use; the database user needs ALTER privileges.
 No manual SQL import is needed. Local JSON storage also supports these fields.
