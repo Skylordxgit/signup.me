@@ -1,6 +1,8 @@
 import { randomBytes } from "crypto";
+import { existsSync } from "fs";
 import { mkdir, readdir, stat, writeFile } from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
 
 /**
  * Uploaded files live on disk, never in the database — the database only ever
@@ -10,9 +12,78 @@ import path from "path";
  * so files written at runtime are served correctly regardless of how the
  * production build handles static assets.
  */
-export const uploadRoot = process.env.UPLOAD_DIR
-  ? path.resolve(process.env.UPLOAD_DIR)
-  : path.join(process.cwd(), "data", "uploads");
+
+function moduleDirectory() {
+  try {
+    const url = import.meta.url;
+    if (!url || !url.startsWith("file:")) return null;
+    return path.dirname(fileURLToPath(url));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where the app is installed, which — unlike process.cwd() — does not change
+ * with however the host happens to launch the process. A standalone build runs
+ * from <app>/dist/standalone, so step back out of the build output first.
+ */
+function applicationRoot() {
+  const directory = moduleDirectory();
+  if (!directory) return null;
+
+  const buildOutput = `${path.sep}dist${path.sep}standalone`;
+  const index = directory.indexOf(buildOutput);
+  let current = index === -1 ? directory : directory.slice(0, index);
+
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (existsSync(path.join(current, "package.json"))) return current;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
+}
+
+function distinctPaths(values: (string | null)[]) {
+  const seen = new Set<string>();
+  const roots: string[] = [];
+  for (const value of values) {
+    if (!value) continue;
+    const resolved = path.resolve(value);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    roots.push(resolved);
+  }
+  return roots;
+}
+
+const configuredRoot = process.env.UPLOAD_DIR ? path.resolve(process.env.UPLOAD_DIR) : null;
+const installedRoot = applicationRoot();
+
+/**
+ * Every directory an upload may live in. New files are written to the first
+ * entry; all of them are searched when serving.
+ *
+ * Resolving only against process.cwd() meant that restarting the app from a
+ * different directory — which a host's process manager may well do — left
+ * every stored path pointing at a directory the app no longer looked in, so
+ * saved images 404'd while the database and the files were both intact.
+ */
+export const uploadRoots = distinctPaths([
+  configuredRoot,
+  installedRoot ? path.join(installedRoot, "data", "uploads") : null,
+  path.join(process.cwd(), "data", "uploads"),
+]);
+
+export const uploadRoot = uploadRoots[0];
+
+if (!configuredRoot && process.env.NODE_ENV === "production") {
+  console.warn(
+    `[uploads] UPLOAD_DIR is not set, so uploads are written to ${uploadRoot}. `
+    + "Point UPLOAD_DIR at a directory outside the deploy folder to keep them across deployments.",
+  );
+}
 
 /** Folders an upload may target. Anything else is rejected outright. */
 export const uploadCategories = [
@@ -83,18 +154,24 @@ export type MediaFile = StoredUpload & { name: string; category: UploadCategory;
 
 export async function listMediaUploads(): Promise<MediaFile[]> {
   const files: MediaFile[] = [];
-  for (const category of uploadCategories) {
-    const directory = path.join(uploadRoot, category);
-    let entries;
-    try { entries = await readdir(directory, { withFileTypes: true }); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") continue; throw error; }
-    for (const entry of entries) {
-      if (!entry.isFile()) continue;
-      const filePath = path.join(directory, entry.name);
-      const mime = contentTypeFor(filePath);
-      if (!mime) continue;
-      const info = await stat(filePath);
-      files.push({ name: entry.name, category, path: `/uploads/${category}/${encodeURIComponent(entry.name)}`, mime, bytes: info.size, updatedAt: info.mtime.toISOString() });
+  const seen = new Set<string>();
+  for (const root of uploadRoots) {
+    for (const category of uploadCategories) {
+      const directory = path.join(root, category);
+      let entries;
+      try { entries = await readdir(directory, { withFileTypes: true }); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") continue; throw error; }
+      for (const entry of entries) {
+        if (!entry.isFile()) continue;
+        const key = `${category}/${entry.name}`;
+        if (seen.has(key)) continue;
+        const filePath = path.join(directory, entry.name);
+        const mime = contentTypeFor(filePath);
+        if (!mime) continue;
+        seen.add(key);
+        const info = await stat(filePath);
+        files.push({ name: entry.name, category, path: `/uploads/${category}/${encodeURIComponent(entry.name)}`, mime, bytes: info.size, updatedAt: info.mtime.toISOString() });
+      }
     }
   }
   return files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -113,9 +190,11 @@ export async function storeUpload(
 }
 
 /**
- * Resolve a request path to a file inside the upload root, or null. Rejects
- * traversal ("..", absolute paths, encoded separators) by resolving first and
- * then confirming the result is still contained by the root.
+ * Resolve a request path to a file in one of the upload roots, or null.
+ * Rejects traversal ("..", absolute paths, encoded separators) by resolving
+ * first and then confirming the result is still contained by that root — which
+ * is checked per root, so searching several of them widens where a file may be
+ * found without widening what a request can reach.
  */
 export function resolveUploadPath(segments: string[]) {
   if (!segments.length) return null;
@@ -123,10 +202,16 @@ export function resolveUploadPath(segments: string[]) {
     return null;
   }
 
-  const resolved = path.resolve(uploadRoot, ...segments);
-  const root = path.resolve(uploadRoot);
-  if (resolved !== root && !resolved.startsWith(root + path.sep)) return null;
-  return resolved;
+  let fallback: string | null = null;
+  for (const root of uploadRoots) {
+    const resolved = path.resolve(root, ...segments);
+    if (resolved !== root && !resolved.startsWith(root + path.sep)) continue;
+    if (existsSync(resolved)) return resolved;
+    fallback ??= resolved;
+  }
+  // Nothing on disk: hand back the primary location so the caller reports the
+  // same "not found" it always did.
+  return fallback;
 }
 
 const contentTypes: Record<string, string> = {
