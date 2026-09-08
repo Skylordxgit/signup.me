@@ -2434,6 +2434,7 @@ so the card reads as the theme it applies. */
 
 .pushPrompt { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; padding: 36px 28px 24px; border: 1px solid #dce2e9; border-radius: 8px; background: #fff; color: #17212f; text-align: center; box-shadow: 0 24px 80px #00000030; }
 .pushPrompt::backdrop { background: #11182770; }
+.pushPrompt:not([open]) { display: none; }
 .pushPromptIcon { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 8px; color: #2465d7; background: #edf4ff; }
 .pushPrompt strong { display: block; font-size: 28px; line-height: 1.2; overflow-wrap: anywhere; }
 .pushPrompt p { margin: 14px 0; color: #586579; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
@@ -2445,6 +2446,11 @@ so the card reads as the theme it applies. */
 .pushPromptClose { position: absolute; right: 10px; top: 10px; display: grid; place-items: center; width: 40px; height: 40px; color: #586579; background: #f3f6fa; border: 0; border-radius: 6px; }
 .pushPrompt small { display: block; margin-top: 16px; color: #6c788a; font-size: 13px; line-height: 1.5; }
 .pushPrompt .pushPromptError { color: #a12845; font-size: 14px; }
+.pushPromptHelp { margin-top: 20px; text-align: start; }
+.pushPromptHelp strong { font-size: 18px; }
+.pushPromptHelp ol { padding-inline-start: 24px; font-size: 16px; line-height: 1.6; }
+.pushPromptHelp li + li { margin-top: 10px; }
+.pushPromptFallback[open] { display: block; position: fixed; inset: 16px; z-index: 10000; height: fit-content; max-height: calc(100vh - 32px); box-shadow: 0 0 0 100vmax #11182770; }
 .pushPrompt button:focus-visible { outline: 3px solid #3378e5; outline-offset: 3px; }
 @media (max-width: 520px) { .pushPrompt { padding: 32px 20px 20px; } .pushPrompt strong { font-size: 24px; } }
 

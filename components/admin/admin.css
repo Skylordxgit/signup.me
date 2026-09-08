@@ -274,6 +274,12 @@
 .admPromptCopyPreview > div { padding: 12px; margin: 8px 0; border: 1px solid var(--adm-line); border-radius: 6px; }
 .admPromptCopyPreview > div:first-of-type { background: #2465d7; color: white; }
 .admPromptCopyPreview small { display: block; margin-top: 12px; }
+.admSubscriberSection { min-width: 0; margin-top: 28px; border-top: 1px solid var(--adm-line); padding-top: 20px; }
+.admSubscriberScroll { max-width: 100%; overflow-x: auto; margin-top: 16px; }
+.admSubscriberTable { width: 100%; min-width: 880px; table-layout: fixed; border-collapse: collapse; text-align: left; font-size: 14px; }
+.admSubscriberTable th, .admSubscriberTable td { padding: 12px; border-bottom: 1px solid var(--adm-line); vertical-align: top; overflow-wrap: anywhere; }
+.admSubscriberTable th { font-weight: 600; }
+.admSubscriberTable small { display: block; margin-top: 4px; color: var(--adm-muted); }
 .admNotificationComposer fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
 .admNotificationComposer .admFormStack { gap: 16px; }
 .admMessageCount { text-align: right; color: #738095; font-size: 12px; margin-top: -10px; font-variant-numeric: tabular-nums; }

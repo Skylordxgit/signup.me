@@ -4,6 +4,8 @@ import { defaultTheme } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
+import type { SubscriberDetails } from '../types';
+import { subscriberListItem } from '../subscriberDetails';
 
 type PageRow = {
   id: number;
@@ -50,6 +52,7 @@ type PushRow = {
   endpoint_hash: string;
   subscription_json: unknown;
   user_agent: string | null;
+  client_details: unknown;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -157,12 +160,20 @@ function ensurePushTable() {
       endpoint_hash CHAR(64) NOT NULL UNIQUE,
       subscription_json JSON NOT NULL,
       user_agent VARCHAR(500) NULL,
+      client_details JSON NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_push_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
       INDEX idx_push_page (page_id)
     )`,
-  ).then(() => undefined);
+  ).then(async () => {
+    // Upgrade existing installations automatically; concurrent workers may race.
+    const columns = await mysqlQuery<{ Field: string }[]>("SHOW COLUMNS FROM push_subscriptions LIKE 'client_details'");
+    if (!columns.length) {
+      try { await mysqlQuery('ALTER TABLE push_subscriptions ADD COLUMN client_details JSON NULL'); }
+      catch (error) { if ((error as { code?: string }).code !== 'ER_DUP_FIELDNAME') throw error; }
+    }
+  }).catch(error => { pushTableReady = null; throw error; });
   return pushTableReady;
 }
 
@@ -575,7 +586,7 @@ export async function analyticsForPage(pageId: number): Promise<AnalyticsReport 
   };
 }
 
-export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string) {
+export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails) {
   await ensurePushTable();
   const rows = await mysqlQuery<{ id: number }[]>("SELECT id FROM pages WHERE slug = ? AND status = 'published'", [slug]);
   const pageId = rows[0]?.id;
@@ -583,10 +594,10 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
 
   const endpointHash = subscriptionHash(subscription.endpoint);
   await mysqlQuery(
-    `INSERT INTO push_subscriptions (page_id, endpoint_hash, subscription_json, user_agent)
-     VALUES (?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent)`,
-    [pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500)],
+    `INSERT INTO push_subscriptions (page_id, endpoint_hash, subscription_json, user_agent, client_details)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), client_details = COALESCE(VALUES(client_details), client_details)`,
+    [pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500), details ? JSON.stringify(details) : null],
   );
 
   const saved = await mysqlQuery<PushRow[]>(
@@ -618,9 +629,14 @@ export async function listPushSubscribers(): Promise<NotificationSubscriberSumma
      GROUP BY ps.page_id, p.slug
      ORDER BY subscribers DESC`,
   );
+  const recent = await mysqlQuery<Pick<PushRow, 'id' | 'page_id' | 'slug' | 'user_agent' | 'client_details' | 'created_at'>[]>(
+    `SELECT ps.id, ps.page_id, p.slug, ps.user_agent, ps.client_details, ps.created_at
+     FROM push_subscriptions ps INNER JOIN pages p ON p.id = ps.page_id ORDER BY ps.id DESC LIMIT 100`,
+  );
   return {
     total: rows.reduce((sum, row) => sum + Number(row.subscribers), 0),
     byPage: rows.map((row) => ({ pageId: row.page_id, slug: row.slug, subscribers: Number(row.subscribers) })),
+    recent: recent.map(row => subscriberListItem({ id: Number(row.id), pageId: Number(row.page_id), slug: row.slug, userAgent: row.user_agent || '', createdAt: toIso(row.created_at), details: toJson<Partial<SubscriberDetails>>(row.client_details, {}) })),
   };
 }
 

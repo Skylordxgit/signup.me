@@ -180,13 +180,26 @@ export type NotificationSubscriber = {
   slug: string;
   endpointHash: string;
   userAgent: string;
+  details?: SubscriberDetails;
   createdAt: string;
   updatedAt: string;
 };
 
+export type SubscriberDetails = {
+  device: string;
+  browser: string;
+  ipAddress: string;
+  country: string;
+  city: string;
+  timezone: string;
+};
+
+export type SubscriberListItem = Pick<NotificationSubscriber, 'id' | 'pageId' | 'slug' | 'createdAt'> & SubscriberDetails;
+
 export type NotificationSubscriberSummary = {
   total: number;
   byPage: { pageId: number; slug: string; subscribers: number }[];
+  recent?: SubscriberListItem[];
 };
 
 export type NotificationSendInput = {

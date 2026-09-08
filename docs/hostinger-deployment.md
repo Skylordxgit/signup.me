@@ -109,3 +109,42 @@ The app automatically switches its data store based on whether `DATABASE_URL` is
 - **Set** (production): all reads/writes go through MySQL (`lib/stores/mysqlStore.ts`). The tables are created automatically on first use.
 
 Both implementations share the same interface (`lib/store.ts`), so no route or component code needs to change between environments.
+# Mobile Notifications and Subscriber Details
+
+iPhone and iPad web push requires iOS/iPadOS 16.4+ and installation as a
+Home Screen web app. Visitors open the public /slug page in Safari, use Share
+> Add to Home Screen (keep Open as Web App enabled when offered), then launch
+the icon and allow notifications. Each public page now links a standalone
+manifest whose start URL and identity are that page's /slug.
+
+Android uses feature detection, not an OS-version allowlist. Updated browsers
+with Push API support can subscribe. Unsupported browsers, embedded webviews,
+insecure pages, denied permissions, and older iOS versions show relevant guidance.
+No web application can guarantee push on every Android version or device.
+
+Notifications in the admin panel lists the latest 100 subscriptions, device,
+browser, IP, approximate city/country, client time zone, and subscription date.
+Device/browser/time zone are reported or inferred, not verified identity.
+Old records cannot recover IP/location retroactively. No GPS is requested and
+no visitor IP is sent to a third-party geolocation API.
+
+IP and location are optional. Ask Hostinger which request headers their proxy
+overwrites with the connecting visitor's IP and approximate country/city.
+Only after confirmation, set these environment variables to the header names:
+
+```env
+SUBSCRIBER_IP_HEADER=
+SUBSCRIBER_COUNTRY_HEADER=
+SUBSCRIBER_CITY_HEADER=
+```
+
+The IP header must contain one IPv4/IPv6 address, not an X-Forwarded-For chain.
+Never configure headers that the proxy leaves under the visitor's control.
+Leave unsupported headers blank; the table displays Not recorded. A time zone
+does not substitute for location. VPNs and proxies can obscure the actual address.
+Subscriber data is returned only through the authenticated admin API with
+no-store caching. The visitor prompt discloses collection before subscribing.
+
+MySQL automatically adds a nullable client_details JSON column to the existing
+push_subscriptions table on first use; the database user needs ALTER privileges.
+No manual SQL import is needed. Local JSON storage also supports these fields.

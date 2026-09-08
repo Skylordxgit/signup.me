@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isPushSubscription } from "@/lib/push";
 import { savePushSubscription } from "@/lib/store";
 import { isValidSlug } from "@/lib/utils";
+import { collectSubscriberDetails } from '@/lib/subscriberDetails';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid notification subscription" }, { status: 400 });
     }
 
-    const saved = await savePushSubscription(slug, subscription, request.headers.get("user-agent") || "");
+    const saved = await savePushSubscription(slug, subscription, request.headers.get("user-agent") || "", collectSubscriberDetails(request.headers, body?.deviceHints));
     if (!saved) {
       return NextResponse.json({ error: "Published page not found" }, { status: 404 });
     }

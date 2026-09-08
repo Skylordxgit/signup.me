@@ -25,6 +25,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title,
     description,
+    manifest: `/api/manifest/${page.slug}`,
+    appleWebApp: { capable: true, title: page.title || page.name, statusBarStyle: 'default' },
+    other: { 'apple-mobile-web-app-capable': 'yes' },
     openGraph: {
       title: page.seo.socialTitle || title,
       description: page.seo.socialDescription || description,

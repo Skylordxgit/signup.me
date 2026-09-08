@@ -10,5 +10,5 @@ export async function GET() {
   return NextResponse.json({
     configured: webPushConfigured(),
     subscribers: await listPushSubscribers(),
-  });
+  }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

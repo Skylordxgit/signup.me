@@ -2,6 +2,8 @@ import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 import type { AnalyticsReport, BlockType, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
+import type { SubscriberDetails } from '../types';
+import { subscriberListItem } from '../subscriberDetails';
 import { defaultTheme, seedPages } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
@@ -356,7 +358,7 @@ function subscriptionHash(endpoint: string) {
   return createHash("sha256").update(endpoint).digest("hex");
 }
 
-export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string) {
+export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.slug === slug && item.status === "published");
   if (!page) return null;
@@ -369,6 +371,7 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
     existing.slug = page.slug;
     existing.subscription = subscription;
     existing.userAgent = userAgent.slice(0, 500);
+    if (details) existing.details = details;
     existing.updatedAt = timestamp;
     await writeJsonDb(db);
     return existing;
@@ -381,6 +384,7 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
     endpointHash,
     subscription,
     userAgent: userAgent.slice(0, 500),
+    details,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -397,7 +401,8 @@ export async function listPushSubscribers(): Promise<NotificationSubscriberSumma
     acc.set(item.pageId, current);
     return acc;
   }, new Map());
-  return { total: db.pushSubscriptions.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers) };
+  const recent = [...db.pushSubscriptions].sort((a, b) => b.id - a.id).slice(0, 100).map(item => subscriberListItem({ ...item, slug: db.pages.find(page => page.id === item.pageId)?.slug || item.slug }));
+  return { total: db.pushSubscriptions.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers), recent };
 }
 
 export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {

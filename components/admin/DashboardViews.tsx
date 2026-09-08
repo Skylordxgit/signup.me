@@ -218,6 +218,20 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
       <section className="admNotificationAudience"><SectionHeading title="Subscribers by page" />{loading ? <p className="admMuted" role="status">Loading subscribers...</p> : !summary.byPage.length ? <div className="admNotificationEmpty"><User size={24} /><strong>No subscribers yet</strong><p>Visitors appear here after allowing notifications on your public pages.</p></div> : <div className="admDistribution">{summary.byPage.map(item => <div key={item.pageId}><div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div><progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} /></div>)}</div>}</section>
     </aside>
     </div>
+    <section className="admSubscriberSection">
+      <SectionHeading title="Subscriber details"><span className="admMuted">Latest 100 subscriptions</span></SectionHeading>
+      <p className="admMuted">Device and browser are reported by the visitor. IP location is approximate; a time zone is not a physical location.</p>
+      {loading ? <p role="status">Loading subscribers...</p> : !summary.recent?.length ? <p className="admMuted">No subscriber details yet.</p> : <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Subscriber details">
+        <table className="admSubscriberTable">
+          <thead><tr><th scope="col">Subscriber</th><th scope="col">Page</th><th scope="col">Device / browser</th><th scope="col">IP address</th><th scope="col">Approx. location</th><th scope="col">Time zone</th><th scope="col">Subscribed</th></tr></thead>
+          <tbody>{summary.recent.map(item => <tr key={item.id}>
+            <td>#{item.id}</td><td>/{item.slug}</td><td>{item.device}<small>{item.browser}</small></td>
+            <td>{item.ipAddress || 'Not recorded'}</td><td>{[item.city, item.country].filter(Boolean).join(', ') || 'Not recorded'}</td>
+            <td>{item.timezone || 'Not recorded'}</td><td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
+    </section>
   </div>;
 }
 

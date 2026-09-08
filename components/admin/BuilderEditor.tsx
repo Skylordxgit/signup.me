@@ -28,6 +28,16 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
     { key: 'retryLabel', label: 'Retry button' },
     { key: 'errorMessage', label: 'Error message', long: true },
     { key: 'closeLabel', label: 'Close button label' },
+    { key: 'installHeading', label: 'iPhone setup heading' },
+    { key: 'installMessage', label: 'iPhone requirements', long: true },
+    { key: 'installStepOne', label: 'iPhone setup step 1', long: true },
+    { key: 'installStepTwo', label: 'iPhone setup step 2', long: true },
+    { key: 'installStepThree', label: 'iPhone setup step 3', long: true },
+    { key: 'updateMessage', label: 'Older iPhone message', long: true },
+    { key: 'unsupportedMessage', label: 'Unsupported browser message', long: true },
+    { key: 'blockedMessage', label: 'Blocked permission message', long: true },
+    { key: 'secureMessage', label: 'HTTPS required message', long: true },
+    { key: 'dataNotice', label: 'Subscriber data notice', long: true },
   ];
   return <><SectionHeading title="Notification prompt" />
     <div className="admFormStack">{fields.map(({ key, label, long }) => <Field key={key} label={label}>{long ? <textarea dir="auto" rows={3} maxLength={400} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} /> : <input dir="auto" maxLength={120} placeholder={notificationPromptDefaults[key]} value={settings[key] ?? ''} onChange={event => onEdit({ integrations: { ...page.integrations, notificationPrompt: { ...settings, [key]: event.target.value } } })} />}</Field>)}</div>

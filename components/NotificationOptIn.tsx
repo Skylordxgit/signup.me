@@ -3,6 +3,14 @@
 import { Bell, Check, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { resolveNotificationPrompt, type NotificationPromptSettings } from '@/lib/notificationPrompt';
+import { pushSupport, type PushSupport } from '@/lib/pushSupport';
+
+async function timedFetch(url: string, options: RequestInit = {}, timeout = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+  try { return await fetch(url, { ...options, signal: controller.signal }); }
+  finally { clearTimeout(timer); }
+}
 
 function preference(slug: string, value?: string) {
   try {
@@ -18,7 +26,7 @@ function decodePublicKey(value: string) {
 }
 
 async function preparePush() {
-  const response = await fetch('/api/notifications/vapid-public-key', { signal: AbortSignal.timeout(10000), cache: 'no-store' });
+  const response = await timedFetch('/api/notifications/vapid-public-key', { cache: 'no-store' });
   const data = await response.json() as { enabled?: boolean; publicKey?: string };
   if (!response.ok || !data.enabled || !data.publicKey) throw new Error('Push unavailable');
   await navigator.serviceWorker.register('/push-worker.js');
@@ -37,26 +45,43 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [support, setSupport] = useState<PushSupport>('supported');
   const dialog = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
-    if (!window.isSecureContext || !('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    if (Notification.permission === 'denied') return;
     let cancelled = false;
-    if (Notification.permission === 'granted' && preference(slug) === 'saved-v2') {
+    const mode = pushSupport({
+      userAgent: navigator.userAgent,
+      touchPoints: navigator.maxTouchPoints || 0,
+      standalone: window.matchMedia('(display-mode: standalone)').matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+      secure: window.isSecureContext,
+      hasPush: 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window && 'ServiceWorkerRegistration' in window && 'showNotification' in ServiceWorkerRegistration.prototype,
+      permission: 'Notification' in window ? Notification.permission : undefined,
+    });
+    function show() {
+      if (cancelled || !dialog.current) return;
+      setSupport(mode);
+      if (typeof dialog.current.showModal === 'function') dialog.current.showModal();
+      else {
+        dialog.current.setAttribute('open', '');
+        dialog.current.classList.add('pushPromptFallback');
+      }
+    }
+    if (mode === 'supported' && Notification.permission === 'granted' && preference(slug) === 'saved-v2') {
       // Only returning subscribers wait for a check; new visitors see the prompt immediately.
       void navigator.serviceWorker.getRegistration('/').then(async registration => {
         const existing = await registration?.pushManager.getSubscription();
-        if (!cancelled && !existing) dialog.current?.showModal();
-      }).catch(() => { if (!cancelled) dialog.current?.showModal(); });
+        if (!existing) show();
+      }).catch(show);
     } else {
-      dialog.current?.showModal();
+      void Promise.resolve().then(show);
     }
     return () => { cancelled = true; };
   }, [slug]);
 
   function dismiss() {
-    dialog.current?.close();
+    if (typeof dialog.current?.close === 'function') dialog.current.close();
+    else dialog.current?.removeAttribute('open');
   }
 
   async function allow() {
@@ -65,7 +90,11 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
     setError('');
     try {
       // Keep the permission request directly in the user gesture.
-      const permission = await Notification.requestPermission();
+      const permission = await new Promise<NotificationPermission>((resolve, reject) => {
+        const result = Notification.requestPermission(resolve);
+        if (result) result.then(resolve, reject);
+      });
+      if (permission === 'denied') { setSupport('blocked'); return; }
       if (permission !== 'granted') { dismiss(); return; }
       const { registration, publicKey } = await preparePush();
       const existing = await registration.pushManager.getSubscription();
@@ -73,12 +102,11 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
         userVisibleOnly: true,
         applicationServerKey: decodePublicKey(publicKey),
       });
-      const response = await fetch('/api/notifications/subscribe', {
+      const response = await timedFetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slug, subscription: subscription.toJSON() }),
-        signal: AbortSignal.timeout(15000),
-      });
+        body: JSON.stringify({ slug, subscription: subscription.toJSON(), deviceHints: { touchPoints: navigator.maxTouchPoints || 0, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }),
+      }, 15000);
       if (!response.ok) throw new Error('Your subscription was not saved. Please try again.');
       preference(slug, 'saved-v2');
       setSuccess(true);
@@ -94,9 +122,13 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
     <p className="pushPromptPage">{title || 'This page'}</p>
     <p>{success ? copy.successMessage : copy.message}</p>
     {error && <p className="pushPromptError" role="alert">{error}</p>}
-    {success ? <button type="button" className="pushPromptAllow" onClick={dismiss}>{copy.continueLabel}</button> : <>
+    {support !== 'supported' ? <div className="pushPromptHelp" role="status">
+      {support === 'ios-install' ? <><strong>{copy.installHeading}</strong><p>{copy.installMessage}</p><ol><li>{copy.installStepOne}</li><li>{copy.installStepTwo}</li><li>{copy.installStepThree}</li></ol></>
+        : <p>{support === 'ios-update' ? copy.updateMessage : support === 'blocked' ? copy.blockedMessage : support === 'insecure' ? copy.secureMessage : copy.unsupportedMessage}</p>}
+    </div> : success ? <button type="button" className="pushPromptAllow" onClick={dismiss}>{copy.continueLabel}</button> : <>
       <button type="button" className="pushPromptAllow" disabled={busy} onClick={() => void allow()}>{busy ? copy.busyLabel : error ? copy.retryLabel : copy.allowLabel}</button>
       <small>{copy.footer}</small>
+      <small>{copy.dataNotice}</small>
     </>}
   </dialog>;
 }
