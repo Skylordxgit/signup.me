@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Camera,
   CircleHelp,
@@ -417,7 +417,32 @@ function IconImage({ src }: { src: string }) {
 }
 
 function PlayableVideo({ preview, src, title }: { preview: boolean; src: string; title: string }) {
-  const embed = videoEmbedUrl(src);
+  const embed = useMemo(() => videoEmbedUrl(src), [src]);
+  const [checked, setChecked] = useState<{ src: string; blocked: boolean } | null>(null);
+
+  useEffect(() => {
+    if (embed.type !== "iframe" || !embed.oembedUrl) return;
+    let cancelled = false;
+    fetch(embed.oembedUrl)
+      .then((response) => {
+        if (!cancelled) setChecked({ src: embed.src, blocked: !response.ok });
+      })
+      .catch(() => {
+        /* If the preflight check fails, try the embed as usual. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [embed]);
+
+  if (embed.type === "iframe" && checked?.src === embed.src && checked.blocked) {
+    return (
+      <div className="videoPlaceholder videoBlocked" role="status">
+        <Play fill="currentColor" aria-hidden="true" />
+        <strong>Video unavailable here</strong>
+      </div>
+    );
+  }
 
   if (embed.type === "iframe") {
     return (
@@ -447,24 +472,40 @@ function PlayableVideo({ preview, src, title }: { preview: boolean; src: string;
   );
 }
 
-function videoEmbedUrl(src: string) {
-  if (!src) return { type: "empty" as const, src: "" };
+type VideoEmbed =
+  | { type: "empty"; src: "" }
+  | { type: "video"; src: string }
+  | { type: "iframe"; src: string; oembedUrl: string | null };
+
+function videoEmbedUrl(src: string): VideoEmbed {
+  if (!src) return { type: "empty", src: "" };
   try {
     const url = new URL(src);
     const youtubeId = youtubeVideoId(url);
     if (youtubeId) {
-      return { type: "iframe" as const, src: `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&playsinline=1&rel=0` };
+      const watchUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+      return {
+        type: "iframe",
+        src: `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&mute=1&playsinline=1&rel=0`,
+        oembedUrl: `https://www.youtube.com/oembed?url=${encodeURIComponent(watchUrl)}&format=json`,
+      };
     }
     if (url.hostname.includes("vimeo.com")) {
-      return { type: "iframe" as const, src: `https://player.vimeo.com/video/${url.pathname.split("/").filter(Boolean).pop()}?autoplay=1&muted=1` };
+      const id = url.pathname.split("/").filter(Boolean).pop() || "";
+      const watchUrl = `https://vimeo.com/${id}`;
+      return {
+        type: "iframe",
+        src: `https://player.vimeo.com/video/${id}?autoplay=1&muted=1`,
+        oembedUrl: `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(watchUrl)}`,
+      };
     }
     if (/\.(mp4|webm|ogg)$/i.test(url.pathname)) {
-      return { type: "video" as const, src };
+      return { type: "video", src };
     }
+    return { type: "iframe", src, oembedUrl: null };
   } catch {
-    return { type: "empty" as const, src: "" };
+    return { type: "empty", src: "" };
   }
-  return { type: "iframe" as const, src };
 }
 
 function youtubeVideoId(url: URL) {

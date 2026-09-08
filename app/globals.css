@@ -3576,6 +3576,13 @@ button:hover:not(:disabled) {
   display: block;
 }
 
+.pageVideo .videoBlocked {
+  color: rgba(255, 255, 255, 0.92);
+  background:
+    radial-gradient(circle at 72% 38%, rgba(126, 34, 206, 0.28), transparent 42%),
+    #111111;
+}
+
 .pageVideo strong {
   font-size: 14px;
   font-weight: 800;
