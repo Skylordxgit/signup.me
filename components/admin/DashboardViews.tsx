@@ -147,6 +147,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
 
   async function send(event: React.FormEvent) {
     event.preventDefault();
+    if (sending || loading || !configured || !recipients || !title.trim() || !body.trim()) return;
     setSending(true);
     setResult(null);
     setError('');
@@ -165,30 +166,39 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   }
 
   const pageCounts = new Map(summary.byPage.map(item => [item.pageId, item.subscribers]));
+  const recipients = pageId === 'all' ? summary.total : pageCounts.get(Number(pageId)) ?? 0;
+  const selectedPage = pages.find(page => String(page.id) === pageId);
 
-  return <div className="admNotificationGrid">
-    <section>
-      <SectionHeading title="Browser notifications"><IconButton icon={RefreshCw} label="Refresh subscribers" disabled={loading} onClick={() => void refresh()} /></SectionHeading>
-      <div className="admMetrics admNotificationMetrics">
-        <article className="admMetric"><div><span>Total subscribers</span><strong>{number(summary.total)}</strong></div><span className="admMetricIcon admTone-blue"><Bell size={21} /></span></article>
-        <article className="admMetric"><div><span>Status</span><strong>{configured ? 'Ready' : 'Setup needed'}</strong></div></article>
-      </div>
-      {!configured && <p className="admSetupNote">Add WEB_PUSH_PUBLIC_KEY, NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY, and WEB_PUSH_PRIVATE_KEY to enable live sends.</p>}
-      {loading ? <EmptyState title="Loading subscribers..." /> : !summary.byPage.length ? <EmptyState title="No subscribers yet" /> : <div className="admDistribution">{summary.byPage.map(item => <div key={item.pageId}><div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div><progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} /></div>)}</div>}
-    </section>
-
-    <form onSubmit={send}>
-      <SectionHeading title="Send campaign" />
+  return <div className="admNotifications">
+    <SectionHeading title="Notifications"><IconButton icon={RefreshCw} label="Refresh subscribers" disabled={loading || sending} onClick={() => void refresh()} /></SectionHeading>
+    <div className="admNotificationMetrics" aria-busy={loading}>
+      <article><span className="admMetricIcon admTone-blue"><User size={19} /></span><div><span>Subscribers</span><strong>{loading ? '...' : number(summary.total)}</strong></div></article>
+      <article><span className="admMetricIcon admTone-green"><FileText size={19} /></span><div><span>Pages with subscribers</span><strong>{loading ? '...' : number(summary.byPage.filter(item => item.subscribers > 0).length)}</strong></div></article>
+      <article><span className="admMetricIcon admTone-violet"><Bell size={19} /></span><div><span>Delivery status</span><strong className="admDeliveryStatus">{loading ? 'Checking...' : configured ? 'Ready to send' : 'Setup needed'}</strong></div></article>
+    </div>
+    {!loading && !configured && <details className="admNotificationSetup"><summary>Notifications need setup before you can send</summary><p>Add these keys in your hosting settings, then redeploy:</p><ul><li><code>WEB_PUSH_PUBLIC_KEY</code></li><li><code>NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY</code></li><li><code>WEB_PUSH_PRIVATE_KEY</code></li></ul><p>Both public keys must use the same value.</p></details>}
+    {error && <p className="admError" role="alert">{error}</p>}
+    {result && <p className="admSuccess" role="status">{number(result.sent)} sent · {number(result.failed)} failed · {number(result.removed)} expired subscriptions removed</p>}
+    <div className="admNotificationGrid">
+    <form onSubmit={send} className="admNotificationComposer">
+      <SectionHeading title="New notification" />
+      <fieldset disabled={sending}>
       <div className="admFormStack">
-        <Field label="Audience"><select value={pageId} onChange={event => setPageId(event.target.value)}><option value="all">All subscribers</option>{pages.map(page => <option key={page.id} value={page.id}>/{page.slug} ({number(pageCounts.get(page.id) ?? 0)})</option>)}</select></Field>
-        <Field label="Title"><input maxLength={80} value={title} onChange={event => setTitle(event.target.value)} /></Field>
+        <Field label="Send to"><select value={pageId} onChange={event => setPageId(event.target.value)}><option value="all">All subscribers ({number(summary.total)})</option>{pages.map(page => <option key={page.id} value={page.id}>/{page.slug} ({number(pageCounts.get(page.id) ?? 0)})</option>)}</select></Field>
+        <Field label="Title"><input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} /></Field>
         <Field label="Message"><textarea rows={4} maxLength={180} required value={body} onChange={event => setBody(event.target.value)} placeholder="Write a short update or offer." /></Field>
-        <Field label="Open URL"><input value={url} onChange={event => setUrl(event.target.value)} placeholder="/jeetbuzzaffinir" /></Field>
-        {error && <p className="admError" role="alert">{error}</p>}
-        {result && <p className="admSuccess" role="status">Sent {number(result.sent)} of {number(result.attempted)}. Removed {number(result.removed)} expired subscriptions.</p>}
-        <button type="submit" className="admButton admPrimary" disabled={sending || !configured || !body.trim()}><Send size={16} />{sending ? 'Sending...' : 'Send notification'}</button>
+        <span className="admMessageCount">{body.length}/180</span>
+        <Field label="Destination link"><input required value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com or /your-page" /></Field>
+        {selectedPage && <button type="button" className="admTextButton" onClick={() => setUrl('/' + selectedPage.slug)}><Link2 size={15} />Use selected page</button>}
       </div>
+      </fieldset>
+      <div className="admNotificationSend"><span>{loading ? 'Loading audience...' : !recipients ? 'No subscribers in this audience yet' : `${number(recipients)} subscriber${recipients === 1 ? '' : 's'} selected`}</span><button type="submit" className="admButton admPrimary" disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}><Send size={16} />{sending ? 'Sending...' : 'Send notification'}</button></div>
     </form>
+    <aside className="admNotificationAside">
+      <section><SectionHeading title="Message preview" /><div className="admPushPreview"><div className="admPushSource"><img src="/favicon.ico" alt="" width={20} height={20} /><span>signup888</span><small>now</small></div><strong>{title.trim() || 'Notification title'}</strong><p>{body.trim() || 'Your message will appear here.'}</p></div></section>
+      <section className="admNotificationAudience"><SectionHeading title="Subscribers by page" />{loading ? <p className="admMuted" role="status">Loading subscribers...</p> : !summary.byPage.length ? <div className="admNotificationEmpty"><User size={24} /><strong>No subscribers yet</strong><p>Visitors appear here after allowing notifications on your public pages.</p></div> : <div className="admDistribution">{summary.byPage.map(item => <div key={item.pageId}><div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div><progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} /></div>)}</div>}</section>
+    </aside>
+    </div>
   </div>;
 }
 
