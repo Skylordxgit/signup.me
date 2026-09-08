@@ -10,8 +10,6 @@ import {
   Blocks,
   Check,
   ChevronRight,
-  Circle,
-  CircleDot,
   CircleHelp,
   CircleOff,
   ClipboardCopy,
@@ -23,7 +21,6 @@ import {
   FormInput,
   GalleryVerticalEnd,
   Globe2,
-  GripVertical,
   Hand,
   Heart,
   ImageIcon,
@@ -66,14 +63,9 @@ import {
 import { PublicPage } from "@/components/PublicPage";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
 import { blockTypes, parseBlockIcon, readableTextColor, slugify, themePresets } from "@/lib/utils";
-import {
-  applyThemeDefinition,
-  resolveButtonStyle,
-  themeCssVariables,
-  themeDefinition,
-  themeLibrary,
-} from "@/lib/themes";
+import { applyThemeDefinition, themeDefinition, themeLibrary } from "@/lib/themes";
 import { PhoneFrame } from "./PhoneFrame";
+import { PageRenderer } from "./PageRenderer";
 
 type EditorTab = "content" | "blocks" | "design" | "seo" | "integrations" | "analytics";
 type AdminMode = "list" | "detail" | "editor";
@@ -1479,57 +1471,18 @@ function EditablePublicCanvas({
   }
 
   return (
-    <div className="homepagePreviewWrap" style={themeCssVariables(page.theme)}>
-      <div className="homepagePreview">
-        <button type="button" className="editRow editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
-          <span className="leftHandle" aria-hidden="true">
-            <Circle />
-          </span>
-          <div className="bannerPreview" style={{ backgroundImage: `url(${page.theme.backgroundImage})` }} />
-          <span className="rightHandle" aria-hidden="true">
-            <GripVertical />
-          </span>
-        </button>
-
-        <button type="button" className="profileEditBlock editableProfile" aria-label="Edit profile and banner" onClick={openProfileEditor}>
-          <CanvasAvatar name={page.title || page.name} src={page.profileImage} />
-          <div>
-            <strong>{page.title}</strong>
-            <p>{page.bio}</p>
-          </div>
-        </button>
-
-        {blocks.map((block) => {
-          const selected = selectedBlockId === block.id;
-          return (
-            <div className={`editRow ${selected ? "selectedEditRow" : ""}`} key={block.id}>
-              <button
-                type="button"
-                aria-label={`Select ${block.title || block.type}`}
-                className="leftHandle selectBlockHandle"
-                onClick={() => {
-                  setSelectedBlockId(block.id);
-                  onBlockSelectionChange(true);
-                }}
-              >
-                {selected ? <CircleDot aria-hidden="true" /> : <Circle aria-hidden="true" />}
-              </button>
-              <EditableCanvasBlock
-                block={block}
-                buttonStyle={resolveButtonStyle(page.theme)}
-                selected={selected}
-                onSelect={() => {
-                  setSelectedBlockId(block.id);
-                  onBlockSelectionChange(true);
-                }}
-              />
-              <span className="rightHandle" aria-hidden="true">
-                <GripVertical />
-              </span>
-            </div>
-          );
-        })}
-      </div>
+    <div className="homepagePreviewWrap">
+      <PageRenderer
+        page={page}
+        edit={{
+          selectedBlockId,
+          onSelectBlock: (blockId) => {
+            setSelectedBlockId(blockId);
+            onBlockSelectionChange(true);
+          },
+          onEditProfile: openProfileEditor,
+        }}
+      />
 
       {selectedBlock && (
         <div className="selectedBlockToolbar" aria-label="Selected block actions">
@@ -1605,84 +1558,6 @@ function EditablePublicCanvas({
         />
       )}
     </div>
-  );
-}
-
-/** Mirrors the public page's initials fallback so the canvas matches it. */
-function CanvasAvatar({ name, src }: { name: string; src: string }) {
-  const [failed, setFailed] = useState(false);
-  const initials = name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-
-  if (!src || failed) {
-    return <span className="canvasAvatarFallback">{initials || "?"}</span>;
-  }
-
-  return <img key={src} src={src} alt="" onError={() => setFailed(true)} />;
-}
-
-function EditableCanvasBlock({
-  block,
-  buttonStyle,
-  onSelect,
-  selected,
-}: {
-  block: PageBlock;
-  buttonStyle: string;
-  onSelect: () => void;
-  selected: boolean;
-}) {
-  if (block.type === "video") {
-    return (
-      <div
-        role="button"
-        tabIndex={0}
-        className={`canvasVideo canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
-        onClick={onSelect}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") onSelect();
-        }}
-      >
-        <PlayableVideo src={block.videoUrl || block.url} title={block.title || "Video"} />
-        {block.title && <strong>{block.title}</strong>}
-      </div>
-    );
-  }
-
-  if (["heading", "text", "divider", "image"].includes(block.type)) {
-    return (
-      <button
-        type="button"
-        className={`canvasTextBlock canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
-        onClick={onSelect}
-      >
-        <strong>{block.title || block.type}</strong>
-        {block.subtitle && <span>{block.subtitle}</span>}
-      </button>
-    );
-  }
-
-  const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
-  const colorOverride = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
-
-  return (
-    <button
-      type="button"
-      className={`canvasLinkButton buttonStyle-${buttonStyle} canvasSelectable ${selected ? "canvasSelected" : ""} ${block.isActive ? "" : "disabledBlock"}`}
-      style={colorOverride}
-      onClick={onSelect}
-    >
-      <span className="canvasBlockIcon">{resolveIconElement(block.icon, block.type)}</span>
-      <div>
-        <strong>{block.title || "Untitled link"}</strong>
-        {block.subtitle && <small>{block.subtitle}</small>}
-      </div>
-    </button>
   );
 }
 

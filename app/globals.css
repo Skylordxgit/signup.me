@@ -21,8 +21,7 @@
   :root {
     --phone-h: 100dvh;
     --phone-radius: 0px;
-  }
-}
+  }}
 
 @theme inline {
   --color-background: var(--background);
@@ -402,8 +401,7 @@ textarea {
 @media (max-width: 520px) {
   .phoneStage {
     padding: 0;
-  }
-}
+  }}
 
 .upgradeBar {
   display: grid;
@@ -552,7 +550,6 @@ textarea {
   font-style: normal;
   line-height: 1;
 }
-
 
 .mobileCreatePanel {
   display: grid;
@@ -714,13 +711,14 @@ textarea {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px 12px 0;
+  padding: 12px 0 0;
   background: #f6f7fb;
 }
 
 .homepageEditorTop {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
+  padding: 0 12px;
   align-items: center;
   gap: 10px;
   margin-bottom: 18px;
@@ -749,7 +747,9 @@ textarea {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 12px 10px 22px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   background: #ffffff;
   box-shadow: 0 18px 50px rgba(17, 24, 39, 0.09);
 }
@@ -914,7 +914,6 @@ textarea {
   grid-template-columns: repeat(5, 1fr);
   align-items: end;
   min-height: 76px;
-  margin: 0 -12px;
   padding: 10px 8px 8px;
   background: rgba(247, 248, 251, 0.96);
   box-shadow: 0 -12px 30px rgba(17, 24, 39, 0.07);
@@ -1218,7 +1217,8 @@ textarea {
   height: 14px;
 }
 
-/* Miniature of the real page, so the card reads as the theme it applies. */
+/* Miniature of the real page,
+so the card reads as the theme it applies. */
 .themeSwatch {
   position: relative;
   display: grid;
@@ -1395,142 +1395,14 @@ textarea {
 }
 
 /* The canvas paints the live theme so the builder shows the real page. */
+/* Builder wrapper only. It contributes no padding or background so the shared
+   renderer inside it lays out exactly as it does on the public route.
+   Deliberately not positioned: the sheets it contains use position:absolute
+   and must anchor to the phone frame, not to this scrolling content. */
 .homepagePreviewWrap {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  /* Bleeds over the canvas padding so the theme background reaches the edges. */
-  margin: -12px -10px -22px;
-  padding: 12px 10px 22px;
-  overflow-x: clip;
-  background-image: linear-gradient(135deg, var(--from, #f8fafc), var(--to, #e2e8f0));
-}
-
-.homepagePreview {
-  display: grid;
-  gap: var(--spacing, 10px);
-  padding-bottom: 96px;
-}
-
-.homepagePreview {
-  /* Handle column + gap. Blocks sit between these, so anything outside an
-     .editRow (the profile) uses the same insets and stays aligned. */
-  --row-inset-left: 28px;
-  --row-inset-right: 36px;
-}
-
-.editRow {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) 26px;
-  align-items: center;
-  gap: 10px;
-}
-
-/* No explicit width: these are grid children and already stretch. Forcing
-   width:100% here fought .profileEditBlock's side margins and pushed the
-   profile past the right edge of the phone. */
-.editableProfile {
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-
-.editableProfile:hover .bannerPreview,
-.editableProfile:hover img {
-  outline: 2px solid rgba(8, 124, 255, 0.62);
-  outline-offset: 3px;
-}
-
-.selectedEditRow {
-  outline: 2px solid #1f7cff;
-  outline-offset: 5px;
-}
-
-.leftHandle,
-.rightHandle {
-  display: grid;
-  place-items: center;
-  color: #b9bcc4;
-}
-
-.leftHandle svg,
-.rightHandle svg {
-  width: 16px;
-  height: 16px;
-}
-
-.selectBlockHandle {
-  display: grid;
-  place-items: center;
-  width: 18px;
-  height: 42px;
-  border: 0;
-  background: transparent;
-  color: #c0c3cb;
-  padding: 0;
-}
-
-.selectBlockHandle svg {
-  width: 10px;
-  height: 10px;
-}
-
-.selectedEditRow .selectBlockHandle {
-  color: #087cff;
-}
-
-.rightHandle button {
-  width: 22px;
-  height: 20px;
-  border: 0;
-  border-radius: 8px;
-  background: #eef1f5;
-  color: #7a7f8a;
-  font-weight: 900;
-}
-
-.bannerPreview {
-  min-height: 132px;
-  border-radius: 16px;
-  background-color: #eef0f4;
-  background-image: linear-gradient(135deg, #e4e7ee, #eef0f4);
-  background-position: center;
-  background-size: cover;
-}
-
-.profileEditBlock {
-  display: grid;
-  grid-template-columns: 82px minmax(0, 1fr);
-  align-items: start;
-  gap: 16px;
-  margin: -22px var(--row-inset-right) 16px var(--row-inset-left);
-  padding: 0;
-}
-
-.profileEditBlock img,
-.canvasAvatarFallback {
-  width: 82px;
-  height: 82px;
-  border: 5px solid #ffffff;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #f2f3f7;
-  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.14);
-}
-
-.canvasAvatarFallback {
-  display: grid;
-  place-items: center;
-  color: #4b5563;
-  font-size: 26px;
-  font-weight: 800;
-}
-
-.profileEditBlock strong,
-.profileEditBlock p {
-  display: block;
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 .profileSheetBackdrop {
@@ -1767,171 +1639,6 @@ textarea {
   min-height: 50px;
   margin-top: 4px;
   font-size: 16px;
-}
-
-/* Follows the theme so the name stays readable on dark backgrounds. */
-.profileEditBlock strong {
-  color: var(--heading, #000000);
-  font-size: 20px;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-}
-
-.profileEditBlock > div {
-  padding-top: 42px;
-  min-width: 0;
-}
-
-.profileEditBlock p {
-  margin-top: 5px;
-  color: var(--text, #3f4148);
-  font-size: 14px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-/* Layout only: the .buttonStyle-* class supplies background, border and shadow
-   so the canvas button matches the public page exactly. */
-.canvasLinkButton {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 9px;
-  align-items: center;
-  min-height: 56px;
-  border-radius: var(--button-radius, 14px);
-  color: var(--button-text, #ffffff);
-  padding: 12px;
-  text-align: left;
-}
-
-.canvasSelectable {
-  width: 100%;
-  cursor: pointer;
-}
-
-.canvasSelected {
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.72),
-    0 0 0 1px rgba(8, 124, 255, 0.18);
-}
-
-.canvasLinkButton strong,
-.canvasLinkButton small {
-  display: block;
-  min-width: 0;
-}
-
-/* Long titles wrap rather than truncate - no information is hidden. */
-.canvasLinkButton strong {
-  font-size: 15px;
-  line-height: 1.25;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
-.canvasLinkButton small {
-  margin-top: 4px;
-  opacity: 0.72;
-  font-size: 12px;
-  line-height: 1.35;
-  text-align: center;
-  overflow-wrap: anywhere;
-}
-
-.canvasBlockIcon {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.12);
-  font-size: 16px;
-  font-weight: 900;
-  text-align: center;
-}
-
-.canvasBlockFields,
-.canvasVideo,
-.canvasTextBlock {
-  min-width: 0;
-}
-
-.canvasBlockFields {
-  display: grid;
-  gap: 7px;
-}
-
-.canvasLinkButton label,
-.canvasVideo label,
-.canvasTextBlock label {
-  display: grid;
-  gap: 3px;
-}
-
-.canvasLinkButton label span,
-.canvasVideo label span,
-.canvasTextBlock label span {
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 10px;
-  font-weight: 850;
-  text-transform: uppercase;
-}
-
-.canvasTextBlock label span {
-  color: #6b7280;
-}
-
-.canvasLinkButton input,
-.canvasVideo input,
-.canvasTextBlock input {
-  min-height: 32px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, 0.1);
-  color: inherit;
-  padding: 6px 8px;
-  font-weight: 780;
-}
-
-.canvasTextBlock input {
-  border-color: rgba(17, 24, 39, 0.12);
-  background: #ffffff;
-  color: #111827;
-}
-
-.canvasVideo {
-  overflow: hidden;
-  display: grid;
-  gap: 8px;
-  border-radius: 16px;
-  background: #202400;
-  color: #ffffff;
-  padding: 10px;
-}
-
-.canvasVideo label span {
-  color: rgba(255, 255, 255, 0.72);
-}
-
-.canvasVideo iframe,
-.canvasVideo video,
-.publicVideo iframe,
-.publicVideo video {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border: 0;
-  border-radius: 12px;
-  background: #111827;
-}
-
-.canvasTextBlock {
-  display: grid;
-  gap: 7px;
-  padding: 12px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.14);
-  color: var(--heading, #111827);
-  overflow-wrap: anywhere;
 }
 
 .inlineToggle {
@@ -2701,68 +2408,18 @@ textarea {
   box-shadow: 0 22px 60px rgba(17, 24, 39, 0.24);
 }
 
-.phoneFrame .publicExperience {
-  min-height: 100%;
-  padding: 14px;
-}
-
-.phoneFrame .publicCard {
-  width: 100%;
-}
-
+/* Public route wrapper. All page design lives in .pageSurface below, which the
+   builder preview renders too - this only provides full height. */
 .publicExperience {
   position: relative;
   min-height: 100dvh;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: center;
-  align-content: center;
-  padding: 26px 16px;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.18), transparent 18rem),
-    linear-gradient(135deg, var(--from), var(--to));
-  color: var(--text);
-  font-family: Inter, Arial, Helvetica, sans-serif;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
 }
 
-.publicBackdrop {
-  position: absolute;
-  inset: -24px;
-  background-position: center;
-  background-size: cover;
-  filter: blur(calc(var(--glass) * 1px)) saturate(1.1);
-  opacity: 0.2;
-  transform: scale(1.06);
-}
-
-.publicCard {
-  position: relative;
-  /* min-width:0 lets the card shrink below its content's min-content width,
-     so a long unbroken URL cannot push it outside the viewport. */
-  min-width: 0;
-  width: min(100%, var(--phone-w));
-  display: grid;
-  gap: var(--spacing);
-  padding: 14px 14px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 30px;
-  background: rgba(255, 255, 255, 0.2);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
-  color: var(--text);
-}
-
-.publicBanner {
-  min-height: 148px;
-  border-radius: 20px;
-  background-color: rgba(255, 255, 255, 0.12);
-  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
-  background-position: center;
-  background-size: cover;
-}
-
-/* Card surface treatments, shared by the theme swatches and the real page. */
+/* Card surface treatments,
+shared by the theme swatches and the real page. */
 .surface-glass {
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(255, 255, 255, 0.34);
@@ -2791,13 +2448,6 @@ textarea {
   border-color: transparent;
   box-shadow: none;
   backdrop-filter: none;
-}
-
-/* Button treatments. Each keeps a >=52px touch target via .publicButton. */
-.buttonStyle-glass {
-  background: var(--button-bg-glass);
-  border: 1px solid var(--button-border);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
 }
 
 .buttonStyle-solid {
@@ -2844,181 +2494,6 @@ textarea {
   box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.15), 0 0 22px rgba(34, 211, 238, 0.35);
 }
 
-.publicProfile {
-  text-align: center;
-  /* Pulls the avatar up to straddle the banner edge. */
-  margin-top: -50px;
-  margin-bottom: 4px;
-}
-
-.publicAvatar {
-  display: grid;
-  place-items: center;
-  margin-inline: auto;
-  width: 96px;
-  height: 96px;
-  object-fit: cover;
-  background: rgba(255, 255, 255, 0.16);
-  border: 4px solid rgba(255, 255, 255, 0.7);
-  border-radius: 28px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.24);
-}
-
-/* Initials stand in for a missing or broken avatar. */
-.publicAvatarFallback {
-  background: color-mix(in srgb, var(--button-bg, #ffffff), transparent 20%);
-  color: var(--button-text, #111827);
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-.publicProfile h1 {
-  margin: 14px 0 6px;
-  color: var(--heading);
-  /* Scales down on narrow frames so a long name stays on two lines at most. */
-  font-size: clamp(22px, 7.2vw, 29px);
-  line-height: 1.16;
-  letter-spacing: -0.02em;
-  overflow-wrap: anywhere;
-  text-wrap: balance;
-}
-
-.publicProfile p {
-  margin: 0 auto;
-  max-width: 32ch;
-  color: color-mix(in srgb, var(--text), transparent 18%);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-  text-wrap: pretty;
-}
-
-.blockStack {
-  display: grid;
-  gap: var(--spacing);
-}
-
-/* Layout only. Background, border and shadow come from the .buttonStyle-*
-   class so a theme can restyle buttons without fighting this rule. */
-.publicButton,
-.publicVideo {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 24px;
-  align-items: center;
-  gap: 12px;
-  min-height: 64px;
-  padding: 12px;
-  border-radius: var(--button-radius);
-  color: var(--button-text);
-  text-decoration: none;
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease;
-}
-
-.publicVideo {
-  border: 1px solid var(--button-border);
-  background: var(--button-bg-glass);
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.14);
-  backdrop-filter: blur(calc(var(--glass) * 1px));
-}
-
-.publicButton:hover,
-.publicVideo:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
-}
-
-.publicButton:active,
-.publicVideo:active {
-  transform: translateY(1px) scale(0.99);
-}
-
-.publicButton > span {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.1);
-  font-size: 12px;
-  font-weight: 950;
-}
-
-/* Long titles and bare URLs must wrap inside the button, never widen it. */
-.publicButton strong,
-.publicButton small {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.publicButton strong {
-  line-height: 1.25;
-}
-
-.publicButton small {
-  margin-top: 3px;
-  opacity: 0.72;
-  font-weight: 750;
-  line-height: 1.35;
-}
-
-.publicButton em {
-  font-style: normal;
-  font-weight: 950;
-}
-
-.publicHeading {
-  margin: 8px 0 0;
-  color: var(--heading);
-  font-size: 22px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.publicText {
-  margin: 0;
-  line-height: 1.5;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.publicDivider {
-  width: 100%;
-  border: 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.36);
-}
-
-.publicImage {
-  width: 100%;
-  min-height: 120px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 22px;
-}
-
-.publicVideo {
-  grid-template-columns: 1fr;
-  text-align: center;
-}
-
-.publicFooter {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px 14px;
-  color: color-mix(in srgb, var(--text), transparent 20%);
-  font-size: 13px;
-  font-weight: 800;
-  overflow-wrap: anywhere;
-}
-
-.publicFooter a {
-  color: inherit;
-}
-
 .notFound {
   min-height: 100vh;
   display: grid;
@@ -3046,8 +2521,7 @@ textarea {
   .livePreview {
     grid-column: 1 / -1;
     position: static;
-  }
-}
+  }}
 
 @media (max-width: 860px) {
   .adminShell {
@@ -3060,7 +2534,7 @@ textarea {
   }
 
   .dashboardHeader,
-  .editorTop {
+.editorTop {
     display: grid;
   }
 
@@ -3070,12 +2544,12 @@ textarea {
   }
 
   .colorGrid,
-  .analyticsPanel {
+.analyticsPanel {
     grid-template-columns: 1fr;
   }
 
   .chart,
-  .topLinks {
+.topLinks {
     grid-column: auto;
   }
 
@@ -3084,8 +2558,7 @@ textarea {
     min-height: 0;
     border: 0;
     border-radius: 24px;
-  }
-}
+  }}
 
 @media (max-width: 560px) {
   .upgradeBar {
@@ -3117,7 +2590,7 @@ textarea {
   }
 
   .homeHero,
-  .loginCard {
+.loginCard {
     padding: 26px;
     border-radius: 22px;
   }
@@ -3126,8 +2599,7 @@ textarea {
     font-size: 36px;
   }
 
-  .pageManager,
-  .publicExperience {
+  .pageManager {
     padding: 14px;
   }
 
@@ -3136,17 +2608,13 @@ textarea {
   }
 
   .blockActions,
-  .cardActions {
+.cardActions {
     justify-content: start;
-  }
+  }}
 
-  .publicCard {
-    padding: 18px;
-    border-radius: 24px;
-  }
-}
-
-/* Final UI polish: shared interaction, icon, and responsive layout rules. */
+/* Final UI polish: shared interaction,
+icon,
+and responsive layout rules. */
 button,
 a,
 input,
@@ -3212,9 +2680,7 @@ button:hover:not(:disabled) {
 .quickActions span,
 .detailMenu span,
 .editorDock button span,
-.blockPickerIcon,
-.canvasBlockIcon,
-.publicButton > span {
+.blockPickerIcon {
   display: grid;
   place-items: center;
 }
@@ -3222,9 +2688,7 @@ button:hover:not(:disabled) {
 .quickActions span svg,
 .detailMenu span svg,
 .editorDock button span svg,
-.blockPickerIcon svg,
-.canvasBlockIcon svg,
-.publicButton > span svg {
+.blockPickerIcon svg {
   width: 20px;
   height: 20px;
 }
@@ -3234,13 +2698,7 @@ button:hover:not(:disabled) {
 }
 
 .homepageCanvas {
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  border-radius: 16px;
-}
-
-.homepagePreview {
-  gap: 12px;
-  padding-bottom: 24px;
+  border-top: 1px solid rgba(17, 24, 39, 0.08);
 }
 
 .editorDock {
@@ -3263,20 +2721,8 @@ button:hover:not(:disabled) {
   height: 24px;
 }
 
-.editableProfile:focus-visible .bannerPreview,
-.editableProfile:focus-visible img {
-  outline: 3px solid rgba(8, 124, 255, 0.52);
-  outline-offset: 4px;
-}
-
-.profileEditBlock strong,
-.profileEditBlock p,
 .profileSheetIdentity strong,
-.profileSheetIdentity p,
-.publicProfile h1,
-.publicProfile p,
-.publicButton strong,
-.publicButton small {
+.profileSheetIdentity p {
   overflow-wrap: anywhere;
 }
 
@@ -3323,12 +2769,6 @@ button:hover:not(:disabled) {
   height: 24px;
 }
 
-.publicButton > svg {
-  width: 18px;
-  height: 18px;
-  opacity: 0.8;
-}
-
 .videoPlaceholder > svg {
   width: 28px;
   height: 28px;
@@ -3336,22 +2776,21 @@ button:hover:not(:disabled) {
 
 @media (min-width: 561px) {
   .profileSheetBackdrop,
-  .blockPickerBackdrop,
-  .appearanceSheetBackdrop {
+.blockPickerBackdrop,
+.appearanceSheetBackdrop {
     display: grid;
     place-items: center;
     padding: 24px;
   }
 
   .profileEditSheet,
-  .blockPickerSheet,
-  .appearanceSheet {
+.blockPickerSheet,
+.appearanceSheet {
     min-height: 0;
     max-height: min(88vh, 760px);
     border-radius: 18px;
     box-shadow: 0 24px 72px rgba(15, 23, 42, 0.24);
-  }
-}
+  }}
 
 @media (max-width: 860px) {
   .adminNav {
@@ -3375,8 +2814,7 @@ button:hover:not(:disabled) {
 
   .dashboardHeader {
     align-items: start;
-  }
-}
+  }}
 
 @media (max-width: 560px) {
   .homepageEditorTop {
@@ -3396,12 +2834,8 @@ button:hover:not(:disabled) {
     margin: 12px 12px 0;
   }
 
-  .profileEditBlock {
-    margin-inline: 18px;
-  }
-
   .profileSheetPreview,
-  .profileSheetFields {
+.profileSheetFields {
     padding-inline: 18px;
   }
 
@@ -3433,5 +2867,384 @@ button:hover:not(:disabled) {
 
   .quickActions {
     margin-inline: 20px;
+  }}
+/* ==========================================================================
+   Shared page design system
+
+   Every rule below styles the output of <PageRenderer/>, which the public
+   route and the admin builder's phone preview both render. There is no
+   separate "preview" styling: the builder only adds selection affordances
+   (.pageBlockRow*) around this markup, so the two views cannot drift.
+   ========================================================================== */
+
+.smartPage {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  color: var(--text);
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.16), transparent 18rem),
+    linear-gradient(135deg, var(--from), var(--to));
+}
+
+/* Caps content at the phone width so a desktop browser centres the mobile
+   layout instead of stretching it. Identical width inside the builder frame. */
+.pageColumn {
+  width: 100%;
+  max-width: var(--phone-w);
+  padding: 14px 16px 30px;
+}
+
+.smartCard {
+  display: grid;
+  gap: var(--spacing);
+  min-width: 0;
+  padding: 0 0 18px;
+  border: 1px solid transparent;
+  border-radius: 26px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
+.pageBanner {
+  display: block;
+  width: 100%;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  min-height: 132px;
+  padding: 0;
+  border: 0;
+  border-radius: 26px 26px 18px 18px;
+  background-color: rgba(255, 255, 255, 0.12);
+  background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04));
+  background-position: center;
+  background-size: cover;
+}
+
+.pageProfile {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-top: -46px;
+  padding: 0 16px;
+  text-align: center;
+}
+
+/* Identity wrapper. A <div> publicly, a <button> in the builder - same class,
+   so both produce the same box and the layout cannot differ. */
+.pageIdentity {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+.pageAvatar {
+  display: grid;
+  place-items: center;
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.18);
+  border: 4px solid rgba(255, 255, 255, 0.72);
+  border-radius: 28px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.24);
+}
+
+.pageAvatarFallback {
+  background: color-mix(in srgb, var(--button-bg, #ffffff), transparent 22%);
+  color: var(--button-text, #111827);
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.pageTitle {
+  margin: 0;
+  color: var(--heading);
+  font-size: clamp(21px, 6.6vw, 27px);
+  font-weight: 800;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.pageBio {
+  margin: 0;
+  max-width: 34ch;
+  color: color-mix(in srgb, var(--text), transparent 15%);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.pageShare {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  margin-top: 2px;
+  padding: 0 16px;
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+  background: var(--button-bg-glass);
+  color: var(--button-text);
+  font-size: 13px;
+  font-weight: 800;
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
+.pageShare svg {
+  width: 15px;
+  height: 15px;
+}
+
+.pageBlocks {
+  display: grid;
+  gap: var(--spacing);
+  padding: 4px 16px 0;
+}
+
+/* Layout only. Background, border and shadow come from the .buttonStyle-*
+   class so a theme can restyle buttons without fighting this rule. */
+.pageButton {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 11px 14px 11px 11px;
+  border-radius: var(--button-radius);
+  color: var(--button-text);
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.pageButtonIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.pageButtonIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pageButtonIcon:empty {
+  display: none;
+}
+
+/* With no icon the label takes the freed column so nothing shifts. */
+.pageButton:has(.pageButtonIcon:empty) {
+  grid-template-columns: minmax(0, 1fr) 20px;
+  padding-left: 16px;
+}
+
+.pageButtonLabel {
+  display: block;
+  min-width: 0;
+}
+
+.pageButtonLabel strong,
+.pageButtonLabel small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pageButtonLabel strong {
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.pageButtonLabel small {
+  margin-top: 2px;
+  opacity: 0.72;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.pageButtonArrow {
+  width: 18px;
+  height: 18px;
+  opacity: 0.55;
+}
+
+.pageHeading {
+  margin: 6px 0 0;
+  color: var(--heading);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pageText {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pageDivider {
+  width: 100%;
+  height: 1px;
+  margin: 6px 0;
+  border: 0;
+  background: color-mix(in srgb, var(--text), transparent 72%);
+}
+
+.pageImage {
+  display: block;
+  width: 100%;
+  border-radius: var(--button-radius);
+  object-fit: cover;
+}
+
+.pageImageFallback {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  background: rgba(255, 255, 255, 0.14);
+  color: color-mix(in srgb, var(--text), transparent 40%);
+}
+
+.pageImageFallback svg {
+  width: 30px;
+  height: 30px;
+}
+
+.pageVideo {
+  display: grid;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid var(--button-border);
+  border-radius: var(--button-radius);
+  background: var(--button-bg-glass);
+  color: var(--button-text);
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+}
+
+.pageVideo iframe,
+.pageVideo video,
+.pageVideo .videoPlaceholder {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.pageVideo strong {
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.pageSocials {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  padding: 2px 16px 0;
+}
+
+.pageSocialIcon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--button-border);
+  border-radius: 50%;
+  background: var(--button-bg-glass);
+  color: var(--button-text);
+  text-decoration: none;
+  backdrop-filter: blur(calc(var(--glass) * 1px));
+  transition: transform 180ms ease;
+}
+
+.pageSocialIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.pageSocialWrap {
+  display: contents;
+}
+
+@media (hover: hover) {
+  .pageButton:hover,
+  .pageVideo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.2);
   }
+
+  .pageSocialIcon:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.pageButton:active,
+.pageSocialIcon:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* --------------------------------------------------------------------------
+   Builder-only affordances. These wrap the shared markup without altering its
+   size or styling, so the preview stays a faithful copy of the public page.
+   -------------------------------------------------------------------------- */
+
+.pageBlockRow {
+  position: relative;
+  border-radius: var(--button-radius);
+  cursor: pointer;
+}
+
+.pageBlockRowSelected::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 2px solid #0b7cff;
+  border-radius: calc(var(--button-radius) + 4px);
+  pointer-events: none;
+}
+
+.pageBlockHidden {
+  opacity: 0.45;
+}
+
+.pageBannerEditable,
+.pageIdentityEditable,
+.pageBlockRow {
+  cursor: pointer;
+}
+
+.pageBannerEditable:hover,
+.pageIdentityEditable:hover .pageAvatar {
+  outline: 2px solid rgba(11, 124, 255, 0.6);
+  outline-offset: 3px;
 }
