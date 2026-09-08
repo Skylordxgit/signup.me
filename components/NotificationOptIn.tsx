@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check, X } from "lucide-react";
+import { Bell, Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { resolveNotificationPrompt, type NotificationPromptSettings } from '@/lib/notificationPrompt';
 import { pushSupport, type PushSupport } from '@/lib/pushSupport';
@@ -116,8 +116,7 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
     } finally { setBusy(false); }
   }
 
-  return <dialog ref={dialog} className="pushPrompt" dir="auto" aria-label={copy.heading} onCancel={event => { event.preventDefault(); dismiss(); }}>
-    <button type="button" className="pushPromptClose" aria-label={copy.closeLabel} onClick={dismiss}><X size={20} /></button>
+  return <dialog ref={dialog} className="pushPrompt" dir="auto" aria-label={copy.heading} onCancel={event => { event.preventDefault(); dismiss(); }} onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
     <span className="pushPromptIcon" aria-hidden="true">{success ? <Check size={30} /> : <Bell size={30} />}</span>
     <strong>{success ? copy.successHeading : copy.heading}</strong>
     <p className="pushPromptPage">{title || 'This page'}</p>

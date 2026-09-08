@@ -32,7 +32,7 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
           <h3>Subscribe prompt</h3>
           {renderPromptField('heading', 'Heading')}
           {renderPromptField('message', 'Message', true)}
-          <div className="admFormGrid">{renderPromptField('allowLabel', 'Allow button')}{renderPromptField('closeLabel', 'Close label')}</div>
+          {renderPromptField('allowLabel', 'Allow button')}
           {renderPromptField('footer', 'Footer', true)}
           {renderPromptField('dataNotice', 'Subscriber data note', true)}
         </section>
@@ -69,7 +69,6 @@ export function NotificationPromptPreview({ page }: { page: SmartPage }) {
   return <aside className="admPromptPreviewWrap">
     <SectionHeading title="Prompt preview" />
     <section className={`admPromptCopyPreview ${!enabled ? 'admPromptCopyPreviewOff' : ''}`} dir="auto" aria-label="Notification prompt preview">
-      <button type="button" aria-label={copy.closeLabel}><X size={18} /></button>
       <span aria-hidden="true"><Bell size={28} /></span>
       <h3>{copy.heading}</h3>
       <strong>{page.title || page.name}</strong>
