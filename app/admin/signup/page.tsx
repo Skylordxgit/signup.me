@@ -1,8 +1,9 @@
 "use client";
 
+/* eslint-disable @next/next/no-html-link-for-pages -- Keep the return to login independent of RSC navigation too. */
 import { useState } from "react";
-import Link from "next/link";
 import { AuthBranding } from "@/components/AuthBranding";
+import { submitSignup } from "@/lib/signupClient";
 
 export default function SignupPage() {
   const [error, setError] = useState("");
@@ -10,29 +11,24 @@ export default function SignupPage() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError("");
     const form = new FormData(event.currentTarget);
 
-    const response = await fetch("/api/auth/signup", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await submitSignup({
         email: form.get("email"),
         password: form.get("password"),
         name: form.get("name"),
-      }),
-    });
-
-    if (response.ok) {
+      });
       // The signup response already set the session, so go straight in.
       window.location.href = "/admin";
-      return;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not create the account. Please try again.");
+    } finally {
+      setLoading(false);
     }
-
-    const data = (await response.json()) as { error?: string };
-    setError(data.error || "Could not create the account.");
-    setLoading(false);
   }
 
   return (
@@ -45,7 +41,7 @@ export default function SignupPage() {
           <input name="name" type="text" maxLength={120} placeholder="Your name (optional)" autoComplete="name" />
           <input name="email" type="email" maxLength={190} placeholder="you@example.com" autoComplete="email" required />
           <input name="password" type="password" minLength={8} maxLength={128} placeholder="Password (at least 8 characters)" autoComplete="new-password" required />
-          {error && <span className="formError">{error}</span>}
+          {error && <span className="formError" role="alert">{error}</span>}
           <button type="submit" disabled={loading}>{loading ? "Creating account..." : "Create account"}</button>
           <small>
             You get your own workspace. If a team already invited this email,
@@ -53,7 +49,7 @@ export default function SignupPage() {
           </small>
         </form>
         <p className="authFooter">
-          Already have an account? <Link className="authLink" href="/admin/login" prefetch>Login</Link>
+          Already have an account? <a className="authLink" href="/admin/login">Login</a>
         </p>
       </section>
     </main>

@@ -1,7 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-html-link-for-pages -- Auth navigation must survive the production RSC Link failure. */
 import { useState } from "react";
-import Link from "next/link";
 import { Mail } from "lucide-react";
 import { AuthBranding } from "@/components/AuthBranding";
 
@@ -77,7 +77,7 @@ export default function LoginPage() {
             {notice && <p className="authNotice">{notice}</p>}
             <p className="authFooter">
               Don&apos;t have account?{" "}
-              <Link className="authSignupButton" href="/admin/signup" prefetch>Sign Up</Link>
+              <a className="authSignupButton" href="/admin/signup">Sign Up</a>
             </p>
           </>
         )}
@@ -95,7 +95,7 @@ export default function LoginPage() {
             </button>
             <small>Demo login: admin@example.com / admin123</small>
             <p className="authFooter">
-              Don&apos;t have account? <Link className="authSignupButton" href="/admin/signup" prefetch>Sign Up</Link>
+              Don&apos;t have account? <a className="authSignupButton" href="/admin/signup">Sign Up</a>
             </p>
           </form>
         )}

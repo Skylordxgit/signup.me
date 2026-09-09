@@ -210,7 +210,7 @@ npm test
 npm run build
 ```
 
-Expected current test count after the page export/import update: 43 passing tests.
+Expected current test count after the signup navigation fix: 48 passing tests.
 
 If build passes but prints browser compatibility warnings about server modules
 such as `fs/promises`, `path`, `crypto`, `mysql2`, or `lib/workspaces.ts`, trace
@@ -294,6 +294,24 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-09: Reproduced the broken Sign Up click on the live Hostinger site.
+  The console reported `[vinext] RSC prefetch setup error: TypeError: d is not
+  a function` and `TypeError: e is not a function` in the Link bundle. Clicking
+  stayed on login, while navigating directly to `/admin/signup` rendered the
+  form. Both Sign Up entry points and the return Login link now use native
+  anchors so auth navigation does not depend on that failing RSC client path.
+  This supersedes the earlier prefetch recommendation for these auth links.
+  Signup submission now handles network errors, HTML/proxy responses, and a
+  30-second timeout, restores the submit button on failure, and only redirects
+  after a JSON `{ ok: true }` response. No automatic signup retries: a lost
+  response can mean the account was already created. Workspace and invitation
+  rules remain server-enforced. Regression coverage: `tests/signupClient.test.ts`.
+  Verified against the production build locally: native Sign Up navigation,
+  account creation with a valid session and empty isolated workspace, pending
+  invite signup joining the existing workspace, duplicate-account errors, and
+  logging in again with the saved account. All four checks passed (48 tests).
+  Live MySQL account creation was not exercised; HTTP account tests used an
+  isolated local JSON store, with no writes to production accounts.
 - 2026-09-09: Added this handoff guide so future AI agents know the current
   architecture, workflow, push process, and known pitfalls. Future agents should
   keep this section current after completing work.

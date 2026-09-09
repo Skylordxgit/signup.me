@@ -7,3 +7,4 @@ import './workspaceUsers.test';
 import './workspaces.test';
 import './branding.test';
 import './pageTransfer.test';
+import './signupClient.test';
