@@ -7,6 +7,7 @@ import { subscriberListItem } from '../subscriberDetails';
 import { defaultTheme, seedPages } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
+import { DEFAULT_WORKSPACE_ID } from "../workspaces";
 
 type DatabaseShape = {
   pages: SmartPage[];
@@ -15,11 +16,15 @@ type DatabaseShape = {
   pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
 };
 
-const dataFile = path.join(process.cwd(), "data", "db.json");
+/* Resolved per call rather than at import, so the working directory in effect
+   when the store is used decides the file. */
+function dataFile() {
+  return path.join(process.cwd(), "data", "db.json");
+}
 
 async function readJsonDb(): Promise<DatabaseShape> {
   try {
-    const file = await fs.readFile(dataFile, "utf8");
+    const file = await fs.readFile(dataFile(), "utf8");
     const db = JSON.parse(file) as Partial<DatabaseShape>;
     return {
       pages: db.pages ?? [],
@@ -35,8 +40,9 @@ async function readJsonDb(): Promise<DatabaseShape> {
 }
 
 async function writeJsonDb(db: DatabaseShape) {
-  await fs.mkdir(path.dirname(dataFile), { recursive: true });
-  await fs.writeFile(dataFile, JSON.stringify(db, null, 2));
+  const target = dataFile();
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  await fs.writeFile(target, JSON.stringify(db, null, 2));
 }
 
 function nextId(items: { id: number }[]) {
@@ -44,12 +50,23 @@ function nextId(items: { id: number }[]) {
 }
 
 function sortBlocks(page: SmartPage) {
-  return { ...page, blocks: [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder) };
+  // Pages stored before workspaces existed belong to the default workspace.
+  return { ...page, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID, blocks: [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder) };
 }
 
-export async function listPages() {
+function inWorkspace(page: SmartPage, workspaceId?: string) {
+  return !workspaceId || (page.workspaceId || DEFAULT_WORKSPACE_ID) === workspaceId;
+}
+
+export async function listPages(workspaceId?: string) {
   const db = await readJsonDb();
-  return db.pages.map((page) => summarizePage(page));
+  return db.pages.filter((page) => inWorkspace(page, workspaceId)).map((page) => summarizePage(page));
+}
+
+/** Page totals per workspace, for the master admin overview. */
+export async function pagesByWorkspace() {
+  const db = await readJsonDb();
+  return db.pages.map((page) => ({ id: page.id, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID }));
 }
 
 export async function getPageById(id: number) {
@@ -70,6 +87,7 @@ export async function createPage(input: {
   title: string;
   bio: string;
   profileImage: string;
+  workspaceId?: string;
 }) {
   const db = await readJsonDb();
   const slug = slugify(input.slug || input.name);
@@ -82,6 +100,7 @@ export async function createPage(input: {
   const id = nextId(db.pages);
   const page: SmartPage = {
     id,
+    workspaceId: input.workspaceId || DEFAULT_WORKSPACE_ID,
     name: input.name.trim(),
     slug,
     title: input.title.trim() || input.name.trim(),
@@ -131,6 +150,8 @@ export async function updatePage(id: number, patch: Partial<SmartPage>) {
   db.pages[index] = {
     ...db.pages[index],
     ...patch,
+    // The owning workspace is not editable through the page API.
+    workspaceId: db.pages[index].workspaceId || DEFAULT_WORKSPACE_ID,
     slug: nextSlug,
     updatedAt: nowIso(),
     blocks: patch.blocks ?? db.pages[index].blocks,
@@ -198,6 +219,13 @@ export async function createBlock(pageId: number, type: BlockType) {
   page.updatedAt = nowIso();
   await writeJsonDb(db);
   return block;
+}
+
+/** The page a block belongs to, so routes can check the workspace before
+ *  touching it. Returns null when the block does not exist. */
+export async function blockPageId(id: number) {
+  const db = await readJsonDb();
+  return db.pages.find((page) => page.blocks.some((block) => block.id === id))?.id ?? null;
 }
 
 export async function updateBlock(id: number, patch: Partial<PageBlock>) {
@@ -397,23 +425,29 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
   return subscriber;
 }
 
-export async function listPushSubscribers(): Promise<NotificationSubscriberSummary> {
+export async function listPushSubscribers(workspaceId?: string): Promise<NotificationSubscriberSummary> {
   const db = await readJsonDb();
-  const active = db.pushSubscriptions.filter(item => item.isActive !== false);
+  // Subscribers stay scoped to their page, and so to that page's workspace.
+  const owned = (pageId: number) => !workspaceId || inWorkspace(db.pages.find(page => page.id === pageId) ?? ({} as SmartPage), workspaceId);
+  const subscriptions = db.pushSubscriptions.filter(item => owned(item.pageId));
+  const active = subscriptions.filter(item => item.isActive !== false);
   const byPage = active.reduce<Map<number, { pageId: number; slug: string; subscribers: number }>>((acc, item) => {
     const current = acc.get(item.pageId) ?? { pageId: item.pageId, slug: item.slug, subscribers: 0 };
     current.subscribers += 1;
     acc.set(item.pageId, current);
     return acc;
   }, new Map());
-  const recent = [...db.pushSubscriptions].sort((a, b) => b.id - a.id).slice(0, 100).map(item => subscriberListItem({ ...item, isActive: item.isActive !== false, slug: db.pages.find(page => page.id === item.pageId)?.slug || item.slug }));
-  return { total: active.length, inactive: db.pushSubscriptions.length - active.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers), recent };
+  const recent = [...subscriptions].sort((a, b) => b.id - a.id).slice(0, 100).map(item => subscriberListItem({ ...item, isActive: item.isActive !== false, slug: db.pages.find(page => page.id === item.pageId)?.slug || item.slug }));
+  return { total: active.length, inactive: subscriptions.length - active.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers), recent };
 }
 
 export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
   configureWebPush();
   const db = await readJsonDb();
-  const subscribers = db.pushSubscriptions.filter((item) => item.isActive !== false && (!input.pageId || item.pageId === input.pageId));
+  const subscribers = db.pushSubscriptions.filter((item) =>
+    item.isActive !== false
+    && (!input.pageId || item.pageId === input.pageId)
+    && (!input.workspaceId || inWorkspace(db.pages.find(page => page.id === item.pageId) ?? ({} as SmartPage), input.workspaceId)));
   const { result, expired } = await sendPushBatch(subscribers.map(item => item.subscription), notificationPayload(input));
   if (expired.length) {
     const hashes = new Set(expired.map(subscriptionHash));

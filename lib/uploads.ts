@@ -4,6 +4,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { hasMysqlConfig, mysqlQuery } from "./mysql";
+import { DEFAULT_WORKSPACE_ID } from "./workspaces";
 
 /**
  * MySQL deployments store image bytes and metadata together. Disk storage is
@@ -149,26 +150,55 @@ export type StoredUpload = { path: string; bytes: number; mime: string };
 
 export type MediaFile = StoredUpload & { name: string; category: UploadCategory; updatedAt: string };
 
-async function persistMedia(file: MediaFile, bytes: Uint8Array) {
+async function persistMedia(file: MediaFile, bytes: Uint8Array, workspaceId: string) {
   await mysqlQuery(
-    `INSERT IGNORE INTO media_files (storage_path, file_name, category, mime_type, file_size, file_data, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [file.path, file.name, file.category, file.mime, bytes.byteLength, Buffer.from(bytes), new Date(file.updatedAt)],
+    `INSERT IGNORE INTO media_files (storage_path, workspace_id, file_name, category, mime_type, file_size, file_data, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [file.path, workspaceId, file.name, file.category, file.mime, bytes.byteLength, Buffer.from(bytes), new Date(file.updatedAt)],
   );
 }
 
-export async function listMediaUploads(): Promise<MediaFile[]> {
+/* Local development has no media_files table, so the workspace each uploaded
+   file belongs to is kept in a small index beside the other JSON stores. Files
+   already on disk before workspaces existed are absent from it and belong to
+   the default workspace, which is where the existing install already sees
+   them. Public /uploads URLs stay unscoped so pages keep serving their
+   images. */
+function mediaIndexFile() {
+  return path.join(process.cwd(), "data", "media-workspaces.json");
+}
+
+async function readMediaIndex(): Promise<Record<string, string>> {
+  try { return JSON.parse(await readFile(mediaIndexFile(), "utf8")) as Record<string, string>; }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return {}; throw error; }
+}
+
+async function rememberMediaWorkspace(storagePath: string, workspaceId: string) {
+  const index = await readMediaIndex();
+  if (index[storagePath] === workspaceId) return;
+  index[storagePath] = workspaceId;
+  const target = mediaIndexFile();
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, JSON.stringify(index));
+}
+
+/** The media library for one workspace. */
+export async function listMediaUploads(workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<MediaFile[]> {
   const files: MediaFile[] = [];
   const seen = new Set<string>();
   if (hasMysqlConfig()) {
     const rows = await mysqlQuery<{ path: string; name: string; category: UploadCategory; mime: string; bytes: number; updatedAt: Date | string }[]>(
-      "SELECT storage_path AS path, file_name AS name, category, mime_type AS mime, file_size AS bytes, created_at AS updatedAt FROM media_files ORDER BY created_at DESC",
+      "SELECT storage_path AS path, file_name AS name, category, mime_type AS mime, file_size AS bytes, created_at AS updatedAt FROM media_files WHERE workspace_id = ? ORDER BY created_at DESC",
+      [workspaceId],
     );
     for (const row of rows) {
       files.push({ ...row, updatedAt: new Date(row.updatedAt).toISOString() });
       seen.add(`${row.category}/${row.name}`);
     }
   }
+  // Files sitting on disk are attributed through the local index, defaulting
+  // to the workspace that existing installs already keep them in.
+  const diskIndex = await readMediaIndex();
   for (const root of uploadRoots) {
     for (const category of uploadCategories) {
       const directory = path.join(root, category);
@@ -182,10 +212,12 @@ export async function listMediaUploads(): Promise<MediaFile[]> {
         const filePath = path.join(directory, entry.name);
         const mime = contentTypeFor(filePath);
         if (!mime) continue;
+        const publicPath = `/uploads/${category}/${encodeURIComponent(entry.name)}`;
+        if ((diskIndex[publicPath] || DEFAULT_WORKSPACE_ID) !== workspaceId) continue;
         seen.add(key);
         const info = await stat(filePath);
-        const file = { name: entry.name, category, path: `/uploads/${category}/${encodeURIComponent(entry.name)}`, mime, bytes: info.size, updatedAt: info.mtime.toISOString() };
-        if (hasMysqlConfig()) await persistMedia(file, await readFile(filePath));
+        const file = { name: entry.name, category, path: publicPath, mime, bytes: info.size, updatedAt: info.mtime.toISOString() };
+        if (hasMysqlConfig()) await persistMedia(file, await readFile(filePath), workspaceId);
         files.push(file);
       }
     }
@@ -197,16 +229,18 @@ export async function storeUpload(
   category: UploadCategory,
   bytes: Uint8Array,
   kind: ImageKind,
+  workspaceId: string = DEFAULT_WORKSPACE_ID,
 ): Promise<StoredUpload> {
   const name = safeFileName(kind.ext);
   const stored = { path: `/uploads/${category}/${name}`, bytes: bytes.byteLength, mime: kind.mime };
   if (hasMysqlConfig()) {
-    await persistMedia({ ...stored, name, category, updatedAt: new Date().toISOString() }, bytes);
+    await persistMedia({ ...stored, name, category, updatedAt: new Date().toISOString() }, bytes, workspaceId);
     return stored;
   }
   const directory = path.join(uploadRoot, category);
   await mkdir(directory, { recursive: true });
   await writeFile(path.join(directory, name), bytes);
+  await rememberMediaWorkspace(stored.path, workspaceId);
   return stored;
 }
 
@@ -225,7 +259,10 @@ export async function readUpload(segments: string[]) {
     const bytes = await readFile(filePath);
     if (hasMysqlConfig()) {
       const info = await stat(filePath);
-      await persistMedia({ path: publicPath, name: segments[1], category: segments[0], bytes: bytes.byteLength, mime, updatedAt: info.mtime.toISOString() }, bytes);
+      // A file only on disk predates MySQL storage, so it is attributed the
+      // same way the media library attributes it.
+      const owner = (await readMediaIndex())[publicPath] || DEFAULT_WORKSPACE_ID;
+      await persistMedia({ path: publicPath, name: segments[1], category: segments[0], bytes: bytes.byteLength, mime, updatedAt: info.mtime.toISOString() }, bytes, owner);
     }
     return { bytes: new Uint8Array(bytes), mime };
   } catch (error) {

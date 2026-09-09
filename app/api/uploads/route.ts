@@ -15,12 +15,14 @@ function fail(message: string, status: number) {
 }
 
 export async function GET() {
-  return protectedJson(listMediaUploads);
+  // The media library only lists this workspace's files.
+  return protectedJson((session) => listMediaUploads(session.workspaceId));
 }
 
 export async function POST(request: NextRequest) {
   // Only a signed-in admin may write files to the server.
-  if (!(await requireAdmin())) return fail("Authentication required", 401);
+  const session = await requireAdmin();
+  if (!session) return fail("Authentication required", 401);
 
   // Reject an oversized body before reading it into memory where we can.
   const declared = Number(request.headers.get("content-length") || 0);
@@ -66,7 +68,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const stored = await storeUpload(category, bytes, kind);
+    const stored = await storeUpload(category, bytes, kind, session.workspaceId);
     return NextResponse.json(stored, { status: 201 });
   } catch {
     return fail("Could not save the image to persistent storage. Please try again or check the server storage configuration.", 500);

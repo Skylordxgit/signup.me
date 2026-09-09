@@ -6,9 +6,11 @@ import { mysqlQuery, withTransaction } from "../mysql";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
+import { DEFAULT_WORKSPACE_ID } from '../workspaces';
 
 type PageRow = {
   id: number;
+  workspace_id?: string | null;
   name: string;
   slug: string;
   title: string;
@@ -108,6 +110,8 @@ function mapBlock(row: BlockRow): PageBlock {
 function mapPage(row: PageRow, blocks: PageBlock[]): SmartPage {
   return {
     id: row.id,
+    // Rows migrated from the single-workspace schema default to 'default'.
+    workspaceId: row.workspace_id || DEFAULT_WORKSPACE_ID,
     name: row.name,
     slug: row.slug,
     title: row.title,
@@ -187,13 +191,15 @@ function ensurePushTable() {
   return pushTableReady;
 }
 
-export async function listPages() {
+export async function listPages(workspaceId?: string) {
   const rows = await mysqlQuery<(PageRow & { clicks: number })[]>(
     `SELECT p.*, COALESCE(SUM(b.clicks), 0) AS clicks
      FROM pages p
      LEFT JOIN page_blocks b ON b.page_id = p.id
+     ${workspaceId ? 'WHERE p.workspace_id = ?' : ''}
      GROUP BY p.id
      ORDER BY p.updated_at DESC`,
+    workspaceId ? [workspaceId] : [],
   );
 
   return rows.map((row) => ({
@@ -212,6 +218,12 @@ export async function getPageById(id: number) {
   return loadPage(id);
 }
 
+/** Page totals per workspace, for the master admin overview. */
+export async function pagesByWorkspace() {
+  const rows = await mysqlQuery<{ id: number; workspace_id: string | null }[]>('SELECT id, workspace_id FROM pages');
+  return rows.map((row) => ({ id: row.id, workspaceId: row.workspace_id || DEFAULT_WORKSPACE_ID }));
+}
+
 export async function getPublicPageBySlug(slug: string) {
   const rows = await mysqlQuery<PageRow[]>("SELECT * FROM pages WHERE slug = ? AND status = 'published'", [slug]);
   if (!rows[0]) return null;
@@ -224,6 +236,7 @@ export async function createPage(input: {
   title: string;
   bio: string;
   profileImage: string;
+  workspaceId?: string;
 }) {
   const slug = slugify(input.slug || input.name);
   if (!isValidSlug(slug)) throw new Error("Invalid slug");
@@ -243,9 +256,10 @@ export async function createPage(input: {
   const integrations = { metaPixelId: "", gtmId: "" };
 
   const result = await mysqlQuery<{ insertId: number }>(
-    `INSERT INTO pages (name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
-     VALUES (?, ?, ?, ?, ?, '', 'published', ?, ?, ?, 0, 0)`,
+    `INSERT INTO pages (workspace_id, name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
+     VALUES (?, ?, ?, ?, ?, ?, '', 'published', ?, ?, ?, 0, 0)`,
     [
+      input.workspaceId || DEFAULT_WORKSPACE_ID,
       input.name.trim(),
       slug,
       input.title.trim() || input.name.trim(),
@@ -330,9 +344,10 @@ export async function duplicatePage(id: number) {
 
   const newId = await withTransaction(async (query) => {
     const result = await query<{ insertId: number }>(
-      `INSERT INTO pages (name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
-       VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, 0, 0)`,
+      `INSERT INTO pages (workspace_id, name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, 0, 0)`,
       [
+        page.workspaceId,
         `${page.name} Copy`,
         duplicateSlug,
         page.title,
@@ -401,6 +416,13 @@ export async function createBlock(pageId: number, type: BlockType) {
   await mysqlQuery("UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [pageId]);
 
   return { ...block, id: result.insertId };
+}
+
+/** The page a block belongs to, so routes can check the workspace before
+ *  touching it. Returns null when the block does not exist. */
+export async function blockPageId(id: number) {
+  const rows = await mysqlQuery<{ page_id: number }[]>('SELECT page_id FROM page_blocks WHERE id = ?', [id]);
+  return rows[0]?.page_id ?? null;
 }
 
 export async function updateBlock(id: number, patch: Partial<PageBlock>) {
@@ -632,20 +654,31 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
   };
 }
 
-export async function listPushSubscribers(): Promise<NotificationSubscriberSummary> {
+export async function listPushSubscribers(workspaceId?: string): Promise<NotificationSubscriberSummary> {
   await ensurePushTable();
+  // Subscribers stay scoped to their page, and so to that page's workspace.
+  const scope = workspaceId ? 'AND p.workspace_id = ?' : '';
+  const scopeValues = workspaceId ? [workspaceId] : [];
   const rows = await mysqlQuery<{ page_id: number; slug: string; subscribers: number }[]>(
     `SELECT ps.page_id, p.slug, COUNT(*) AS subscribers
      FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
-     WHERE ps.is_active = 1
+     WHERE ps.is_active = 1 ${scope}
      GROUP BY ps.page_id, p.slug
      ORDER BY subscribers DESC`,
+    scopeValues,
   );
-  const totals = await mysqlQuery<{ inactive: number }[]>("SELECT COUNT(*) AS inactive FROM push_subscriptions WHERE is_active = 0");
+  const totals = await mysqlQuery<{ inactive: number }[]>(
+    `SELECT COUNT(*) AS inactive FROM push_subscriptions ps
+     INNER JOIN pages p ON p.id = ps.page_id
+     WHERE ps.is_active = 0 ${scope}`,
+    scopeValues,
+  );
   const recent = await mysqlQuery<Pick<PushRow, 'id' | 'page_id' | 'slug' | 'user_agent' | 'client_details' | 'is_active' | 'last_failed_at' | 'created_at'>[]>(
     `SELECT ps.id, ps.page_id, p.slug, ps.user_agent, ps.client_details, ps.is_active, ps.last_failed_at, ps.created_at
-     FROM push_subscriptions ps INNER JOIN pages p ON p.id = ps.page_id ORDER BY ps.id DESC LIMIT 100`,
+     FROM push_subscriptions ps INNER JOIN pages p ON p.id = ps.page_id
+     WHERE 1 = 1 ${scope} ORDER BY ps.id DESC LIMIT 100`,
+    scopeValues,
   );
   return {
     total: rows.reduce((sum, row) => sum + Number(row.subscribers), 0),
@@ -661,8 +694,8 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   const rows = await mysqlQuery<PushRow[]>(
     `SELECT ps.*, p.slug FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
-     WHERE ps.is_active = 1 AND (? IS NULL OR ps.page_id = ?)`,
-    [input.pageId ?? null, input.pageId ?? null],
+     WHERE ps.is_active = 1 AND (? IS NULL OR ps.page_id = ?) AND (? IS NULL OR p.workspace_id = ?)`,
+    [input.pageId ?? null, input.pageId ?? null, input.workspaceId ?? null, input.workspaceId ?? null],
   );
   const subscriptions = rows.map(row => toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }));
   const { result, expired } = await sendPushBatch(subscriptions, notificationPayload(input));

@@ -9,6 +9,6 @@ export async function GET() {
 
   return NextResponse.json({
     configured: webPushConfigured(),
-    subscribers: await listPushSubscribers(),
+    subscribers: await listPushSubscribers(session.workspaceId),
   }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

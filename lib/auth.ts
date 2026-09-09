@@ -1,10 +1,20 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { findWorkspaceUser } from './workspaceUsers';
+import { findWorkspaceUser, isPendingInvite } from './workspaceUsers';
+import { DEFAULT_WORKSPACE_ID, isWorkspaceActive } from './workspaces';
+import { isMasterEmail } from './master';
 
 const cookieName = "smartlink_session";
 const sessionTtlSeconds = 60 * 60 * 8;
+
+export type SessionRole = 'owner' | 'admin';
+/** 'workspace' sessions reach the admin app; 'master' sessions reach only the
+ *  master admin routes. The two never overlap. */
+export type SessionScope = 'workspace' | 'master';
+export type SessionDescriptor = { email: string; version?: number; workspaceId?: string; role?: SessionRole; scope?: SessionScope };
+export type AdminSession = { email: string; workspaceId: string; role: SessionRole; version?: number; expiresAt: number };
+export type MasterSession = { email: string; expiresAt: number };
 
 function secret() {
   return process.env.SESSION_SECRET || "dev-secret-change-me-before-production";
@@ -27,9 +37,11 @@ function sign(value: string) {
   return createHash("sha256").update(`${value}.${secret()}`).digest("hex");
 }
 
-export function createSessionToken(email: string, version?: number) {
+/** Accepts a bare email so sessions minted before workspaces keep working. */
+export function createSessionToken(input: string | SessionDescriptor, version?: number) {
+  const descriptor: SessionDescriptor = typeof input === 'string' ? { email: input, version } : input;
   const expiresAt = Date.now() + sessionTtlSeconds * 1000;
-  const payload = Buffer.from(JSON.stringify({ email, expiresAt, version })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ ...descriptor, expiresAt })).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
@@ -39,11 +51,7 @@ export function readSessionToken(token?: string) {
   if (!payload || !signature || sign(payload) !== signature) return null;
 
   try {
-    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
-      email: string;
-      expiresAt: number;
-      version?: number;
-    };
+    const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionDescriptor & { expiresAt: number };
     if (typeof session.email !== 'string' || !Number.isFinite(session.expiresAt) || session.expiresAt < Date.now()) return null;
     return session;
   } catch {
@@ -61,23 +69,40 @@ export function configuredAdmin() {
   return { email, passwordHash };
 }
 
+async function readSession() {
+  const cookieStore = await cookies();
+  return readSessionToken(cookieStore.get(cookieName)?.value);
+}
+
 export async function requireAdmin() {
-  const cookieStore = await cookies();
-  const session = readSessionToken(cookieStore.get(cookieName)?.value);
-  return resolveAdminSession(session);
+  return resolveAdminSession(await readSession());
 }
 
-export async function resolveAdminSession(session: ReturnType<typeof readSessionToken>) {
-  if (!session) return null;
-  if (session.email.toLowerCase() === ownerEmail()) return { ...session, role: 'owner' as const };
+/** Resolves a workspace session. Master sessions are rejected here: they carry
+ *  no workspace and must not reach any workspace API. */
+export async function resolveAdminSession(session: ReturnType<typeof readSessionToken>): Promise<AdminSession | null> {
+  if (!session || session.scope === 'master') return null;
+
+  // ADMIN_EMAIL owns the default workspace and has no workspace_users row.
+  if (session.email.toLowerCase() === ownerEmail()) {
+    return { ...session, workspaceId: DEFAULT_WORKSPACE_ID, role: 'owner' };
+  }
+
   const user = await findWorkspaceUser(session.email);
-  if (!user?.active || session.version !== user.version) return null;
-  return { ...session, role: 'admin' as const };
+  if (!user?.active || isPendingInvite(user) || session.version !== user.version) return null;
+  if (!(await isWorkspaceActive(user.workspaceId))) return null;
+  return { ...session, workspaceId: user.workspaceId, role: user.role };
 }
 
-export async function setSessionCookie(email: string, version?: number) {
+export async function requireMaster(): Promise<MasterSession | null> {
+  const session = await readSession();
+  if (!session || session.scope !== 'master' || !isMasterEmail(session.email)) return null;
+  return { email: session.email, expiresAt: session.expiresAt };
+}
+
+export async function setSessionCookie(input: string | SessionDescriptor, version?: number) {
   const cookieStore = await cookies();
-  cookieStore.set(cookieName, createSessionToken(email, version), {
+  cookieStore.set(cookieName, createSessionToken(input, version), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.COOKIE_SECURE === "true",
@@ -91,14 +116,35 @@ export async function clearSessionCookie() {
   cookieStore.delete(cookieName);
 }
 
-export async function protectedJson<T>(handler: () => Promise<T>) {
+/** Runs `handler` with the caller's workspace session. Every workspace API goes
+ *  through here, so the workspace id is always the session's, never the
+ *  client's. */
+export async function protectedJson<T>(handler: (session: AdminSession) => Promise<T>) {
   const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
   try {
-    return NextResponse.json(await handler());
+    return NextResponse.json(await handler(session));
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Request failed" },
+      { status: 400 },
+    );
+  }
+}
+
+/** Same contract for the master admin routes, which no workspace session
+ *  can reach. */
+export async function masterJson<T>(handler: (session: MasterSession) => Promise<T>) {
+  const session = await requireMaster();
+  if (!session) {
+    return NextResponse.json({ error: "Master admin access required" }, { status: 401 });
+  }
+
+  try {
+    return NextResponse.json(await handler(session));
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Request failed" },

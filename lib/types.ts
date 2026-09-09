@@ -118,6 +118,9 @@ export type PageBlock = {
 
 export type SmartPage = {
   id: number;
+  /** Owning workspace. Pages saved before workspaces existed read as the
+   *  default workspace, so existing slugs keep working untouched. */
+  workspaceId: string;
   name: string;
   slug: string;
   title: string;
@@ -210,6 +213,8 @@ export type NotificationSendInput = {
   body: string;
   url: string;
   pageId?: number | null;
+  /** Restricts delivery to pages in this workspace. */
+  workspaceId?: string;
 };
 
 export type NotificationSendResult = {

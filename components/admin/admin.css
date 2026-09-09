@@ -440,3 +440,29 @@ body:has(.admDialog[open]) { overflow: hidden; }
 .admTeamRow small { color: #677489; margin-top: 4px; }
 .admTeamFields { padding: 0; border: 0; min-width: 0; }
 @media (max-width: 600px) { .admTeamRow { grid-template-columns: minmax(0, 1fr) 76px 80px; gap: 10px; } .admTeamRow > svg { display: none; } .admTeamRow > .admBadge:first-of-type { grid-column: 1; grid-row: auto; } .admTeamRow > div:first-of-type { grid-column: 1 / -1; } }
+
+/* Master admin: one full-width column, no workspace sidebar. */
+.admShellPlain { grid-template-columns: minmax(0, 1fr); }
+.admMasterList { display: grid; }
+.admMasterRow { display: grid; grid-template-columns: minmax(0, 1fr) 84px repeat(4, 88px) 44px; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--adm-line); }
+.admMasterName { display: flex; align-items: center; gap: 12px; min-width: 0; border: 0; background: transparent; padding: 0; text-align: left; color: inherit; }
+.admMasterName > svg { flex: none; color: #6b7686; }
+.admMasterName strong, .admMasterName small { display: block; overflow-wrap: anywhere; }
+.admMasterName small { color: #677489; margin-top: 3px; }
+.admMasterName:hover strong { color: var(--adm-blue); }
+.admMasterCount { display: grid; gap: 2px; }
+.admMasterCount small { color: var(--adm-muted); font-size: 11px; }
+.admMasterCount strong { font-weight: 600; }
+.admMasterDetail { display: grid; gap: 12px; margin: 0; }
+.admMasterDetail div { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.admMasterDetail dt { color: var(--adm-muted); font-size: 13px; }
+.admMasterDetail dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 900px) {
+  .admMasterRow { grid-template-columns: minmax(0, 1fr) 84px 44px; }
+  .admMasterName { grid-column: 1 / -1; }
+  .admMasterCount { grid-column: span 1; }
+}
+@media (max-width: 600px) {
+  .admMasterRow { grid-template-columns: repeat(2, minmax(0, 1fr)) 44px; gap: 12px; }
+  .admMasterDetail div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Mail } from "lucide-react";
 
 type LoginView = "options" | "email";
@@ -27,6 +28,12 @@ export default function LoginPage() {
     });
 
     if (response.ok) {
+      // A master admin session has no workspace, so it goes to its own area.
+      const { redirect } = (await response.json()) as { redirect?: string };
+      if (redirect === "/admin/master") {
+        window.location.href = redirect;
+        return;
+      }
       const cookieSlug = document.cookie.split("; ").find(value => value.startsWith("smartlink_claim="))?.split("=")[1];
       const slug = new URLSearchParams(window.location.search).get("slug") || cookieSlug || "";
       window.location.href = slug && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug)
@@ -83,9 +90,7 @@ export default function LoginPage() {
             {notice && <p className="authNotice">{notice}</p>}
             <p className="authFooter">
               Don&apos;t have account?{" "}
-              <button type="button" className="authLink" onClick={() => setNotice("Contact your administrator for access.")}>
-                Sign Up
-              </button>
+              <Link className="authLink" href="/admin/signup">Sign Up</Link>
             </p>
           </>
         )}
@@ -102,6 +107,9 @@ export default function LoginPage() {
               Back
             </button>
             <small>Demo login: admin@example.com / admin123</small>
+            <p className="authFooter">
+              Don&apos;t have account? <Link className="authLink" href="/admin/signup">Sign Up</Link>
+            </p>
           </form>
         )}
       </section>

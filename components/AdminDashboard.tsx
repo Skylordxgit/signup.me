@@ -33,6 +33,7 @@ export function AdminDashboard() {
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [role, setRole] = useState<'owner' | 'admin'>('admin');
   const [email, setEmail] = useState('');
+  const [workspace, setWorkspace] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -91,11 +92,12 @@ export function AdminDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([adminApi<PageSummary[]>('/api/pages'), adminApi<{ email: string; role: 'owner' | 'admin' }>('/api/auth/me')]).then(async ([items, account]) => {
+    Promise.all([adminApi<PageSummary[]>('/api/pages'), adminApi<{ email: string; role: 'owner' | 'admin'; workspaceName: string }>('/api/auth/me')]).then(async ([items, account]) => {
       if (cancelled) return;
       setPages(items);
       setEmail(account.email);
       setRole(account.role);
+      setWorkspace(account.workspaceName);
       try { setCollapsed(localStorage.getItem('smartlink_sidebar_collapsed') === 'true'); } catch { /* Use the expanded sidebar. */ }
       const cookieSlug = document.cookie.split('; ').find(value => value.startsWith('smartlink_claim='))?.split('=')[1];
       const requested = new URLSearchParams(window.location.search).get('slug') || cookieSlug || '';
@@ -220,11 +222,11 @@ export function AdminDashboard() {
     <aside className="admSidebar">{sidebar()}</aside>
     <div className="admWorkspace">
       <header className="admTopbar">
-        <div className="admTopbarTitle"><IconButton icon={Menu} label="Open navigation" className="admMenuButton" onClick={() => setDrawerOpen(true)} /><div><span>Workspace</span><h1>{heading}</h1></div></div>
+        <div className="admTopbarTitle"><IconButton icon={Menu} label="Open navigation" className="admMenuButton" onClick={() => setDrawerOpen(true)} /><div><span>{workspace || 'Workspace'}</span><h1>{heading}</h1></div></div>
         <form className="admHeaderSearch" role="search" onSubmit={event => { event.preventDefault(); navigate('pages'); }}><Search size={17} /><input aria-label="Search pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></form>
         <div className="admHeaderActions">
           {view === 'builder' && editor.page && <><span className={'admSaveStatus ' + (editor.status === 'Save failed' ? 'admDanger' : '')} role="status">{editor.status === 'Saving' ? <Loader2 className="admSpinner" size={15} /> : editor.status === 'Saved' ? <Check size={15} /> : <span className="admUnsavedDot" />}{editor.status}</span><a className="admButton" aria-label="Preview public page" title="Preview public page" href={'/' + editor.page.slug} target="_blank" rel="noreferrer"><ArrowUpRight size={16} /><span>Preview</span></a><button type="button" className="admButton admPrimary" aria-label="Save page" title="Save page" disabled={busy || editor.status === 'Saving'} onClick={() => void run(editor.save)}><Save size={16} /><span>Save</span></button></>}
-          <details className="admAccount" ref={accountMenu}><summary aria-label="Admin account menu" title="Admin account menu"><span className="admAvatar"><User size={18} /></span><ChevronDown size={14} /></summary><div><strong>Administrator</strong><small>{email}</small><button type="button" onClick={() => navigate('settings')}><Settings size={16} />Settings</button><button type="button" disabled={busy} onClick={logout}><LogOut size={16} />Log out</button></div></details>
+          <details className="admAccount" ref={accountMenu}><summary aria-label="Admin account menu" title="Admin account menu"><span className="admAvatar"><User size={18} /></span><ChevronDown size={14} /></summary><div><strong>{role === 'owner' ? 'Workspace owner' : 'Administrator'}</strong><small>{email}</small><small>{workspace}</small><button type="button" onClick={() => navigate('settings')}><Settings size={16} />Settings</button><button type="button" disabled={busy} onClick={logout}><LogOut size={16} />Log out</button></div></details>
         </div>
       </header>
       <main className={'admMain ' + (view === 'builder' ? 'admMainBuilder' : '')} aria-busy={busy || loading} inert={busy || undefined}>

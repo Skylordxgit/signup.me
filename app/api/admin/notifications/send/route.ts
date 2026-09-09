@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
+import { pageForSession } from "@/lib/workspaceAccess";
 import { sendPushNotification } from "@/lib/store";
 import { isNotificationUrl } from '@/lib/notificationUrl';
 
@@ -19,8 +20,10 @@ export async function POST(request: NextRequest) {
     if (title.length > 80) throw new Error("Keep the title under 80 characters");
     if (message.length > 180) throw new Error("Keep the message under 180 characters");
     if (!isNotificationUrl(url)) throw new Error('Enter a full HTTPS link or a page path starting with /');
+    // A page id from the client only counts when it is in this workspace.
+    if (pageId !== null) await pageForSession(session, pageId);
 
-    return NextResponse.json(await sendPushNotification({ title, body: message, url, pageId }));
+    return NextResponse.json(await sendPushNotification({ title, body: message, url, pageId, workspaceId: session.workspaceId }));
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Notification failed" },

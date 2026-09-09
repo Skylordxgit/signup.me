@@ -11,20 +11,21 @@ test("database uploads survive reads without any local file, and failed writes a
     if (originalUrl === undefined) delete process.env.DATABASE_URL;
     else process.env.DATABASE_URL = originalUrl;
   });
-  const rows = new Map<string, { path: string; name: string; category: string; mime: string; bytes: number; data: Buffer; updatedAt: Date }>();
+  const rows = new Map<string, { path: string; workspaceId: string; name: string; category: string; mime: string; bytes: number; data: Buffer; updatedAt: Date }>();
   const pool = mysqlPool();
   t.mock.method(pool, "query", async () => [[], []]);
   t.mock.method(pool, "execute", async (sql: string, values: unknown[] = []) => {
     if (sql.startsWith("INSERT")) {
-      const [path, name, category, mime, bytes, data, updatedAt] = values as [string, string, string, string, number, Buffer, Date];
-      if (!rows.has(path)) rows.set(path, { path, name, category, mime, bytes, data, updatedAt });
+      const [path, workspaceId, name, category, mime, bytes, data, updatedAt] = values as [string, string, string, string, string, number, Buffer, Date];
+      if (!rows.has(path)) rows.set(path, { path, workspaceId, name, category, mime, bytes, data, updatedAt });
       return [{ affectedRows: 1 }, []];
     }
     if (sql.includes("WHERE storage_path")) {
       const row = rows.get(String(values[0]));
       return [row ? [{ data: row.data }] : [], []];
     }
-    return [[...rows.values()].map(row => ({ path: row.path, name: row.name, category: row.category, mime: row.mime, bytes: row.bytes, updatedAt: row.updatedAt })), []];
+    // The library listing is scoped to one workspace, like the real query.
+    return [[...rows.values()].filter(row => row.workspaceId === String(values[0] ?? row.workspaceId)).map(row => ({ path: row.path, name: row.name, category: row.category, mime: row.mime, bytes: row.bytes, updatedAt: row.updatedAt })), []];
   });
 
   const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -36,6 +37,8 @@ test("database uploads survive reads without any local file, and failed writes a
     assert.deepEqual(loaded?.bytes, bytes);
     assert.equal(loaded?.mime, "image/png");
     assert.ok((await listMediaUploads()).some(file => file.path === stored.path && file.bytes === bytes.length));
+    // A file stored for one workspace never appears in another's library.
+    assert.equal((await listMediaUploads('other-workspace')).some(file => file.path === stored.path), false);
   }
   assert.equal(await readUpload(["profile", "..", "secret.png"]), null);
   assert.equal(await readUpload(["profile", "missing.png"]), null);

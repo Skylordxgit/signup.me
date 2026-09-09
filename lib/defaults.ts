@@ -1,4 +1,5 @@
 import type { SmartPage, ThemeSettings } from "./types";
+import { DEFAULT_WORKSPACE_ID } from "./workspaces";
 import { nowIso } from "./utils";
 
 export const defaultTheme: ThemeSettings = {
@@ -33,6 +34,7 @@ export function seedPages(): SmartPage[] {
   return [
     {
       id: 1,
+      workspaceId: DEFAULT_WORKSPACE_ID,
       name: "Dr. Moiz Khakiani",
       slug: "dr-moiz-khakiani",
       title: "Dr. Moiz Khakiani",
@@ -147,6 +149,7 @@ export function seedPages(): SmartPage[] {
     },
     {
       id: 2,
+      workspaceId: DEFAULT_WORKSPACE_ID,
       name: "MIK Solutions",
       slug: "mik",
       title: "MIK Solutions",

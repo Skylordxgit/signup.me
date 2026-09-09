@@ -4,6 +4,14 @@ let pool: mysql.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
 const schemaStatements = [
+  `CREATE TABLE IF NOT EXISTS workspaces (
+    id CHAR(36) PRIMARY KEY,
+    name VARCHAR(190) NOT NULL,
+    owner_email VARCHAR(190) NOT NULL,
+    status ENUM('active', 'disabled') NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_workspaces_owner (owner_email)
+  )`,
   `CREATE TABLE IF NOT EXISTS workspace_users (
     id CHAR(36) PRIMARY KEY,
     email VARCHAR(190) NOT NULL UNIQUE,
@@ -15,6 +23,7 @@ const schemaStatements = [
   )`,
   `CREATE TABLE IF NOT EXISTS media_files (
     storage_path VARCHAR(255) PRIMARY KEY,
+    workspace_id CHAR(36) NOT NULL DEFAULT 'default',
     file_name VARCHAR(120) NOT NULL,
     category VARCHAR(20) NOT NULL,
     mime_type VARCHAR(120) NOT NULL,
@@ -110,6 +119,24 @@ const schemaStatements = [
   )`,
 ];
 
+/* Applied after the CREATE TABLE statements so an existing single-workspace
+   database gains the multi-workspace columns in place. Each one is written to
+   be safe to re-run: a column or index that is already there is ignored. */
+const migrationStatements = [
+  `ALTER TABLE workspace_users ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE workspace_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'`,
+  `ALTER TABLE workspace_users ADD INDEX idx_workspace_users_workspace (workspace_id)`,
+  `ALTER TABLE workspace_users MODIFY COLUMN password_hash VARCHAR(255) NOT NULL DEFAULT ''`,
+  `ALTER TABLE pages ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE pages ADD INDEX idx_pages_workspace (workspace_id)`,
+  `ALTER TABLE uploads ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE media_files ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE media_files ADD INDEX idx_media_workspace (workspace_id)`,
+];
+
+/* Errors that mean "this migration already ran". */
+const appliedCodes = new Set(['ER_DUP_FIELDNAME', 'ER_DUP_KEYNAME', 'ER_CANT_DROP_FIELD_OR_KEY']);
+
 export function hasMysqlConfig() {
   return Boolean(
     process.env.DATABASE_URL
@@ -150,6 +177,10 @@ async function ensureMysqlSchema() {
       const database = mysqlPool();
       for (const statement of schemaStatements) {
         await database.query(statement);
+      }
+      for (const statement of migrationStatements) {
+        try { await database.query(statement); }
+        catch (error) { if (!appliedCodes.has((error as { code?: string }).code ?? '')) throw error; }
       }
     })().catch((error) => {
       schemaReady = null;

@@ -3,12 +3,13 @@ import test from 'node:test';
 import { createSessionToken, readSessionToken, resolveAdminSession, ownerEmail, hashPassword, verifyPassword } from '../lib/auth';
 import { mysqlPool } from '../lib/mysql';
 import { publicWorkspaceUser } from '../lib/workspaceUsers';
+import { DEFAULT_WORKSPACE_ID } from '../lib/workspaces';
 
 test('workspace roles reject unknown, disabled and revoked admin sessions', async t => {
   const original = process.env.DATABASE_URL;
   process.env.DATABASE_URL = 'mysql://test:test@localhost/test';
   t.after(() => { if (original === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = original; });
-  const user = { id: 'test-admin', email: 'teammate@example.test', name: 'Teammate', passwordHash: hashPassword('a-long-test-password'), active: true, version: 1, createdAt: new Date().toISOString() };
+  const user = { id: 'test-admin', email: 'teammate@example.test', name: 'Teammate', passwordHash: hashPassword('a-long-test-password'), workspaceId: DEFAULT_WORKSPACE_ID, role: 'admin' as const, active: true, version: 1, createdAt: new Date().toISOString() };
   t.mock.method(mysqlPool(), 'query', async () => [[], []]);
   t.mock.method(mysqlPool(), 'execute', async () => [[user], []]);
   const session = readSessionToken(createSessionToken(user.email, 1));
@@ -27,4 +28,17 @@ test('workspace roles reject unknown, disabled and revoked admin sessions', asyn
   assert.equal('passwordHash' in publicWorkspaceUser(user), false);
   assert.equal('version' in publicWorkspaceUser(user), false);
   assert.equal(readSessionToken(createSessionToken(user.email, 2) + 'tampered'), null);
+
+  // Every resolved session names the workspace it may touch.
+  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(user.email, 2))))?.workspaceId, DEFAULT_WORKSPACE_ID);
+  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(ownerEmail()))))?.workspaceId, DEFAULT_WORKSPACE_ID);
+
+  // A master session carries no workspace and is refused by the workspace guard.
+  assert.equal(await resolveAdminSession(readSessionToken(createSessionToken({ email: 'master@example.test', scope: 'master' }))), null);
+
+  // A pending invite has no password yet, so it cannot hold a session.
+  const pendingHash = user.passwordHash;
+  user.passwordHash = '';
+  assert.equal(await resolveAdminSession(readSessionToken(createSessionToken(user.email, 2))), null);
+  user.passwordHash = pendingHash;
 });

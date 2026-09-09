@@ -52,6 +52,8 @@ DB_PASSWORD=
 SESSION_SECRET=
 ADMIN_EMAIL=
 ADMIN_PASSWORD_HASH=
+MASTER_ADMIN_EMAIL=
+MASTER_ADMIN_PASSWORD_HASH=
 NEXT_PUBLIC_APP_URL=
 COOKIE_SECURE=true
 UPLOAD_DIR=/home/USER/smartlink-uploads
@@ -61,6 +63,16 @@ MAX_UPLOAD_BYTES=5242880
 For the supplied Hostinger database, use the database and user names exactly as created in hPanel. The database host is shown in **hPanel -> Databases -> Management**. Individual variables take priority when both options are present. URL-encode special characters in the password (for example, `@` becomes `%40`) only when placing it in `DATABASE_URL`.
 
 Use a long random value for `SESSION_SECRET`. Never expose database credentials in frontend code.
+
+`ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH` identify the owner of the main
+workspace, unchanged. `MASTER_ADMIN_EMAIL` and `MASTER_ADMIN_PASSWORD_HASH` are
+optional: set both to enable the master admin area at `/admin/master`, which
+sees every workspace and belongs to none. Leave either blank and master admin
+login is disabled entirely. Use a different email from `ADMIN_EMAIL`. Both
+password hashes use the same salted scrypt format.
+
+The multi-workspace columns are applied automatically on the first database
+connection; see `docs/workspace-team.md` and `docs/schema.sql`.
 
 ## Build And Start
 

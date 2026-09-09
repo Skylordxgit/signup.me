@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hashPassword, ownerEmail, requireAdmin } from '@/lib/auth';
-import { addWorkspaceUser, listWorkspaceUsers, publicWorkspaceUser, updateWorkspaceUser } from '@/lib/workspaceUsers';
+import { hashPassword, ownerEmail, requireAdmin, type AdminSession } from '@/lib/auth';
+import { isMasterEmail } from '@/lib/master';
+import { assertEmail, assertPassword, displayName, normalizeEmail } from '@/lib/signup';
+import { addWorkspaceUser, deleteWorkspaceUser, findWorkspaceUser, listWorkspaceUsers, publicWorkspaceUser, updateWorkspaceUser } from '@/lib/workspaceUsers';
+import { DEFAULT_WORKSPACE_ID, getWorkspace } from '@/lib/workspaces';
 
 function errorResponse(error: unknown) {
   return NextResponse.json({ error: error instanceof Error ? error.message : 'Account update failed.' }, { status: 400 });
@@ -12,22 +15,46 @@ async function authorize() {
   return { session };
 }
 
+/** The owner row shown at the top of the Team list.
+ *
+ *  The default workspace's owner is ADMIN_EMAIL and has no stored account; a
+ *  workspace created through signup has a real owner row instead, which the
+ *  member list already contains. */
+async function ownerRow(session: AdminSession) {
+  if (session.workspaceId !== DEFAULT_WORKSPACE_ID) return null;
+  const workspace = await getWorkspace(DEFAULT_WORKSPACE_ID);
+  return {
+    id: 'owner',
+    email: workspace?.ownerEmail || ownerEmail(),
+    name: 'Workspace owner',
+    workspaceId: DEFAULT_WORKSPACE_ID,
+    role: 'owner' as const,
+    active: true,
+    pending: false,
+    createdAt: workspace?.createdAt || '',
+  };
+}
+
 export async function GET() {
   const auth = await authorize();
   if ('denied' in auth) return auth.denied;
   try {
-    const admins = (await listWorkspaceUsers()).map(publicWorkspaceUser);
-    if (auth.session.role !== 'owner') return NextResponse.json(admins);
-    return NextResponse.json([
-      { id: 'owner', email: ownerEmail(), name: 'Workspace owner', role: 'owner', active: true, createdAt: '' },
-      ...admins,
-    ]);
+    const members = (await listWorkspaceUsers(auth.session.workspaceId)).map(publicWorkspaceUser);
+    // Admins never see the workspace owner; owners see their whole team.
+    if (auth.session.role !== 'owner') return NextResponse.json(members.filter(member => member.role !== 'owner'));
+    const owner = await ownerRow(auth.session);
+    return NextResponse.json(owner ? [owner, ...members] : members);
   } catch (error) { return errorResponse(error); }
 }
 
-function passwordHash(value: unknown) {
-  if (typeof value !== 'string' || value.length < 8 || value.length > 128) throw new Error('Use a password between 8 and 128 characters.');
-  return hashPassword(value);
+/** An account this caller is allowed to act on: same workspace, never the
+ *  owner, and never a synthetic row. */
+async function manageableMember(session: AdminSession, id: unknown) {
+  if (typeof id !== 'string' || id === 'owner') throw new Error('Select an admin account.');
+  const member = (await listWorkspaceUsers(session.workspaceId)).find(user => user.id === id);
+  if (!member) throw new Error('Account not found.');
+  if (member.role === 'owner') throw new Error('The workspace owner cannot be changed here.');
+  return member;
 }
 
 export async function POST(request: NextRequest) {
@@ -35,12 +62,25 @@ export async function POST(request: NextRequest) {
   if ('denied' in auth) return auth.denied;
   try {
     const body = await request.json() as Record<string, unknown>;
-    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-    const name = typeof body.name === 'string' ? body.name.trim() : '';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 190) throw new Error('Enter a valid email address.');
-    if (!name || name.length > 120) throw new Error('Enter a name of up to 120 characters.');
-    if (email === ownerEmail()) throw new Error('This email belongs to the workspace owner.');
-    return NextResponse.json(await addWorkspaceUser({ email, name, passwordHash: passwordHash(body.password) }), { status: 201 });
+    const email = assertEmail(normalizeEmail(body.email));
+    const name = displayName(body.name, email);
+    if (email === ownerEmail() || isMasterEmail(email)) throw new Error('This email cannot be added to a workspace.');
+
+    const existing = await findWorkspaceUser(email);
+    if (existing) {
+      throw new Error(existing.workspaceId === auth.session.workspaceId
+        ? 'This email is already on your team.'
+        : 'This email already has an account.');
+    }
+
+    // Without a password the account is a pending invite: it belongs to this
+    // workspace straight away, and signing up with that email activates it
+    // here instead of creating a new workspace.
+    const passwordHash = body.password === undefined || body.password === '' ? '' : hashPassword(assertPassword(body.password));
+    return NextResponse.json(
+      await addWorkspaceUser({ email, name, passwordHash, workspaceId: auth.session.workspaceId, role: 'admin' }),
+      { status: 201 },
+    );
   } catch (error) { return errorResponse(error); }
 }
 
@@ -49,10 +89,21 @@ export async function PATCH(request: NextRequest) {
   if ('denied' in auth) return auth.denied;
   try {
     const body = await request.json() as Record<string, unknown>;
-    if (typeof body.id !== 'string' || body.id === 'owner') throw new Error('Select an admin account.');
-    if (body.action === 'password') await updateWorkspaceUser(body.id, { passwordHash: passwordHash(body.password) });
-    else if (body.action === 'access' && typeof body.active === 'boolean') await updateWorkspaceUser(body.id, { active: body.active });
+    const member = await manageableMember(auth.session, body.id);
+    if (body.action === 'password') await updateWorkspaceUser(member.id, { passwordHash: hashPassword(assertPassword(body.password)) });
+    else if (body.action === 'access' && typeof body.active === 'boolean') await updateWorkspaceUser(member.id, { active: body.active });
     else throw new Error('Invalid account action.');
+    return NextResponse.json({ ok: true });
+  } catch (error) { return errorResponse(error); }
+}
+
+export async function DELETE(request: NextRequest) {
+  const auth = await authorize();
+  if ('denied' in auth) return auth.denied;
+  try {
+    const body = await request.json() as Record<string, unknown>;
+    const member = await manageableMember(auth.session, body.id);
+    await deleteWorkspaceUser(member.id);
     return NextResponse.json({ ok: true });
   } catch (error) { return errorResponse(error); }
 }
