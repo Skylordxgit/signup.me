@@ -26,3 +26,5 @@ export const analyticsForPage: typeof jsonStore.analyticsForPage = (...args) => 
 export const savePushSubscription: typeof jsonStore.savePushSubscription = (...args) => store().savePushSubscription(...args);
 export const listPushSubscribers: typeof jsonStore.listPushSubscribers = (...args) => store().listPushSubscribers(...args);
 export const sendPushNotification: typeof jsonStore.sendPushNotification = (...args) => store().sendPushNotification(...args);
+export const listNotificationCampaigns: typeof jsonStore.listNotificationCampaigns = (...args) => store().listNotificationCampaigns(...args);
+export const trackNotificationCampaignClick: typeof jsonStore.trackNotificationCampaignClick = (...args) => store().trackNotificationCampaignClick(...args);

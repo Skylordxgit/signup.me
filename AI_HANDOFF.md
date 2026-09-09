@@ -23,6 +23,7 @@ Signup888 is a link/profile page builder with:
   builder
 - Media uploads saved to database or local fallback
 - Browser push notifications
+- Push campaign history with delivery and notification-click counters
 - Workspace/team accounts
 - Multi-workspace signup
 - Master admin dashboard
@@ -51,6 +52,8 @@ Other recent features already in `main`:
 - Notification prompt appears immediately when enabled
 - Successful notification allow closes quietly
 - Failed notification subscribe shows retry/error
+- Sent notification campaigns are saved per workspace and shown in the
+  Notifications screen with sent/views, failed/expired, and click counters.
 - Social Icon Row adds Facebook, Instagram, WhatsApp, Telegram together
 - YouTube/video blocks render embedded where possible
 - Media persistence fixes for logo, cover, profile, block images, and media
@@ -131,6 +134,9 @@ Other recent features already in `main`:
 - Public prompt must be customizable per page.
 - If visitor allows notifications, close the popup quietly.
 - If subscribe/save fails, show retry and error message.
+- Campaign "views" are represented by successful browser push delivery
+  accepts (`sent`). The service worker tracks real notification clicks through
+  `/api/notifications/campaign-click`.
 - Do not add extra unnecessary footer/data notices unless the user asks.
 
 ## Media Rules
@@ -213,7 +219,7 @@ npm test
 npm run build
 ```
 
-Expected current test count after the master signup permission fix: 49 passing tests.
+Expected current test count after the push campaign history fix: 50 passing tests.
 
 If build passes but prints browser compatibility warnings about server modules
 such as `fs/promises`, `path`, `crypto`, `mysql2`, or `lib/workspaces.ts`, trace
@@ -297,6 +303,18 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-09: Added notification campaign history. `/api/admin/notifications`
+  now returns recent campaigns with per-workspace scoping. Sending a push
+  creates a `notification_campaigns` row before delivery, attaches the campaign
+  id to the push payload, then updates attempted/sent/failed/expired counters
+  after delivery. `public/push-worker.js` posts notification clicks to
+  `/api/notifications/campaign-click`, which increments that campaign's click
+  count and never blocks opening the destination link. The Notifications screen
+  now shows a Campaigns section with campaign count, notification views
+  (`sent`), notification clicks, CTR, audience, delivery, destination, and sent
+  time. JSON fallback and MySQL production storage both support the history.
+  Regression coverage: `tests/workspaces.test.ts` and `tests/push.test.ts`.
+  All four checks passed (50 tests).
 - 2026-09-09: Added a Master Admin "Allow public signup" permission inside the
   Branding panel. The setting is stored with global branding as
   `signupEnabled` and defaults to `true` so existing deployments keep allowing

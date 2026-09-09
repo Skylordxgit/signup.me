@@ -208,6 +208,25 @@ export type NotificationSubscriberSummary = {
   recent?: SubscriberListItem[];
 };
 
+export type NotificationCampaign = {
+  id: number;
+  workspaceId: string;
+  pageId: number | null;
+  pageSlug: string | null;
+  title: string;
+  body: string;
+  url: string;
+  audience: string;
+  attempted: number;
+  sent: number;
+  removed: number;
+  failed: number;
+  clicks: number;
+  status: 'sent' | 'failed';
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type NotificationSendInput = {
   title: string;
   body: string;
@@ -215,6 +234,8 @@ export type NotificationSendInput = {
   pageId?: number | null;
   /** Restricts delivery to pages in this workspace. */
   workspaceId?: string;
+  /** Internal tracking id attached after the campaign row is created. */
+  campaignId?: number;
 };
 
 export type NotificationSendResult = {
@@ -222,4 +243,5 @@ export type NotificationSendResult = {
   sent: number;
   removed: number;
   failed: number;
+  campaign?: NotificationCampaign;
 };

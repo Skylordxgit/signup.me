@@ -17,20 +17,23 @@ test('notification clicks open the custom link, focus local tabs, and reject uns
   const origin = 'https://signup888.shop';
   const handlers: Record<string, (event: unknown) => void> = {};
   const opened: string[] = [];
+  const tracked: string[] = [];
   let focused = 0;
   let closed = 0;
   runInNewContext(source, {
     URL,
     self: { location: { origin }, addEventListener: (name: string, handler: (event: unknown) => void) => { handlers[name] = handler; } },
+    fetch: async (url: string, init: RequestInit) => { tracked.push(url + ':' + String(init.body)); return new Response('{}'); },
     clients: { matchAll: async () => [{ url: origin + '/mik', focus: async () => { focused++; } }], openWindow: async (url: string) => { opened.push(url); return null; } },
   });
-  async function click(url: unknown) {
+  async function click(url: unknown, campaignId?: unknown) {
     let done: Promise<unknown> | undefined;
-    handlers.notificationclick({ notification: { data: { url }, close: () => { closed++; } }, waitUntil: (promise: Promise<unknown>) => { done = promise; } });
+    handlers.notificationclick({ notification: { data: { url, campaignId }, close: () => { closed++; } }, waitUntil: (promise: Promise<unknown>) => { done = promise; } });
     await done;
   }
-  await click('https://example.com/offer?ref=push#signup');
+  await click('https://example.com/offer?ref=push#signup', 42);
   assert.deepEqual(opened, ['https://example.com/offer?ref=push#signup']);
+  assert.deepEqual(tracked, ['/api/notifications/campaign-click:{"campaignId":42}']);
   await click('/mik');
   assert.equal(focused, 1);
   for (const url of ['javascript:alert(1)', '//example.com', '/\\example.com', 'https://', { url: 'bad' }]) {

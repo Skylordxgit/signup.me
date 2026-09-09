@@ -68,6 +68,15 @@ Workspace-scoped, so a master admin session cannot reach either route.
 - `POST /api/track/view`
 - `POST /api/track/click`
 
+## Notifications
+
+- `GET /api/admin/notifications` - notification setup status, subscriber
+  summary, and recent campaign history for the current workspace.
+- `POST /api/admin/notifications/send` - sends a browser push campaign and
+  stores the campaign delivery counters.
+- `POST /api/notifications/campaign-click` - public service-worker endpoint
+  used to count notification clicks for a campaign.
+
 ## Public Rendering
 
 Published pages render at:

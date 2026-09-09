@@ -14,7 +14,7 @@ self.addEventListener("push", (event) => {
     body: data.body || "You have a new update.",
     icon: data.icon || "/favicon.png",
     badge: data.badge || "/favicon-32x32.png",
-    data: { url: data.url || "/" },
+    data: { url: data.url || "/", campaignId: data.campaignId },
   };
 
   event.waitUntil(self.registration.showNotification(title, options));
@@ -32,9 +32,18 @@ self.addEventListener("notificationclick", (event) => {
       if (!destination.username && !destination.password) url = destination.href;
     }
   } catch { /* Older or malformed notifications open the homepage. */ }
-  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
+  const campaignId = Number(event.notification.data?.campaignId);
+  const trackClick = Number.isInteger(campaignId) && campaignId > 0
+    ? fetch('/api/notifications/campaign-click', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ campaignId }),
+    }).catch(() => {})
+    : Promise.resolve();
+  const openDestination = clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
     const existing = windows.find(client => client.url === url);
     if (existing) return existing.focus();
     return clients.openWindow(url);
-  }));
+  });
+  event.waitUntil(Promise.all([trackClick, openDestination]));
 });

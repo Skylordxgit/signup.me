@@ -8,6 +8,7 @@ import * as users from '../lib/workspaceUsers';
 import * as workspaces from '../lib/workspaces';
 import * as store from '../lib/store';
 import * as uploads from '../lib/uploads';
+import { webpush } from '../lib/push';
 
 /* These cover the JSON fallback store, which is what local development and the
    test run use. The MySQL store mirrors the same rules in SQL. Each test runs
@@ -148,5 +149,42 @@ test('the media library only lists the workspace that uploaded each file', async
     // The public /uploads path stays unscoped so pages keep serving images.
     const segments = mine.path.replace('/uploads/', '').split('/');
     assert.ok((await uploads.readUpload(segments))?.bytes.length);
+  });
+});
+
+test('notification campaigns are saved and count notification clicks', async t => {
+  await withDataDirectory(async () => {
+    const previousPublic = process.env.WEB_PUSH_PUBLIC_KEY;
+    const previousPrivate = process.env.WEB_PUSH_PRIVATE_KEY;
+    const keys = webpush.generateVAPIDKeys();
+    process.env.WEB_PUSH_PUBLIC_KEY = keys.publicKey;
+    process.env.WEB_PUSH_PRIVATE_KEY = keys.privateKey;
+    t.mock.method(webpush, 'sendNotification', async () => ({}));
+    try {
+      const owner = await signup.signUp({ email: 'campaign@example.test', password: 'a-long-password' });
+      const draft = await store.createPage({ name: 'Campaign', slug: 'campaign', title: '', bio: '', profileImage: '', workspaceId: owner.workspaceId });
+      const page = await store.updatePage(draft.id, { status: 'published' });
+      assert.ok(page);
+      await store.savePushSubscription('campaign', { endpoint: 'https://push.example/campaign', keys: { auth: 'secret', p256dh: 'secret' } }, 'Android Chrome/120');
+
+      const result = await store.sendPushNotification({ title: 'Offer drop', body: 'New offer is live', url: '/campaign', pageId: page.id, workspaceId: owner.workspaceId });
+      assert.equal(result.sent, 1);
+      assert.equal(result.campaign?.title, 'Offer drop');
+      assert.equal(result.campaign?.audience, '/campaign');
+      assert.equal(result.campaign?.sent, 1);
+      assert.equal(result.campaign?.clicks, 0);
+      assert.equal(result.campaign?.workspaceId, owner.workspaceId);
+
+      assert.equal(await store.trackNotificationCampaignClick(result.campaign!.id), true);
+      const campaigns = await store.listNotificationCampaigns(owner.workspaceId);
+      assert.equal(campaigns.length, 1);
+      assert.equal(campaigns[0].clicks, 1);
+      assert.equal(campaigns[0].url, '/campaign');
+    } finally {
+      if (previousPublic == null) delete process.env.WEB_PUSH_PUBLIC_KEY;
+      else process.env.WEB_PUSH_PUBLIC_KEY = previousPublic;
+      if (previousPrivate == null) delete process.env.WEB_PUSH_PRIVATE_KEY;
+      else process.env.WEB_PUSH_PRIVATE_KEY = previousPrivate;
+    }
   });
 });

@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
 import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Download, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
-import type { AnalyticsReport, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
+import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
 import { ImageUploader } from "../ImageUploader";
@@ -129,6 +129,7 @@ export function MediaView() {
 
 export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   const [summary, setSummary] = useState<NotificationSubscriberSummary>({ total: 0, inactive: 0, byPage: [] });
+  const [campaigns, setCampaigns] = useState<NotificationCampaign[]>([]);
   const [configured, setConfigured] = useState(false);
   const [pageId, setPageId] = useState('all');
   const [title, setTitle] = useState('New update from signup888');
@@ -142,9 +143,10 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   async function refresh() {
     setLoading(true);
     try {
-      const data = await adminApi<{ configured: boolean; subscribers: NotificationSubscriberSummary }>('/api/admin/notifications');
+      const data = await adminApi<{ configured: boolean; subscribers: NotificationSubscriberSummary; campaigns: NotificationCampaign[] }>('/api/admin/notifications');
       setConfigured(data.configured);
       setSummary(data.subscribers);
+      setCampaigns(data.campaigns);
       setError('');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load notifications.');
@@ -155,11 +157,12 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
 
   useEffect(() => {
     let cancelled = false;
-    adminApi<{ configured: boolean; subscribers: NotificationSubscriberSummary }>('/api/admin/notifications')
+    adminApi<{ configured: boolean; subscribers: NotificationSubscriberSummary; campaigns: NotificationCampaign[] }>('/api/admin/notifications')
       .then(data => {
         if (cancelled) return;
         setConfigured(data.configured);
         setSummary(data.subscribers);
+        setCampaigns(data.campaigns);
         setError('');
       })
       .catch(cause => {
@@ -184,6 +187,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
         body: JSON.stringify({ title, body, url, pageId: pageId === 'all' ? null : Number(pageId) }),
       });
       setResult(response);
+      if (response.campaign) setCampaigns(current => [response.campaign!, ...current.filter(item => item.id !== response.campaign!.id)].slice(0, 100));
       await refresh();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not send notification.');
@@ -195,6 +199,9 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   const pageCounts = new Map(summary.byPage.map(item => [item.pageId, item.subscribers]));
   const recipients = pageId === 'all' ? summary.total : pageCounts.get(Number(pageId)) ?? 0;
   const selectedPage = pages.find(page => String(page.id) === pageId);
+  const totalSent = campaigns.reduce((sum, campaign) => sum + campaign.sent, 0);
+  const totalClicks = campaigns.reduce((sum, campaign) => sum + campaign.clicks, 0);
+  const campaignCtr = totalSent ? Math.round(totalClicks / totalSent * 1000) / 10 : 0;
 
   return <div className="admNotifications">
     <SectionHeading title="Notifications"><IconButton icon={RefreshCw} label="Refresh subscribers" disabled={loading || sending} onClick={() => void refresh()} /></SectionHeading>
@@ -226,6 +233,32 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
       <section className="admNotificationAudience"><SectionHeading title="Subscribers by page" />{loading ? <p className="admMuted" role="status">Loading subscribers...</p> : !summary.byPage.length ? <div className="admNotificationEmpty"><User size={24} /><strong>No subscribers yet</strong><p>Visitors appear here after allowing notifications on your public pages.</p></div> : <div className="admDistribution">{summary.byPage.map(item => <div key={item.pageId}><div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div><progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} /></div>)}</div>}</section>
     </aside>
     </div>
+    <section className="admCampaignSection">
+      <SectionHeading title="Campaigns"><span className="admMuted">Recent sends</span></SectionHeading>
+      <div className="admCampaignMetrics">
+        <article><span>Campaigns</span><strong>{loading ? '...' : number(campaigns.length)}</strong></article>
+        <article><span>Notification views</span><strong>{loading ? '...' : number(totalSent)}</strong></article>
+        <article><span>Notification clicks</span><strong>{loading ? '...' : number(totalClicks)}</strong></article>
+        <article><span>Click rate</span><strong>{loading ? '...' : `${campaignCtr}%`}</strong></article>
+      </div>
+      {loading ? <p role="status">Loading campaigns...</p> : !campaigns.length ? <p className="admMuted">No campaigns sent yet.</p> : <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Campaign history">
+        <table className="admSubscriberTable admCampaignTable">
+          <thead><tr><th scope="col">Campaign</th><th scope="col">Audience</th><th scope="col">Views</th><th scope="col">Clicks</th><th scope="col">CTR</th><th scope="col">Delivery</th><th scope="col">Sent</th></tr></thead>
+          <tbody>{campaigns.map(campaign => {
+            const ctr = campaign.sent ? Math.round(campaign.clicks / campaign.sent * 1000) / 10 : 0;
+            return <tr key={campaign.id}>
+              <td><strong>{campaign.title}</strong><small>#{campaign.id} · {campaign.body}</small></td>
+              <td>{campaign.audience}<small>{campaign.url}</small></td>
+              <td>{number(campaign.sent)}</td>
+              <td>{number(campaign.clicks)}</td>
+              <td>{ctr}%</td>
+              <td>{number(campaign.sent)} sent<small>{number(campaign.failed)} failed · {number(campaign.removed)} expired</small></td>
+              <td><time dateTime={campaign.createdAt}>{new Date(campaign.createdAt).toLocaleString()}</time></td>
+            </tr>;
+          })}</tbody>
+        </table>
+      </div>}
+    </section>
     <section className="admSubscriberSection">
       <SectionHeading title="Subscriber details"><span className="admMuted">Latest 100 subscriptions</span></SectionHeading>
       <p className="admMuted">Device and browser are reported by the visitor. IP location is approximate; a time zone is not a physical location. Inactive subscribers stay saved, but cannot receive pushes unless they subscribe again.</p>

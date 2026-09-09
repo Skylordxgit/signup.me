@@ -102,6 +102,27 @@ CREATE TABLE push_subscriptions (
   INDEX idx_push_page (page_id)
 );
 
+CREATE TABLE notification_campaigns (
+  id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+  workspace_id CHAR(36) NOT NULL DEFAULT 'default',
+  page_id BIGINT UNSIGNED NULL,
+  page_slug VARCHAR(120) NULL,
+  title VARCHAR(80) NOT NULL,
+  body VARCHAR(180) NOT NULL,
+  url VARCHAR(700) NOT NULL,
+  audience VARCHAR(190) NOT NULL,
+  attempted INT UNSIGNED NOT NULL DEFAULT 0,
+  sent INT UNSIGNED NOT NULL DEFAULT 0,
+  removed INT UNSIGNED NOT NULL DEFAULT 0,
+  failed INT UNSIGNED NOT NULL DEFAULT 0,
+  clicks BIGINT UNSIGNED NOT NULL DEFAULT 0,
+  status ENUM('sent', 'failed') NOT NULL DEFAULT 'failed',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_campaign_workspace_created (workspace_id, created_at),
+  INDEX idx_campaign_page (page_id)
+);
+
 CREATE TABLE settings (
   id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
   setting_key VARCHAR(120) NOT NULL UNIQUE,
