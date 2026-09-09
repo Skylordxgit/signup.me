@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Download, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
@@ -21,7 +21,7 @@ export function Metrics({ pages }: { pages: PageSummary[] }) {
   return <div className="admMetrics">{values.map(metric => <article className="admMetric" key={metric.label}><div><span>{metric.label}</span><strong>{number(metric.value)}</strong></div><span className={`admMetricIcon admTone-${metric.tone}`}><metric.icon size={21} /></span></article>)}</div>;
 }
 
-export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; busy?: boolean }) {
+export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, onExport, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; onExport?: (ids: number[]) => Promise<string>; busy?: boolean }) {
   const [selected, setSelected] = useState<number[]>([]);
   const [message, setMessage] = useState('');
   const selectedIds = pages.filter(page => selected.includes(page.id)).map(page => page.id);
@@ -32,6 +32,12 @@ export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus,
       setMessage(`Link copied for ${page.name}`);
     } catch { setMessage('Could not copy the link. Open Preview and copy the address.'); }
   }
+  async function exportSelected() {
+    if (!onExport || busy || !selectedIds.length) return;
+    setMessage('Preparing export...');
+    try { setMessage(await onExport(selectedIds)); }
+    catch (cause) { setMessage(cause instanceof Error ? cause.message : 'Could not export the selected pages.'); }
+  }
   async function bulkStatus(status: 'draft' | 'disabled') {
     if (!onBulkStatus || busy || !selectedIds.length) return;
     const updated = await onBulkStatus(selectedIds, status);
@@ -39,7 +45,7 @@ export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus,
     setMessage(`${updated.length} page${updated.length === 1 ? '' : 's'} ${status === 'draft' ? 'moved to draft' : 'unpublished'}.`);
   }
   return !pages.length ? <EmptyState title="No pages found" /> : <>
-    {onBulkStatus && <div className="admBulkActions"><span>{selectedIds.length} selected</span><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('draft')}><FileText size={16} />Move to draft</button><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('disabled')}><Eye size={16} />Unpublish</button>{selectedIds.length > 0 && <button type="button" className="admTextButton" disabled={busy} onClick={() => setSelected([])}>Clear selection</button>}</div>}
+    {onBulkStatus && <div className="admBulkActions"><span>{selectedIds.length} selected</span><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('draft')}><FileText size={16} />Move to draft</button><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('disabled')}><Eye size={16} />Unpublish</button>{onExport && <button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void exportSelected()}><Download size={16} />Export selected</button>}{selectedIds.length > 0 && <button type="button" className="admTextButton" disabled={busy} onClick={() => setSelected([])}>Clear selection</button>}</div>}
     {message && <p className="admMuted" role="status">{message}</p>}
     <div className={`admPageTable ${onBulkStatus ? 'admPageTableManage' : ''}`} role="table" aria-label="Pages">
     <div className="admPageTableHead" role="row"><span role="columnheader" className="admPageSelect">{onBulkStatus && <input type="checkbox" aria-label="Select all visible pages" disabled={busy} checked={allSelected} ref={node => { if (node) node.indeterminate = selectedIds.length > 0 && !allSelected; }} onChange={() => setSelected(allSelected ? [] : pages.map(page => page.id))} />}Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader"><span className="admSrOnly">Actions</span></span></div>

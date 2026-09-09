@@ -40,6 +40,20 @@ session can obtain and which cannot reach any workspace route.
 - `DELETE /api/pages/:id`
 - `POST /api/pages/:id/duplicate`
 
+## Export and import
+
+Workspace-scoped, so a master admin session cannot reach either route.
+
+- `POST /api/pages/export` - body `{ ids: number[] }`. Returns the export JSON
+  as a download (`signup888-pages-export-YYYY-MM-DD.json`). Only ids in the
+  caller's workspace resolve. Traffic counters are not exported, and every
+  `/uploads/...` image the selected pages reference is embedded as base64.
+- `POST /api/pages/import` - body `{ file: <export>, keepStatus?: boolean }`,
+  or a bare export object. Recreates the pages in the caller's workspace with
+  new ids, restores the embedded images into that workspace's media, resets
+  views/visitors/clicks to zero, and never overwrites an existing page. Returns
+  `{ pages, media, warnings }` with the final slug of each imported page.
+
 ## Blocks
 
 - `POST /api/pages/:id/blocks`

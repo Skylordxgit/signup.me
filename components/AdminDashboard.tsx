@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { ArrowLeft, ArrowUpRight, BarChart3, Bell, Check, ChevronDown, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, User, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BarChart3, Bell, Check, ChevronDown, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Upload, User, X } from "lucide-react";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage, ThemeSettings } from "@/lib/types";
 import { adminApi, combineAnalytics } from "@/lib/admin";
 import { slugify, slugifyDraft, summarizePage } from "@/lib/utils";
@@ -52,6 +52,8 @@ export function AdminDashboard() {
   const [deleteBlockTarget, setDeleteBlockTarget] = useState<PageBlock | null>(null);
   const [themeSelection, setThemeSelection] = useState<ThemeSettings>(defaultTheme);
   const [createSlug, setCreateSlug] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
   const actionBusy = useRef(false);
   const accountMenu = useRef<HTMLDetailsElement>(null);
   const editor = usePageEditor(useCallback((page: SmartPage) => {
@@ -200,6 +202,32 @@ export function AdminDashboard() {
     }));
   }
 
+  /** Downloads the selected pages as one portable JSON file. */
+  async function exportPages(ids: number[]) {
+    await editor.save();
+    const response = await fetch('/api/pages/export', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) {
+      const failure = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(failure?.error || 'Could not export the selected pages.');
+    }
+    const blob = await response.blob();
+    const name = /filename="([^"]+)"/.exec(response.headers.get('content-disposition') || '')?.[1]
+      || `signup888-pages-export-${new Date().toISOString().slice(0, 10)}.json`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    return `Exported ${ids.length} page${ids.length === 1 ? '' : 's'} to ${name}`;
+  }
+
   function duplicatePage(id: number) {
     void run(async () => {
       await editor.save();
@@ -240,7 +268,7 @@ export function AdminDashboard() {
         {(error || editor.error) && <div className="admError" role="alert"><span>{error || editor.error}</span><IconButton icon={X} label="Dismiss error" onClick={() => { setError(''); editor.clearError(); }} /></div>}
         {loading ? <EmptyState title="Loading workspace..." /> : <>
           {view === 'dashboard' && <DashboardHome pages={pages} analytics={report} onOpen={openPage} onNavigate={navigate} />}
-{view === 'pages' && <><div className="admPageHeading"><div><h2>Pages</h2><p>{pages.length} pages in your workspace</p></div><button type="button" className="admButton admPrimary" onClick={() => navigate('create')}><Plus size={17} />Create page</button></div><div className="admToolbar"><div className="admFilterTabs" role="group" aria-label="Page status">{['all', 'published', 'draft', 'disabled'].map(status => <button type="button" key={status} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status === 'all' ? 'All pages' : status}</button>)}</div><div className="admFilters"><select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort pages"><option value="updated">Recently updated</option><option value="name">Name</option><option value="views">Most views</option></select><IconButton icon={RefreshCw} label="Refresh pages" disabled={busy} onClick={() => void run(refresh)} /></div></div><div className="admMobileSearch"><Search size={17} /><input aria-label="Filter pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></div><PagesTable onBulkStatus={bulkPageStatus} pages={filtered} onOpen={openPage} onDuplicate={duplicatePage} onDelete={setDeleteTarget} busy={busy} /></>}
+{view === 'pages' && <><div className="admPageHeading"><div><h2>Pages</h2><p>{pages.length} pages in your workspace</p></div><div className="admActionRow"><button type="button" className="admButton" disabled={busy} onClick={() => { setImportNotice(''); setImportOpen(true); }}><Upload size={17} />Import pages</button><button type="button" className="admButton admPrimary" onClick={() => navigate('create')}><Plus size={17} />Create page</button></div></div>{importNotice && <p className="admSuccess" role="status">{importNotice}</p>}<div className="admToolbar"><div className="admFilterTabs" role="group" aria-label="Page status">{['all', 'published', 'draft', 'disabled'].map(status => <button type="button" key={status} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status === 'all' ? 'All pages' : status}</button>)}</div><div className="admFilters"><select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort pages"><option value="updated">Recently updated</option><option value="name">Name</option><option value="views">Most views</option></select><IconButton icon={RefreshCw} label="Refresh pages" disabled={busy} onClick={() => void run(refresh)} /></div></div><div className="admMobileSearch"><Search size={17} /><input aria-label="Filter pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></div><PagesTable onBulkStatus={bulkPageStatus} onExport={exportPages} pages={filtered} onOpen={openPage} onDuplicate={duplicatePage} onDelete={setDeleteTarget} busy={busy} /></>}
           {view === 'create' && <CreatePage key={createSlug || 'blank'} initialSlug={createSlug} busy={busy} onCreate={input => { void run(async () => { const page = await adminApi<SmartPage>('/api/pages', { method: 'POST', body: JSON.stringify(input) }); editor.adopt(page); setCreateSlug(''); window.history.replaceState({}, '', '/admin'); await refresh(); setBuilderTab('profile'); setView('builder'); }); }} />}
           {view === 'builder' && editor.page && <><div className="admBuilderHeading"><div><IconButton icon={ArrowLeft} label="Back to pages" onClick={() => navigate('pages')} /><span><h2>{editor.page.name}</h2><small>/{editor.page.slug}</small></span></div><div className="admActionRow"><StatusBadge status={editor.page.status} /><select aria-label="Publishing status" value={editor.page.status} onChange={event => editor.edit({ status: event.target.value as SmartPage['status'] })}><option value="published">Published</option><option value="draft">Draft</option><option value="disabled">Disabled</option></select></div></div><BuilderEditor key={editor.page.id} page={editor.page} tab={builderTab} onTab={setBuilderTab} onEdit={editor.edit} onBlock={editor.editBlock} onAdd={addBlock} onMove={moveBlock} onDelete={setDeleteBlockTarget} onDuplicate={block => void run(async () => mutateBlocks(() => adminApi('/api/blocks/' + block.id, { method: 'POST', body: JSON.stringify({ action: 'duplicate' }) })))} busy={busy} /></>}
           {view === 'analytics' && <><SectionHeading title="Page analytics"><select aria-label="Analytics page" value={reportPageId} onChange={event => { setReportPageId(event.target.value); setReport(null); }}><option value="all">All pages</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></SectionHeading><AnalyticsView report={report} /></>}
@@ -253,6 +281,15 @@ export function AdminDashboard() {
       </main>
     </div>
     {drawerOpen && <Dialog title="Navigation" onClose={() => setDrawerOpen(false)}><div className="admDrawer">{sidebar(true)}</div></Dialog>}
+    {importOpen && <ImportPagesDialog
+      onClose={() => setImportOpen(false)}
+      onImported={async (summary) => {
+        setImportOpen(false);
+        setImportNotice(summary);
+        await run(refresh);
+        setView('pages');
+      }}
+    />}
     {deleteTarget && <Dialog title="Delete page" onClose={() => setDeleteTarget(null)}><p>Delete &quot;{deleteTarget.name}&quot; and its content?</p><div className="admDialogActions"><button type="button" className="admButton" onClick={() => setDeleteTarget(null)}>Cancel</button><button type="button" className="admButton admDestructive" disabled={busy} onClick={() => void run(async () => { await editor.save(); await adminApi('/api/pages/' + deleteTarget.id, { method: 'DELETE' }); setDeleteTarget(null); await refresh(); })}>Delete page</button></div></Dialog>}
     {deleteBlockTarget && <Dialog title="Delete block" onClose={() => setDeleteBlockTarget(null)}><p>Delete &quot;{deleteBlockTarget.title || deleteBlockTarget.type}&quot;?</p><div className="admDialogActions"><button type="button" className="admButton" onClick={() => setDeleteBlockTarget(null)}>Cancel</button><button type="button" className="admButton admDestructive" disabled={busy} onClick={() => void run(async () => { await mutateBlocks(() => adminApi('/api/blocks/' + deleteBlockTarget.id, { method: 'DELETE' })); setDeleteBlockTarget(null); })}>Delete block</button></div></Dialog>}
   </div>;
@@ -267,4 +304,69 @@ function CreatePage({ busy, initialSlug = '', onCreate }: { busy: boolean; initi
   const [profileImage, setProfileImage] = useState('');
   const [uploading, setUploading] = useState(false);
   return <><div className="admPageHeading"><div><h2>Create a page</h2><p>{initialSlug ? <>Start building at <strong>/{initialSlug}</strong>.</> : 'A new home for your profile and links.'}</p></div></div><form className="admCreateForm" onSubmit={event => { event.preventDefault(); onCreate({ name, slug: slugify(slug), title: title || name, bio, profileImage }); }}><div className="admFormGrid"><Field label="Page name"><input required value={name} onChange={event => { setName(event.target.value); if (!customSlug) setSlug(slugifyDraft(event.target.value)); }} /></Field><Field label="URL slug"><input required pattern="[a-z][a-z0-9]*(?:-[a-z0-9]+)*" title="Start with a letter; use lowercase letters, numbers, and single hyphens." value={slug} onChange={event => { setCustomSlug(true); setSlug(slugifyDraft(event.target.value)); }} onBlur={() => setSlug(slugify(slug))} /></Field><div className="admSpanFull"><Field label="Profile title"><input value={title} onChange={event => setTitle(event.target.value)} placeholder={name} /></Field></div><div className="admSpanFull"><Field label="Bio"><textarea rows={4} value={bio} onChange={event => setBio(event.target.value)} /></Field></div><div className="admSpanFull"><ImageUploader category="profile" label="Profile photo" round value={profileImage} onChange={setProfileImage} onBusyChange={setUploading} /></div></div><div className="admFormFooter"><button type="submit" className="admButton admPrimary" disabled={busy || uploading || !name.trim() || !slug}>{busy ? <Loader2 className="admSpinner" size={17} /> : <Plus size={17} />}Create page</button><span className="admMuted">/{slug || 'your-page'}</span></div></form></>;
+}
+
+type ImportedPageSummary = { id: number; name: string; slug: string; originalSlug: string; status: string; renamed: boolean };
+type ImportResult = { pages: ImportedPageSummary[]; media: number; warnings: string[] };
+
+/** Uploads an export file and recreates its pages in this workspace. */
+function ImportPagesDialog({ onClose, onImported }: { onClose: () => void; onImported: (summary: string) => Promise<void> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [keepStatus, setKeepStatus] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState<ImportResult | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!file || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      // The file is read here and posted as JSON, so the server never touches
+      // an uploaded filename.
+      const text = await file.text();
+      let parsed: unknown;
+      try { parsed = JSON.parse(text) as unknown; }
+      catch { throw new Error('That file is not valid JSON. Choose an export produced by Export selected.'); }
+      setResult(await adminApi<ImportResult>('/api/pages/import', { method: 'POST', body: JSON.stringify({ file: parsed, keepStatus }) }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not import that file.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (result) {
+    const summary = `Imported ${result.pages.length} page${result.pages.length === 1 ? '' : 's'}${result.media ? ` and ${result.media} image${result.media === 1 ? '' : 's'}` : ''}.`;
+    return <Dialog title="Import complete" onClose={onClose}>
+      <div className="admFormStack">
+        <p className="admSuccess" role="status">{summary}</p>
+        <ul className="admImportList">{result.pages.map(page => <li key={page.id}>
+          <strong>{page.name}</strong>
+          <small>/{page.slug}{page.renamed && ` (renamed from /${page.originalSlug})`} &middot; {page.status}</small>
+        </li>)}</ul>
+        {result.warnings.length > 0 && <details className="admFormSection">
+          <summary>{result.warnings.length} item{result.warnings.length === 1 ? '' : 's'} skipped</summary>
+          <ul className="admImportList">{result.warnings.map((warning, index) => <li key={index}><small>{warning}</small></li>)}</ul>
+        </details>}
+        <button type="button" className="admButton admPrimary" onClick={() => void onImported(summary)}>Done</button>
+      </div>
+    </Dialog>;
+  }
+
+  return <Dialog title="Import pages" onClose={() => { if (!busy) onClose(); }}>
+    <form onSubmit={submit}>
+      <fieldset disabled={busy} className="admTeamFields"><div className="admFormStack">
+        <p className="admMuted">Choose a file created by Export selected. The pages, their blocks, and their images are recreated in this workspace with new addresses. Nothing existing is changed.</p>
+        <Field label="Export file">
+          <input type="file" accept="application/json,.json" required onChange={event => { setFile(event.target.files?.[0] ?? null); setError(''); }} />
+        </Field>
+        <label className="admCheck"><input type="checkbox" checked={keepStatus} onChange={event => setKeepStatus(event.target.checked)} />Keep the original published status</label>
+        {!keepStatus && <p className="admMuted">Imported pages arrive as drafts so you can review them before they go live.</p>}
+        {error && <p className="admError" role="alert">{error}</p>}
+        <button type="submit" className="admButton admPrimary" disabled={!file || busy}>{busy ? <><Loader2 className="admSpinner" size={16} />Importing...</> : <><Upload size={16} />Import pages</>}</button>
+      </div></fieldset>
+    </form>
+  </Dialog>;
 }

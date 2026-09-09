@@ -78,3 +78,43 @@ existing pages and public slugs are untouched.
 Local development without MySQL uses the ignored `data/workspaces.json` and
 `data/workspace-users.json` files, with the same rules. Passwords are stored as
 salted scrypt hashes and are never included in any API response.
+
+## Exporting and importing pages
+
+Selected pages can be exported from the Pages screen into a single portable
+JSON file, and imported back on any workspace or a fresh server.
+
+The format is versioned:
+
+```json
+{ "kind": "signup888.pages.export", "version": 1, "exportedAt": "...", "pages": [], "media": [] }
+```
+
+Each page carries its profile, theme, SEO, integrations (including the
+notification prompt), and all its blocks in order, with every block field:
+titles, subtitles, URLs, phone and message, images, video URLs, icons, button
+settings, and the hidden/visible state. Traffic counters are deliberately left
+out — an imported page always starts at zero views, visitors, and clicks.
+
+Images are the reason the format embeds media. A `/uploads/...` path means
+nothing on another workspace or a new server, so every stored upload the
+selected pages reference — profile, logo, cover, OG image, favicon, block
+images, custom icons, and anything else found anywhere in the page data — is
+embedded as base64 alongside its category and mime type. Remote `https://`
+images are left as URLs.
+
+On import:
+
+- Pages are always created fresh in the importing workspace. The workspace in
+  the session decides, never anything in the file, and nothing is overwritten.
+- Embedded images are re-validated exactly like a direct upload (content
+  sniffing, SVG scripting checks, category rules, size limit) and saved into the
+  importing workspace's media. References are rewritten to the new paths; a
+  reference whose file could not be restored is cleared rather than left broken,
+  and the reason is reported as a warning.
+- Slugs that are taken become `slug-copy`, then `slug-copy-2`, and so on. The
+  final slug of every imported page is shown to the user.
+- Pages arrive as drafts unless "Keep the original published status" is ticked.
+
+Both routes require a workspace owner or admin session. A master admin session
+has no workspace and is refused by both.

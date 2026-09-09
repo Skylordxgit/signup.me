@@ -72,6 +72,7 @@ Other recent features already in `main`:
 - Global branding store: `lib/branding.ts`
 - Client-safe branding defaults/types: `lib/brandingConstants.ts`
 - Shared auth brand row and per-tab branding cache: `components/AuthBranding.tsx`
+- Page export/import format and logic: `lib/pageTransfer.ts`
 - Workspace users/team: `lib/workspaceUsers.ts`
 - Workspace access guards: `lib/workspaceAccess.ts`
 - Upload/media persistence: `lib/uploads.ts`
@@ -209,7 +210,7 @@ npm test
 npm run build
 ```
 
-Expected current test count after the branding performance update: 37 passing tests.
+Expected current test count after the page export/import update: 43 passing tests.
 
 If build passes but prints browser compatibility warnings about server modules
 such as `fs/promises`, `path`, `crypto`, `mysql2`, or `lib/workspaces.ts`, trace
@@ -330,3 +331,39 @@ At minimum, add a short note under this section:
     did not handle the save.
   - Tests: `tests/branding.test.ts` covers the fallback, the save-then-read
     path, and that cached reads do not touch storage. Test count is now 37.
+- 2026-09-09: Added Export Pages / Import Pages to the admin Pages screen so a
+  page can be moved to another workspace or a fresh server without rebuilding
+  it. Files:
+  - `lib/pageTransfer.ts` holds the versioned format
+    (`kind: "signup888.pages.export"`, `version: 1`), the export builder, the
+    envelope validator, and the importer.
+  - `app/api/pages/export/route.ts` (`POST`, body `{ ids }`) returns the JSON
+    with a `Content-Disposition` filename of
+    `signup888-pages-export-YYYY-MM-DD.json`.
+  - `app/api/pages/import/route.ts` (`POST`, body `{ file, keepStatus }`)
+    recreates the pages and returns `{ pages, media, warnings }`.
+  - UI: `PagesTable` gained an optional `onExport` prop rendering "Export
+    selected" in the existing bulk bar, and `AdminDashboard` gained an "Import
+    pages" button beside Create page plus an `ImportPagesDialog`.
+  Behaviour worth knowing:
+  - Media is embedded as base64 because a `/uploads/...` path is meaningless on
+    another workspace or server. Every stored upload referenced ANYWHERE in the
+    page data is collected by a recursive walk, not a fixed field list, so new
+    image-carrying fields are covered automatically. Remote https images stay
+    URLs.
+  - On import, embedded files go through the same checks as a direct upload
+    (`sniffImage`, `isSafeSvg`, category rules, `maxUploadBytes`) and are saved
+    with `storeUpload` into the session workspace, so nothing from the file
+    reaches a filesystem path. A reference whose file could not be restored is
+    cleared, not left broken, and reported in `warnings`.
+  - Slugs are globally unique in both stores, so the importer retries
+    `slug`, `slug-copy`, `slug-copy-2`, ... by catching "Slug already exists"
+    from `createPage` rather than pre-checking. That keeps it backend-agnostic.
+  - Imports default to draft; the dialog has a "Keep the original published
+    status" checkbox. Views, unique visitors, and block clicks always reset.
+  - The workspace always comes from the session; `workspaceId` in the file is
+    ignored. Master admin sessions are refused by both routes (verified: 401).
+  - Tests: `tests/pageTransfer.test.ts` covers the full round trip across two
+    workspaces, repeat imports taking the next free slug, keepStatus, and a
+    hostile export (path traversal, bad category, non-image payload) being
+    rejected without failing the whole import. Test count is now 43.

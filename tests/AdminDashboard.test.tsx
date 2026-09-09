@@ -4,6 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AdminDashboard } from "../components/AdminDashboard";
+import { PagesTable } from "../components/admin/DashboardViews";
 import { BuilderEditor } from "../components/admin/BuilderEditor";
 import { ProfileFields } from "../components/admin/BuilderEditor";
 import { NotificationPromptFields, NotificationPromptPreview } from '../components/admin/BuilderEditor';
@@ -115,4 +116,23 @@ test("slugs can be typed one hyphen at a time and still normalise before saving"
     assert.equal(isValidSlug(normalised), true, `${typed} produced ${normalised}`);
     assert.equal(slugify(normalised), normalised, `${normalised} is not stable`);
   }
+});
+
+test("the pages screen offers export for a selection and import beside Create page", () => {
+  const shell = renderToStaticMarkup(<AdminDashboard />);
+  // The admin stays a full-screen desktop app, never a phone-framed one.
+  assert.doesNotMatch(shell, /phoneDevice|phoneStage/);
+
+  const summaries = [{ id: 7, name: 'Launch Hub', slug: 'launch-hub', status: 'published' as const, views: 3, uniqueVisitors: 2, clicks: 1, updatedAt: new Date().toISOString() }];
+  const managed = renderToStaticMarkup(
+    <PagesTable pages={summaries} onOpen={() => {}} onBulkStatus={async () => []} onExport={async () => 'done'} />,
+  );
+  assert.match(managed, /Export selected/);
+  // Export acts on a selection, so the row checkboxes are what drive it.
+  assert.match(managed, /Select Launch Hub/);
+  assert.match(managed, /Select all visible pages/);
+
+  // A read-only table (the dashboard's recent list) offers neither action.
+  const plain = renderToStaticMarkup(<PagesTable pages={summaries} onOpen={() => {}} />);
+  assert.doesNotMatch(plain, /Export selected/);
 });
