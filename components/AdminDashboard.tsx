@@ -159,8 +159,22 @@ export function AdminDashboard() {
     await refresh();
   }
 
+  const socialPreset = [
+    { title: 'Facebook', icon: 'facebook' },
+    { title: 'Instagram', icon: 'instagram' },
+    { title: 'WhatsApp', icon: 'whatsapp' },
+    { title: 'Telegram', icon: 'telegram' },
+  ];
+
   function addBlock(type: BlockType) {
     void run(async () => mutateBlocks(async () => {
+      if (type === 'socials') {
+        for (const social of socialPreset) {
+          const block = await adminApi<PageBlock>('/api/pages/' + editor.page!.id + '/blocks', { method: 'POST', body: JSON.stringify({ type }) });
+          await adminApi('/api/blocks/' + block.id, { method: 'PUT', body: JSON.stringify({ ...social, subtitle: '', url: '' }) });
+        }
+        return;
+      }
       const block = await adminApi<PageBlock>('/api/pages/' + editor.page!.id + '/blocks', { method: 'POST', body: JSON.stringify({ type }) });
       if (type === 'video') await adminApi('/api/blocks/' + block.id, { method: 'PUT', body: JSON.stringify({ url: '', videoUrl: '', title: '', subtitle: '' }) });
     }));

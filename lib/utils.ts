@@ -16,7 +16,7 @@ export const blockTypes: { value: BlockType; label: string }[] = [
   { value: "divider", label: "Divider" },
   { value: "image", label: "Image" },
   { value: "video", label: "Video" },
-  { value: "socials", label: "Social Icons" },
+  { value: "socials", label: "Social Icon Row" },
 ];
 
 export const themePresets: { value: ThemeSettings["preset"]; label: string }[] = [
@@ -155,18 +155,21 @@ export function readableTextColor(hex: string) {
 export function emptyBlock(pageId: number, type: BlockType, sortOrder: number): PageBlock {
   const timestamp = nowIso();
   const isVideo = type === "video";
+  const isSocial = type === "socials";
   return {
     id: Date.now(),
     pageId,
     type,
     title: isVideo
       ? "Signup walkthrough"
+      : isSocial
+        ? "Facebook"
       : type === "whatsapp"
         ? "WhatsApp"
         : blockTypes.find((item) => item.value === type)?.label ?? "Link",
     subtitle: isVideo ? "Watch the guide directly on this page" : type === "whatsapp" ? "Chat with our team" : "",
     url: isVideo ? "https://www.youtube.com/watch?v=dQw4w9WgXcQ" : "",
-    icon: type,
+    icon: isSocial ? "facebook" : type,
     phone: "",
     message: "",
     imageUrl: "",

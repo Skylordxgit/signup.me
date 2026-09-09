@@ -395,6 +395,8 @@ const curatedIcons: Record<string, LucideIcon> = {
   facebook: Globe2,
   youtube: Play,
   camera: Camera,
+  whatsapp: MessageCircle,
+  telegram: Send,
 };
 
 /** Shared by both views so an icon can never resolve differently. */
