@@ -1,27 +1,12 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-
-type Branding = { name: string; logo: string };
-const fallbackBranding: Branding = { name: "signup888", logo: "/signup888-logo.png" };
+import { AuthBranding } from "@/components/AuthBranding";
 
 export default function SignupPage() {
-  const [branding, setBranding] = useState<Branding>(fallbackBranding);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/branding", { cache: "no-store" })
-      .then(async response => response.ok ? await response.json() as Partial<Branding> : null)
-      .then((data: Partial<Branding> | null) => {
-        if (!cancelled && data?.name && data.logo) setBranding({ name: data.name, logo: data.logo });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,10 +37,7 @@ export default function SignupPage() {
 
   return (
     <main className="authShell">
-      <div className="authBrandRow">
-        <img className="authBrandLogo" src={branding.logo} alt="" width={42} height={42} />
-        <strong>{branding.name}</strong>
-      </div>
+      <AuthBranding />
 
       <section className="authCard">
         <h1>Create account</h1>
@@ -71,7 +53,7 @@ export default function SignupPage() {
           </small>
         </form>
         <p className="authFooter">
-          Already have an account? <Link className="authLink" href="/admin/login">Login</Link>
+          Already have an account? <Link className="authLink" href="/admin/login" prefetch>Login</Link>
         </p>
       </section>
     </main>

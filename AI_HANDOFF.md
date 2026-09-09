@@ -69,6 +69,9 @@ Other recent features already in `main`:
 - Signup logic: `lib/signup.ts`
 - Workspace logic: `lib/workspaces.ts`
 - Client-safe workspace constants: `lib/workspaceConstants.ts`
+- Global branding store: `lib/branding.ts`
+- Client-safe branding defaults/types: `lib/brandingConstants.ts`
+- Shared auth brand row and per-tab branding cache: `components/AuthBranding.tsx`
 - Workspace users/team: `lib/workspaceUsers.ts`
 - Workspace access guards: `lib/workspaceAccess.ts`
 - Upload/media persistence: `lib/uploads.ts`
@@ -206,7 +209,7 @@ npm test
 npm run build
 ```
 
-Expected current test count after the multi-workspace update: 34 passing tests.
+Expected current test count after the branding performance update: 37 passing tests.
 
 If build passes but prints browser compatibility warnings about server modules
 such as `fs/promises`, `path`, `crypto`, `mysql2`, or `lib/workspaces.ts`, trace
@@ -298,3 +301,32 @@ At minimum, add a short note under this section:
   stronger button-style link, and wired auth/admin metadata to saved branding.
   Google login is still a placeholder until OAuth client credentials and callback
   handling are added.
+- 2026-09-09: Fixed slow `/admin/login` -> `/admin/signup` navigation. Measured
+  cause: `getBranding()` had no cache, and the root layout awaits it in
+  `generateMetadata()`, so every route render - including every client-side
+  navigation and every Link prefetch - waited on a branding storage read. With a
+  branding store taking 1.5s, each navigation to `/admin/signup` measured
+  ~1.51s; after the fix the first render pays one read and every later
+  navigation is ~15ms (prefetch ~8ms). Changes:
+  - `lib/branding.ts` now caches branding for 30s in-process, times a read out
+    at 1.5s, never throws, and parks the fallback for 5s after a failed read so
+    a broken database costs one slow read instead of one per navigation.
+    `saveBranding()` refreshes the cache immediately and `invalidateBranding()`
+    drops it, so master admin branding changes still appear right away.
+  - `lib/brandingConstants.ts` is a new client-safe module holding
+    `BrandingSettings` and `defaultBranding`, following the existing
+    `lib/workspaceConstants.ts` pattern so client code never imports the server
+    branding module.
+  - `components/AuthBranding.tsx` is the shared auth brand row. It caches
+    branding per tab, so login -> signup reuses the already-fetched value with no
+    second request and no fallback flash. `AdminDashboard` uses the same cached
+    fetch, removing the third copy of that logic.
+  - The Sign Up links use `<Link ... prefetch>` so the payload is fetched before
+    the click. The Login link on signup does the same.
+  - Auth pages still render the fallback brand immediately and never wait on
+    branding.
+  - Caveat: the branding cache is per process, so in a multi-process deployment
+    a master admin branding save can take up to 30s to appear on workers that
+    did not handle the save.
+  - Tests: `tests/branding.test.ts` covers the fallback, the save-then-read
+    path, and that cached reads do not touch storage. Test count is now 37.

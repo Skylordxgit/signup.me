@@ -1,31 +1,17 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
+import { AuthBranding } from "@/components/AuthBranding";
 
 type LoginView = "options" | "email";
-type Branding = { name: string; logo: string };
-const fallbackBranding: Branding = { name: "signup888", logo: "/signup888-logo.png" };
 
 export default function LoginPage() {
   const [view, setView] = useState<LoginView>("options");
-  const [branding, setBranding] = useState<Branding>(fallbackBranding);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/branding", { cache: "no-store" })
-      .then(async response => response.ok ? await response.json() as Partial<Branding> : null)
-      .then((data: Partial<Branding> | null) => {
-        if (!cancelled && data?.name && data.logo) setBranding({ name: data.name, logo: data.logo });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -63,10 +49,7 @@ export default function LoginPage() {
 
   return (
     <main className="authShell">
-      <div className="authBrandRow">
-        <img className="authBrandLogo" src={branding.logo} alt="" width={42} height={42} />
-        <strong>{branding.name}</strong>
-      </div>
+      <AuthBranding />
 
       <section className="authCard">
         <h1>Authorization</h1>
@@ -94,7 +77,7 @@ export default function LoginPage() {
             {notice && <p className="authNotice">{notice}</p>}
             <p className="authFooter">
               Don&apos;t have account?{" "}
-              <Link className="authSignupButton" href="/admin/signup">Sign Up</Link>
+              <Link className="authSignupButton" href="/admin/signup" prefetch>Sign Up</Link>
             </p>
           </>
         )}
@@ -112,7 +95,7 @@ export default function LoginPage() {
             </button>
             <small>Demo login: admin@example.com / admin123</small>
             <p className="authFooter">
-              Don&apos;t have account? <Link className="authSignupButton" href="/admin/signup">Sign Up</Link>
+              Don&apos;t have account? <Link className="authSignupButton" href="/admin/signup" prefetch>Sign Up</Link>
             </p>
           </form>
         )}

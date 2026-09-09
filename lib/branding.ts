@@ -2,22 +2,26 @@ import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery } from './mysql';
 import { isValidImageUrl } from './utils';
+import { defaultBranding, type BrandingSettings } from './brandingConstants';
 
-export type BrandingSettings = {
-  name: string;
-  siteTitle: string;
-  logo: string;
-  favicon: string;
-};
-
-export const defaultBranding: BrandingSettings = {
-  name: 'signup888',
-  siteTitle: 'signup888 - Your Link. Your World.',
-  logo: '/signup888-logo.png',
-  favicon: '/favicon.ico',
-};
+export { defaultBranding };
+export type { BrandingSettings };
 
 const settingKey = 'global_branding';
+
+/* The root layout awaits getBranding() in generateMetadata, so this runs on
+   every route render, including each client-side navigation. Reading storage
+   every time put a database round trip in front of every navigation, and a slow
+   or unreachable database blocked or broke the route outright. So: serve a
+   short-lived process cache, never wait long, and never throw. */
+const cacheTtlMs = 30_000;
+const readTimeoutMs = 1_500;
+/* A storage read that fails or times out parks the fallback briefly, so a
+   broken database costs one slow read rather than one per navigation. A read
+   that lands later still overwrites this with the real branding. */
+const failureBackoffMs = 5_000;
+let cached: { value: BrandingSettings; expiresAt: number } | null = null;
+let inFlight: Promise<BrandingSettings> | null = null;
 
 function file() {
   return path.join(process.cwd(), 'data', 'branding.json');
@@ -48,7 +52,8 @@ async function writeJsonBranding(branding: BrandingSettings) {
   await rename(temporary, target);
 }
 
-export async function getBranding(): Promise<BrandingSettings> {
+/** Reads storage directly, with no cache in front. */
+async function readBranding(): Promise<BrandingSettings> {
   if (hasMysqlConfig()) {
     const rows = await mysqlQuery<{ setting_value: unknown }[]>('SELECT setting_value FROM settings WHERE setting_key = ?', [settingKey]);
     const value = rows[0]?.setting_value;
@@ -57,8 +62,51 @@ export async function getBranding(): Promise<BrandingSettings> {
   return readJsonBranding();
 }
 
+/** One shared read per burst, caching only a success. A read that fails or
+ *  outruns the timeout still populates the cache if it lands later. */
+function startRead() {
+  inFlight ??= readBranding()
+    .then(value => {
+      cached = { value, expiresAt: Date.now() + cacheTtlMs };
+      return value;
+    })
+    .finally(() => { inFlight = null; });
+  return inFlight;
+}
+
+/**
+ * Branding for a page render. Always resolves quickly and never rejects:
+ * whatever is known is returned, falling back to the built-in brand, so
+ * branding storage can never delay or break a navigation.
+ */
+export async function getBranding(): Promise<BrandingSettings> {
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+
+  const read = startRead();
+  const timeout = new Promise<null>(resolve => {
+    const timer = setTimeout(() => resolve(null), readTimeoutMs);
+    // Do not hold the process open just to time a branding read out.
+    timer.unref?.();
+  });
+
+  try {
+    const value = await Promise.race([read, timeout]);
+    if (value) return value;
+  } catch { /* Fall through to whatever branding is already known. */ }
+
+  const fallback = cached?.value ?? defaultBranding;
+  cached = { value: fallback, expiresAt: Date.now() + failureBackoffMs };
+  return fallback;
+}
+
+/** Drops the cache so a save is visible on the very next render. */
+export function invalidateBranding() {
+  cached = null;
+}
+
 export async function saveBranding(input: Partial<BrandingSettings>): Promise<BrandingSettings> {
-  const current = await getBranding();
+  // Merge onto storage rather than a possibly stale cached copy.
+  const current = await readBranding();
   const branding = normalize({ ...current, ...input });
   if (hasMysqlConfig()) {
     await mysqlQuery(
@@ -69,5 +117,6 @@ export async function saveBranding(input: Partial<BrandingSettings>): Promise<Br
   } else {
     await writeJsonBranding(branding);
   }
+  cached = { value: branding, expiresAt: Date.now() + cacheTtlMs };
   return branding;
 }

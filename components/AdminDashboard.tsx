@@ -12,12 +12,11 @@ import { BuilderEditor, ThemeGallery, type BuilderTab } from "./admin/BuilderEdi
 import { AnalyticsView, DashboardHome, MediaView, NotificationsView, PagesTable, SettingsView } from "./admin/DashboardViews";
 import { Dialog, EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./admin/AdminUI";
 import { UsersView } from "./admin/UsersView";
+import { fallbackBranding, fetchBranding, type ClientBranding } from "./AuthBranding";
 import { usePageEditor } from "./admin/usePageEditor";
 import "./admin/admin.css";
 
 type View = 'dashboard' | 'pages' | 'create' | 'analytics' | 'media' | 'themes' | 'notifications' | 'settings' | 'users' | 'builder';
-type Branding = { name: string; logo: string };
-const fallbackBranding: Branding = { name: 'signup888', logo: '/signup888-logo.png' };
 const navigation = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pages', label: 'Pages', icon: FileText },
@@ -32,7 +31,7 @@ const navigation = [
 
 export function AdminDashboard() {
   const [view, setView] = useState<View>('dashboard');
-  const [branding, setBranding] = useState<Branding>(fallbackBranding);
+  const [branding, setBranding] = useState<ClientBranding>(fallbackBranding);
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [role, setRole] = useState<'owner' | 'admin'>('admin');
   const [email, setEmail] = useState('');
@@ -98,14 +97,14 @@ export function AdminDashboard() {
     Promise.all([
       adminApi<PageSummary[]>('/api/pages'),
       adminApi<{ email: string; role: 'owner' | 'admin'; workspaceName: string }>('/api/auth/me'),
-      fetch('/api/branding', { cache: 'no-store' }).then(response => response.ok ? response.json() as Promise<Partial<Branding>> : null).catch(() => null),
+      fetchBranding(),
     ]).then(async ([items, account, brand]) => {
       if (cancelled) return;
       setPages(items);
       setEmail(account.email);
       setRole(account.role);
       setWorkspace(account.workspaceName);
-      if (brand?.name && brand.logo) setBranding({ name: brand.name, logo: brand.logo });
+      setBranding(brand);
       try { setCollapsed(localStorage.getItem('smartlink_sidebar_collapsed') === 'true'); } catch { /* Use the expanded sidebar. */ }
       const cookieSlug = document.cookie.split('; ').find(value => value.startsWith('smartlink_claim='))?.split('=')[1];
       const requested = new URLSearchParams(window.location.search).get('slug') || cookieSlug || '';
