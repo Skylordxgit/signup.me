@@ -4,7 +4,7 @@ The existing account configured through ADMIN_EMAIL and ADMIN_PASSWORD_HASH is
 the workspace Owner. Its credentials and access remain managed in hosting settings.
 
 The Owner can open Team and choose Add admin. Enter the teammate's name, email,
-and a password of 12-128 characters. Share these credentials privately; this
+and a password of 8-128 characters. Share these credentials privately; this
 flow creates an account directly and does not send an email invitation.
 
 Admins sign in at /admin/login and share all pages, media, analytics, and

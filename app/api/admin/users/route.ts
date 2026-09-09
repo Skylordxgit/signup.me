@@ -25,7 +25,7 @@ export async function GET() {
 }
 
 function passwordHash(value: unknown) {
-  if (typeof value !== 'string' || value.length < 12 || value.length > 128) throw new Error('Use a password between 12 and 128 characters.');
+  if (typeof value !== 'string' || value.length < 8 || value.length > 128) throw new Error('Use a password between 8 and 128 characters.');
   return hashPassword(value);
 }
 
