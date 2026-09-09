@@ -1,12 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element */
+import { useEffect, useState } from "react";
 import Link from "next/link";
 
+type Branding = { name: string; logo: string };
+const fallbackBranding: Branding = { name: "signup888", logo: "/signup888-logo.png" };
+
 export default function SignupPage() {
+  const [branding, setBranding] = useState<Branding>(fallbackBranding);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/branding", { cache: "no-store" })
+      .then(async response => response.ok ? await response.json() as Partial<Branding> : null)
+      .then((data: Partial<Branding> | null) => {
+        if (!cancelled && data?.name && data.logo) setBranding({ name: data.name, logo: data.logo });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,8 +53,8 @@ export default function SignupPage() {
   return (
     <main className="authShell">
       <div className="authBrandRow">
-        <Image className="authBrandLogo" src="/signup888-logo.png" alt="" width={42} height={42} priority />
-        <strong>signup888</strong>
+        <img className="authBrandLogo" src={branding.logo} alt="" width={42} height={42} />
+        <strong>{branding.name}</strong>
       </div>
 
       <section className="authCard">

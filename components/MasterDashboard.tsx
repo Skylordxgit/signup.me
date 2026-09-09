@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Building2, LogOut, Power, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { adminApi } from "@/lib/admin";
-import { Dialog, EmptyState, IconButton, SectionHeading } from "./admin/AdminUI";
+import { ImageUploader } from "./ImageUploader";
+import { Dialog, EmptyState, Field, IconButton, SectionHeading } from "./admin/AdminUI";
 import "./admin/admin.css";
 
 type MasterWorkspace = {
@@ -18,14 +19,30 @@ type MasterWorkspace = {
   subscribers: number;
 };
 
+type BrandingSettings = {
+  name: string;
+  siteTitle: string;
+  logo: string;
+  favicon: string;
+};
+
 type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
+const fallbackBranding: BrandingSettings = {
+  name: "signup888",
+  siteTitle: "signup888 - Your Link. Your World.",
+  logo: "/signup888-logo.png",
+  favicon: "/favicon.ico",
+};
 
 export function MasterDashboard({ email }: { email: string }) {
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
   const [defaultWorkspaceId, setDefaultWorkspaceId] = useState("default");
+  const [branding, setBranding] = useState<BrandingSettings>(fallbackBranding);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [savingBranding, setSavingBranding] = useState(false);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
   const [inspect, setInspect] = useState<MasterWorkspace | null>(null);
 
   const apply = useCallback((data: Payload) => {
@@ -33,11 +50,12 @@ export function MasterDashboard({ email }: { email: string }) {
     setDefaultWorkspaceId(data.defaultWorkspaceId);
   }, []);
   const load = useCallback(async () => apply(await adminApi<Payload>("/api/master/workspaces")), [apply]);
+  const loadBranding = useCallback(async () => setBranding(await adminApi<BrandingSettings>("/api/master/branding")), []);
 
   useEffect(() => {
     let cancelled = false;
-    adminApi<Payload>("/api/master/workspaces")
-      .then(data => { if (!cancelled) apply(data); })
+    Promise.all([adminApi<Payload>("/api/master/workspaces"), adminApi<BrandingSettings>("/api/master/branding")])
+      .then(([data, brand]) => { if (!cancelled) { apply(data); setBranding(brand); } })
       .catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load workspaces."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -50,6 +68,38 @@ export function MasterDashboard({ email }: { email: string }) {
     try { await action(); await load(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Something went wrong."); }
     finally { setBusy(false); }
+  }
+
+  async function saveBranding() {
+    if (savingBranding) return;
+    setSavingBranding(true);
+    setError("");
+    setMessage("");
+    try {
+      setBranding(await adminApi<BrandingSettings>("/api/master/branding", { method: "PATCH", body: JSON.stringify(branding) }));
+      setMessage("Branding saved.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save branding.");
+    } finally {
+      setSavingBranding(false);
+    }
+  }
+
+  async function updateBrandingImage(key: "logo" | "favicon", value: string) {
+    const next = { ...branding, [key]: value || fallbackBranding[key] };
+    setBranding(next);
+    setSavingBranding(true);
+    setError("");
+    setMessage("");
+    try {
+      setBranding(await adminApi<BrandingSettings>("/api/master/branding", { method: "PATCH", body: JSON.stringify(next) }));
+      setMessage("Branding saved.");
+      await loadBranding();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save branding.");
+    } finally {
+      setSavingBranding(false);
+    }
   }
 
   function logout() {
@@ -75,6 +125,7 @@ export function MasterDashboard({ email }: { email: string }) {
 
       <main className="admMain" aria-busy={busy || loading}>
         {error && <div className="admError" role="alert"><span>{error}</span><IconButton icon={X} label="Dismiss error" onClick={() => setError("")} /></div>}
+        {message && <p className="admSuccess" role="status">{message}</p>}
         {loading ? <EmptyState title="Loading workspaces..." /> : <>
           <div className="admMetrics">
             <article className="admMetric"><div><span>Workspaces</span><strong>{workspaces.length}</strong></div></article>
@@ -82,6 +133,19 @@ export function MasterDashboard({ email }: { email: string }) {
             <article className="admMetric"><div><span>Admins</span><strong>{totals.admins}</strong></div></article>
             <article className="admMetric"><div><span>Subscribers</span><strong>{totals.subscribers}</strong></div></article>
           </div>
+
+          <SectionHeading title="Branding" />
+          <section className="admBrandingPanel">
+            <div className="admFormGrid">
+              <Field label="Brand name"><input maxLength={80} value={branding.name} onChange={event => setBranding({ ...branding, name: event.target.value })} /></Field>
+              <Field label="Site title"><input maxLength={140} value={branding.siteTitle} onChange={event => setBranding({ ...branding, siteTitle: event.target.value })} /></Field>
+              <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="logo" label="Master logo" round value={branding.logo} onChange={logo => void updateBrandingImage("logo", logo)} /></div>
+              <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="favicon" label="Master favicon" value={branding.favicon} onChange={favicon => void updateBrandingImage("favicon", favicon)} /></div>
+            </div>
+            <div className="admFormFooter">
+              <button type="button" className="admButton admPrimary" disabled={savingBranding} onClick={() => void saveBranding()}>{savingBranding ? "Saving..." : "Save branding"}</button>
+            </div>
+          </section>
 
           <SectionHeading title="Workspaces" />
           {!workspaces.length ? <EmptyState title="No workspaces yet" /> : <div className="admMasterList">

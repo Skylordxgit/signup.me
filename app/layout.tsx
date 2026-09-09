@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { getBranding } from '@/lib/branding';
 import './globals.css';
 
 const geistSans = Geist({
@@ -12,19 +13,18 @@ const geistMono = Geist_Mono({
   subsets: ['latin'],
 });
 
-export const metadata: Metadata = {
-  title: 'signup888 - Your Link. Your World.',
-  description:
-    'Create mobile-friendly link pages, offers, requests, and analytics with signup888.',
-  icons: {
-    icon: [
-      { url: '/favicon.ico', sizes: 'any' },
-      { url: '/favicon.png', type: 'image/png' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-    ],
-    apple: '/apple-touch-icon.png',
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getBranding();
+  return {
+    title: branding.siteTitle,
+    description:
+      `Create mobile-friendly link pages, offers, requests, and analytics with ${branding.name}.`,
+    icons: {
+      icon: [{ url: branding.favicon, sizes: 'any' }],
+      apple: branding.logo,
+    },
+  };
+}
 
 export default function RootLayout({
   children,

@@ -1,17 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element */
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Mail } from "lucide-react";
 
 type LoginView = "options" | "email";
+type Branding = { name: string; logo: string };
+const fallbackBranding: Branding = { name: "signup888", logo: "/signup888-logo.png" };
 
 export default function LoginPage() {
   const [view, setView] = useState<LoginView>("options");
+  const [branding, setBranding] = useState<Branding>(fallbackBranding);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/branding", { cache: "no-store" })
+      .then(async response => response.ok ? await response.json() as Partial<Branding> : null)
+      .then((data: Partial<Branding> | null) => {
+        if (!cancelled && data?.name && data.logo) setBranding({ name: data.name, logo: data.logo });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,8 +64,8 @@ export default function LoginPage() {
   return (
     <main className="authShell">
       <div className="authBrandRow">
-        <Image className="authBrandLogo" src="/signup888-logo.png" alt="" width={42} height={42} priority />
-        <strong>signup888</strong>
+        <img className="authBrandLogo" src={branding.logo} alt="" width={42} height={42} />
+        <strong>{branding.name}</strong>
       </div>
 
       <section className="authCard">
@@ -70,16 +84,6 @@ export default function LoginPage() {
                 </span>
                 Login with Google
               </button>
-              <button
-                type="button"
-                className="authOptionButton authOptionApple"
-                onClick={() => setNotice("Apple sign-in isn't configured yet.")}
-              >
-                <span className="authOptionIcon authOptionIconDark" aria-hidden="true">
-                  <AppleGlyph />
-                </span>
-                Login with Apple
-              </button>
               <button type="button" className="authOptionButton authOptionEmail" onClick={() => setView("email")}>
                 <span className="authOptionIcon authOptionIconOutline" aria-hidden="true">
                   <Mail size={16} />
@@ -90,7 +94,7 @@ export default function LoginPage() {
             {notice && <p className="authNotice">{notice}</p>}
             <p className="authFooter">
               Don&apos;t have account?{" "}
-              <Link className="authLink" href="/admin/signup">Sign Up</Link>
+              <Link className="authSignupButton" href="/admin/signup">Sign Up</Link>
             </p>
           </>
         )}
@@ -108,7 +112,7 @@ export default function LoginPage() {
             </button>
             <small>Demo login: admin@example.com / admin123</small>
             <p className="authFooter">
-              Don&apos;t have account? <Link className="authLink" href="/admin/signup">Sign Up</Link>
+              Don&apos;t have account? <Link className="authSignupButton" href="/admin/signup">Sign Up</Link>
             </p>
           </form>
         )}
@@ -128,10 +132,3 @@ function GoogleGlyph() {
   );
 }
 
-function AppleGlyph() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
-      <path d="M16.365 1.43c0 1.14-.42 2.05-1.05 2.76-.72.82-1.87 1.45-2.9 1.36-.13-1.1.42-2.24 1.06-2.95.71-.8 1.96-1.4 2.89-1.17zm2.86 16.14c-.42.95-.62 1.37-1.16 2.21-.75 1.16-1.81 2.6-3.12 2.61-1.16.01-1.46-.75-3.03-.74-1.57.01-1.9.76-3.06.75-1.31-.01-2.31-1.31-3.06-2.47-2.1-3.24-2.32-7.04-1.02-9.06.92-1.44 2.38-2.28 3.75-2.28 1.4 0 2.28.77 3.44.77 1.12 0 1.8-.77 3.42-.77 1.22 0 2.52.66 3.44 1.8-3.03 1.66-2.54 5.98.4 7.18z" />
-    </svg>
-  );
-}

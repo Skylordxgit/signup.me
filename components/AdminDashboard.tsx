@@ -16,6 +16,8 @@ import { usePageEditor } from "./admin/usePageEditor";
 import "./admin/admin.css";
 
 type View = 'dashboard' | 'pages' | 'create' | 'analytics' | 'media' | 'themes' | 'notifications' | 'settings' | 'users' | 'builder';
+type Branding = { name: string; logo: string };
+const fallbackBranding: Branding = { name: 'signup888', logo: '/signup888-logo.png' };
 const navigation = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pages', label: 'Pages', icon: FileText },
@@ -30,6 +32,7 @@ const navigation = [
 
 export function AdminDashboard() {
   const [view, setView] = useState<View>('dashboard');
+  const [branding, setBranding] = useState<Branding>(fallbackBranding);
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [role, setRole] = useState<'owner' | 'admin'>('admin');
   const [email, setEmail] = useState('');
@@ -92,12 +95,17 @@ export function AdminDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([adminApi<PageSummary[]>('/api/pages'), adminApi<{ email: string; role: 'owner' | 'admin'; workspaceName: string }>('/api/auth/me')]).then(async ([items, account]) => {
+    Promise.all([
+      adminApi<PageSummary[]>('/api/pages'),
+      adminApi<{ email: string; role: 'owner' | 'admin'; workspaceName: string }>('/api/auth/me'),
+      fetch('/api/branding', { cache: 'no-store' }).then(response => response.ok ? response.json() as Promise<Partial<Branding>> : null).catch(() => null),
+    ]).then(async ([items, account, brand]) => {
       if (cancelled) return;
       setPages(items);
       setEmail(account.email);
       setRole(account.role);
       setWorkspace(account.workspaceName);
+      if (brand?.name && brand.logo) setBranding({ name: brand.name, logo: brand.logo });
       try { setCollapsed(localStorage.getItem('smartlink_sidebar_collapsed') === 'true'); } catch { /* Use the expanded sidebar. */ }
       const cookieSlug = document.cookie.split('; ').find(value => value.startsWith('smartlink_claim='))?.split('=')[1];
       const requested = new URLSearchParams(window.location.search).get('slug') || cookieSlug || '';
@@ -212,7 +220,7 @@ export function AdminDashboard() {
 
   function sidebar(drawer = false) {
     return <>
-      <div className="admBrand"><Image className="admBrandLogo" src="/signup888-logo.png" alt="" width={34} height={34} priority /><strong>signup888</strong>{drawer && <IconButton icon={X} label="Close navigation" onClick={() => setDrawerOpen(false)} />}</div>
+      <div className="admBrand"><Image className="admBrandLogo" src={branding.logo} alt="" width={34} height={34} priority unoptimized /><strong>{branding.name}</strong>{drawer && <IconButton icon={X} label="Close navigation" onClick={() => setDrawerOpen(false)} />}</div>
       <nav aria-label={drawer ? 'Mobile admin navigation' : 'Admin navigation'}>{navigation.map(item => <button type="button" key={item.id} className={view === item.id || view === 'builder' && item.id === 'pages' ? 'admNavActive' : ''} aria-current={view === item.id || view === 'builder' && item.id === 'pages' ? 'page' : undefined} title={item.label} aria-label={item.label} disabled={busy} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'pages' && <small>{pages.length}</small>}</button>)}</nav>
       <div className="admSidebarBottom"><button type="button" title="Log out" disabled={busy} onClick={logout}><LogOut size={19} /><span>Logout</span></button>{!drawer && <button type="button" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => collapse(!collapsed)}>{collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>Collapse sidebar</span></button>}</div>
     </>;

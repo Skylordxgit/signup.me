@@ -293,3 +293,8 @@ At minimum, add a short note under this section:
 - 2026-09-09: Added this handoff guide so future AI agents know the current
   architecture, workflow, push process, and known pitfalls. Future agents should
   keep this section current after completing work.
+- 2026-09-09: Added global branding storage/API for Master Admin branding
+  controls, removed Apple login from the auth options, made the signup link a
+  stronger button-style link, and wired auth/admin metadata to saved branding.
+  Google login is still a placeholder until OAuth client credentials and callback
+  handling are added.

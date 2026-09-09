@@ -443,6 +443,7 @@ body:has(.admDialog[open]) { overflow: hidden; }
 
 /* Master admin: one full-width column, no workspace sidebar. */
 .admShellPlain { grid-template-columns: minmax(0, 1fr); }
+.admBrandingPanel { display: grid; gap: 16px; margin-bottom: 28px; padding: 18px; border: 1px solid var(--adm-line); border-radius: 8px; background: white; }
 .admMasterList { display: grid; }
 .admMasterRow { display: grid; grid-template-columns: minmax(0, 1fr) 84px repeat(4, 88px) 44px; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--adm-line); }
 .admMasterName { display: flex; align-items: center; gap: 12px; min-width: 0; border: 0; background: transparent; padding: 0; text-align: left; color: inherit; }

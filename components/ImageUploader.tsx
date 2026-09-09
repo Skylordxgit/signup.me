@@ -16,6 +16,7 @@ const maxBytes = 5 * 1024 * 1024;
  */
 export function ImageUploader({
   category,
+  endpoint = "/api/uploads",
   hint,
   label,
   onChange,
@@ -24,6 +25,7 @@ export function ImageUploader({
   value,
 }: {
   category: UploadCategory;
+  endpoint?: string;
   hint?: string;
   label: string;
   onChange: (path: string) => void;
@@ -70,7 +72,7 @@ export function ImageUploader({
       body.append("file", prepared);
       body.append("category", category);
 
-      const response = await fetch("/api/uploads", { method: "POST", body, signal: controller.signal });
+      const response = await fetch(endpoint, { method: "POST", body, signal: controller.signal });
       const data = (await response.json().catch(() => null)) as { path?: string; error?: string } | null;
 
       if (!response.ok || !data?.path) {
