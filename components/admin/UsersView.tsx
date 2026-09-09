@@ -3,16 +3,26 @@
 import { useEffect, useState } from 'react';
 import { KeyRound, MailPlus, Plus, ShieldCheck, Trash2, UserCheck, UserX } from 'lucide-react';
 import { adminApi } from '@/lib/admin';
-import type { PublicWorkspaceUser } from '@/lib/workspaceUsers';
 import { Dialog, Field, IconButton, SectionHeading } from './AdminUI';
 
+type TeamUser = {
+  id: string;
+  email: string;
+  name: string;
+  workspaceId: string;
+  role: 'owner' | 'admin';
+  active: boolean;
+  pending: boolean;
+  createdAt: string;
+};
+
 export function UsersView({ role }: { role: 'owner' | 'admin' }) {
-  const [users, setUsers] = useState<PublicWorkspaceUser[]>([]);
+  const [users, setUsers] = useState<TeamUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
-  const [form, setForm] = useState<'create' | PublicWorkspaceUser | null>(null);
+  const [form, setForm] = useState<'create' | TeamUser | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,7 +30,7 @@ export function UsersView({ role }: { role: 'owner' | 'admin' }) {
   const [withPassword, setWithPassword] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    adminApi<PublicWorkspaceUser[]>('/api/admin/users').then(data => { if (!cancelled) setUsers(data); }).catch(cause => { if (!cancelled) setError(cause.message); }).finally(() => { if (!cancelled) setLoading(false); });
+    adminApi<TeamUser[]>('/api/admin/users').then(data => { if (!cancelled) setUsers(data); }).catch(cause => { if (!cancelled) setError(cause.message); }).finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
   async function update(action: () => Promise<unknown>, success: string) {
@@ -30,11 +40,11 @@ export function UsersView({ role }: { role: 'owner' | 'admin' }) {
       await action();
       setForm(null); setPassword('');
       setMessage(success);
-      setUsers(await adminApi<PublicWorkspaceUser[]>('/api/admin/users'));
+      setUsers(await adminApi<TeamUser[]>('/api/admin/users'));
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not update account.'); }
     finally { setBusy(false); }
   }
-  function openForm(value: 'create' | PublicWorkspaceUser) { setError(''); setPassword(''); setName(''); setEmail(''); setWithPassword(false); setForm(value); }
+  function openForm(value: 'create' | TeamUser) { setError(''); setPassword(''); setName(''); setEmail(''); setWithPassword(false); setForm(value); }
   const creating = form === 'create';
   return <>
     <SectionHeading title="Workspace team"><button type="button" className="admButton admPrimary" disabled={busy} onClick={() => openForm('create')}><Plus size={16} />Invite admin</button></SectionHeading>

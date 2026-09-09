@@ -3,9 +3,20 @@
 import { useCallback, useEffect, useState } from "react";
 import { Building2, LogOut, Power, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { adminApi } from "@/lib/admin";
-import type { MasterWorkspace } from "@/app/api/master/workspaces/route";
 import { Dialog, EmptyState, IconButton, SectionHeading } from "./admin/AdminUI";
 import "./admin/admin.css";
+
+type MasterWorkspace = {
+  id: string;
+  name: string;
+  ownerEmail: string;
+  ownerName: string;
+  status: "active" | "disabled";
+  createdAt: string;
+  pages: number;
+  admins: number;
+  subscribers: number;
+};
 
 type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
 

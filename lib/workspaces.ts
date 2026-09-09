@@ -2,12 +2,13 @@ import { randomUUID } from 'crypto';
 import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery } from './mysql';
+import { DEFAULT_WORKSPACE_ID } from './workspaceConstants';
 
 /* The workspace every pre-multi-workspace page and admin belongs to. It is a
    fixed id rather than a generated one so the backfill is deterministic: the
    MySQL migration defaults existing rows to it, and the JSON store treats a
    missing workspaceId as this value. */
-export const DEFAULT_WORKSPACE_ID = 'default';
+export { DEFAULT_WORKSPACE_ID };
 
 export type WorkspaceStatus = 'active' | 'disabled';
 export type Workspace = { id: string; name: string; ownerEmail: string; status: WorkspaceStatus; createdAt: string };

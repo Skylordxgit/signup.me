@@ -1,5 +1,5 @@
 import type { SmartPage, ThemeSettings } from "./types";
-import { DEFAULT_WORKSPACE_ID } from "./workspaces";
+import { DEFAULT_WORKSPACE_ID } from "./workspaceConstants";
 import { nowIso } from "./utils";
 
 export const defaultTheme: ThemeSettings = {
