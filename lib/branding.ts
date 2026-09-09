@@ -32,7 +32,8 @@ function normalize(input: Partial<BrandingSettings> | null | undefined): Brandin
   const siteTitle = typeof input?.siteTitle === 'string' && input.siteTitle.trim() ? input.siteTitle.trim().slice(0, 140) : defaultBranding.siteTitle;
   const logo = typeof input?.logo === 'string' && input.logo.trim() && isValidImageUrl(input.logo.trim()) ? input.logo.trim() : defaultBranding.logo;
   const favicon = typeof input?.favicon === 'string' && input.favicon.trim() && isValidImageUrl(input.favicon.trim()) ? input.favicon.trim() : defaultBranding.favicon;
-  return { name, siteTitle, logo, favicon };
+  const signupEnabled = typeof input?.signupEnabled === 'boolean' ? input.signupEnabled : defaultBranding.signupEnabled;
+  return { name, siteTitle, logo, favicon, signupEnabled };
 }
 
 async function readJsonBranding() {

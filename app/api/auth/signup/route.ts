@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { setSessionCookie } from "@/lib/auth";
+import { getBranding } from "@/lib/branding";
 import { signUp } from "@/lib/signup";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -16,6 +17,11 @@ export async function POST(request: NextRequest) {
   });
 
   try {
+    const branding = await getBranding();
+    if (!branding.signupEnabled) {
+      return NextResponse.json({ error: "Signup is currently closed." }, { status: 403 });
+    }
+
     const body = await request.json() as Record<string, unknown> | null;
     const result = await signUp({ email: body?.email, password: body?.password, name: body?.name });
     await setSessionCookie({ email: result.email, version: result.version, workspaceId: result.workspaceId, role: result.role, scope: 'workspace' });

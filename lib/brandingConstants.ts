@@ -7,6 +7,7 @@ export type BrandingSettings = {
   siteTitle: string;
   logo: string;
   favicon: string;
+  signupEnabled: boolean;
 };
 
 /** What every surface renders immediately, before any branding read. */
@@ -15,4 +16,5 @@ export const defaultBranding: BrandingSettings = {
   siteTitle: 'signup888 - Your Link. Your World.',
   logo: '/signup888-logo.png',
   favicon: '/favicon.ico',
+  signupEnabled: true,
 };

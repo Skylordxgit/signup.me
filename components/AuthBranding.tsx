@@ -4,9 +4,9 @@
 import { useEffect, useState } from "react";
 import { defaultBranding } from "@/lib/brandingConstants";
 
-export type ClientBranding = { name: string; logo: string };
+export type ClientBranding = { name: string; logo: string; signupEnabled: boolean };
 
-export const fallbackBranding: ClientBranding = { name: defaultBranding.name, logo: defaultBranding.logo };
+export const fallbackBranding: ClientBranding = { name: defaultBranding.name, logo: defaultBranding.logo, signupEnabled: defaultBranding.signupEnabled };
 
 /* Cached for the life of the tab: /admin/login and /admin/signup are a
    client-side navigation apart, so the second page reuses what the first
@@ -20,7 +20,9 @@ export function fetchBranding(): Promise<ClientBranding> {
   inFlight ??= fetch("/api/branding")
     .then(response => response.ok ? response.json() as Promise<Partial<ClientBranding>> : null)
     .then(data => {
-      const branding = data?.name && data.logo ? { name: data.name, logo: data.logo } : fallbackBranding;
+      const branding = data?.name && data.logo
+        ? { name: data.name, logo: data.logo, signupEnabled: data.signupEnabled !== false }
+        : fallbackBranding;
       cache = branding;
       return branding;
     })

@@ -6,5 +6,6 @@ import "./mobile-push.test";
 import './workspaceUsers.test';
 import './workspaces.test';
 import './branding.test';
+import './authUi.test';
 import './pageTransfer.test';
 import './signupClient.test';

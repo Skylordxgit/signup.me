@@ -26,6 +26,7 @@ Signup888 is a link/profile page builder with:
 - Workspace/team accounts
 - Multi-workspace signup
 - Master admin dashboard
+- Master-controlled public signup permission
 
 Important rule: the admin dashboard is a desktop web app. Do not make the whole
 admin look like a phone app. The phone frame belongs only in the page builder
@@ -91,6 +92,8 @@ Other recent features already in `main`:
 
 - Public signup is email + password only.
 - No OTP, no email verification, no approval flow.
+- Master Admin controls whether public signup is open. When disabled, the
+  Sign Up entry point is hidden and `/api/auth/signup` rejects direct requests.
 - Password must be 8-128 characters.
 - A new signup with no invite gets a new workspace and becomes owner of that
   workspace.
@@ -210,7 +213,7 @@ npm test
 npm run build
 ```
 
-Expected current test count after the signup navigation fix: 48 passing tests.
+Expected current test count after the master signup permission fix: 49 passing tests.
 
 If build passes but prints browser compatibility warnings about server modules
 such as `fs/promises`, `path`, `crypto`, `mysql2`, or `lib/workspaces.ts`, trace
@@ -294,6 +297,18 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-09: Added a Master Admin "Allow public signup" permission inside the
+  Branding panel. The setting is stored with global branding as
+  `signupEnabled` and defaults to `true` so existing deployments keep allowing
+  signup until the master admin turns it off. `/admin/login` and `/admin/signup`
+  now read the setting server-side before rendering, so when it is off the Sign
+  Up button/form are not painted. `/api/auth/signup` also checks the same
+  setting and returns 403 for direct signup attempts while disabled. The login
+  and signup interactive form logic was split into client components
+  (`components/LoginForm.tsx`, `components/SignupForm.tsx`) so the pages can
+  perform this server-side permission read first. Regression coverage:
+  `tests/authUi.test.tsx` plus updated branding tests. All checks passed
+  (49 tests).
 - 2026-09-09: Reproduced the broken Sign Up click on the live Hostinger site.
   The console reported `[vinext] RSC prefetch setup error: TypeError: d is not
   a function` and `TypeError: e is not a function` in the Link bundle. Clicking

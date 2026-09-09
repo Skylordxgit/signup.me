@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Building2, LogOut, Power, RefreshCw, ShieldCheck, X } from "lucide-react";
 import { adminApi } from "@/lib/admin";
+import { defaultBranding, type BrandingSettings } from "@/lib/brandingConstants";
 import { ImageUploader } from "./ImageUploader";
 import { Dialog, EmptyState, Field, IconButton, SectionHeading } from "./admin/AdminUI";
 import "./admin/admin.css";
@@ -19,20 +20,8 @@ type MasterWorkspace = {
   subscribers: number;
 };
 
-type BrandingSettings = {
-  name: string;
-  siteTitle: string;
-  logo: string;
-  favicon: string;
-};
-
 type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
-const fallbackBranding: BrandingSettings = {
-  name: "signup888",
-  siteTitle: "signup888 - Your Link. Your World.",
-  logo: "/signup888-logo.png",
-  favicon: "/favicon.ico",
-};
+const fallbackBranding: BrandingSettings = defaultBranding;
 
 export function MasterDashboard({ email }: { email: string }) {
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
@@ -139,6 +128,15 @@ export function MasterDashboard({ email }: { email: string }) {
             <div className="admFormGrid">
               <Field label="Brand name"><input maxLength={80} value={branding.name} onChange={event => setBranding({ ...branding, name: event.target.value })} /></Field>
               <Field label="Site title"><input maxLength={140} value={branding.siteTitle} onChange={event => setBranding({ ...branding, siteTitle: event.target.value })} /></Field>
+              <div className="admSpanFull">
+                <label className="admSwitchRow">
+                  <span>
+                    <strong>Allow public signup</strong>
+                    <small>{branding.signupEnabled ? "New users can see Sign Up and create their own workspace." : "Sign Up is hidden and new account creation is blocked."}</small>
+                  </span>
+                  <input type="checkbox" checked={branding.signupEnabled} onChange={event => setBranding({ ...branding, signupEnabled: event.target.checked })} />
+                </label>
+              </div>
               <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="logo" label="Master logo" round value={branding.logo} onChange={logo => void updateBrandingImage("logo", logo)} /></div>
               <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="favicon" label="Master favicon" value={branding.favicon} onChange={favicon => void updateBrandingImage("favicon", favicon)} /></div>
             </div>

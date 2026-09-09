@@ -38,13 +38,16 @@ test('branding falls back instantly instead of failing when storage is unreadabl
 test('saved branding is served immediately and stays cached for later renders', async () => {
   await withDataDirectory(async () => {
     assert.equal((await getBranding()).name, defaultBranding.name);
+    assert.equal((await getBranding()).signupEnabled, true);
 
-    const saved = await saveBranding({ name: 'Acme', siteTitle: 'Acme links' });
+    const saved = await saveBranding({ name: 'Acme', siteTitle: 'Acme links', signupEnabled: false });
     assert.equal(saved.name, 'Acme');
+    assert.equal(saved.signupEnabled, false);
 
     // A save must be visible on the very next render, not after the cache ages.
     assert.equal((await getBranding()).name, 'Acme');
     assert.equal((await getBranding()).siteTitle, 'Acme links');
+    assert.equal((await getBranding()).signupEnabled, false);
 
     // Untouched fields keep their previous values through a partial save.
     assert.equal((await getBranding()).logo, defaultBranding.logo);
