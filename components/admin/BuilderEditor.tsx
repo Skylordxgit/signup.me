@@ -35,10 +35,8 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
           {renderPromptField('allowLabel', 'Allow button')}
         </section>
         <section className="admFormSection">
-          <h3>After subscription</h3>
-          {renderPromptField('successHeading', 'Success heading')}
-          {renderPromptField('successMessage', 'Success message', true)}
-          <div className="admFormGrid">{renderPromptField('continueLabel', 'Done button')}{renderPromptField('busyLabel', 'Loading text')}{renderPromptField('retryLabel', 'Retry button')}</div>
+          <h3>If subscription fails</h3>
+          {renderPromptField('retryLabel', 'Retry button')}
           {renderPromptField('errorMessage', 'Error message', true)}
         </section>
         <details className="admFormSection admPromptAdvanced">

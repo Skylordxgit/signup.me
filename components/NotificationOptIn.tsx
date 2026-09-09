@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Check } from "lucide-react";
+import { Bell } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { resolveNotificationPrompt, type NotificationPromptSettings } from '@/lib/notificationPrompt';
 import { pushSupport, type PushSupport } from '@/lib/pushSupport';
@@ -44,7 +44,6 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
   const copy = resolveNotificationPrompt(settings);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
   const [support, setSupport] = useState<PushSupport>('supported');
   const dialog = useRef<HTMLDialogElement>(null);
 
@@ -110,22 +109,22 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
       }, 15000);
       if (!response.ok) throw new Error('Your subscription was not saved. Please try again.');
       preference(slug, 'saved-v2');
-      setSuccess(true);
+      dismiss();
     } catch {
       setError(copy.errorMessage);
     } finally { setBusy(false); }
   }
 
   return <dialog ref={dialog} className="pushPrompt" dir="auto" aria-label={copy.heading} onCancel={event => { event.preventDefault(); dismiss(); }} onClick={event => { if (event.target === event.currentTarget) dismiss(); }}>
-    <span className="pushPromptIcon" aria-hidden="true">{success ? <Check size={30} /> : <Bell size={30} />}</span>
-    <strong>{success ? copy.successHeading : copy.heading}</strong>
+    <span className="pushPromptIcon" aria-hidden="true"><Bell size={30} /></span>
+    <strong>{copy.heading}</strong>
     <p className="pushPromptPage">{title || 'This page'}</p>
-    <p>{success ? copy.successMessage : copy.message}</p>
+    <p>{copy.message}</p>
     {error && <p className="pushPromptError" role="alert">{error}</p>}
     {support !== 'supported' ? <div className="pushPromptHelp" role="status">
       {support === 'ios-install' ? <><strong>{copy.installHeading}</strong><p>{copy.installMessage}</p><ol><li>{copy.installStepOne}</li><li>{copy.installStepTwo}</li><li>{copy.installStepThree}</li></ol></>
         : <p>{support === 'ios-update' ? copy.updateMessage : support === 'blocked' ? copy.blockedMessage : support === 'insecure' ? copy.secureMessage : copy.unsupportedMessage}</p>}
-    </div> : success ? <button type="button" className="pushPromptAllow" onClick={dismiss}>{copy.continueLabel}</button> : <>
+    </div> : <>
       <button type="button" className="pushPromptAllow" disabled={busy} onClick={() => void allow()}>{busy ? copy.busyLabel : error ? copy.retryLabel : copy.allowLabel}</button>
     </>}
   </dialog>;
