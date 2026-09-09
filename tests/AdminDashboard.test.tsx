@@ -13,7 +13,7 @@ import { NotificationOptIn } from '../components/NotificationOptIn';
 import { PublicPage } from '../components/PublicPage';
 import { combineAnalytics } from "../lib/admin";
 import { seedPages } from "../lib/defaults";
-import { isValidImageUrl, parseBlockIcon } from "../lib/utils";
+import { isValidImageUrl, isValidSlug, parseBlockIcon, slugify, slugifyDraft } from "../lib/utils";
 import { resolveUploadPath, uploadRoots } from "../lib/uploads";
 import type { AnalyticsReport } from "../lib/types";
 
@@ -97,4 +97,22 @@ test("workspace analytics merge daily and device totals and weight the click rat
   assert.equal(result.ctr, 25);
   assert.deepEqual(result.daily, [{ date: '2026-09-08', views: 40, clicks: 10 }]);
   assert.deepEqual(result.devices, [{ device: 'mobile', count: 40 }]);
+});
+
+test("slugs can be typed one hyphen at a time and still normalise before saving", () => {
+  // slugify strips the trailing hyphen, so using it on every keystroke made
+  // "my-page" impossible to type: the hyphen vanished as soon as it was typed.
+  assert.equal(slugifyDraft("my-"), "my-");
+  assert.equal(slugifyDraft("My Page"), "my-page");
+  assert.equal(slugifyDraft("  Leading"), "leading");
+  assert.equal(slugifyDraft("Caf\u00e9 #1"), "caf-1");
+
+  // Blur and save still hand the server a slug it accepts unchanged, so the
+  // builder never shows a slug the public page does not answer on.
+  assert.equal(slugify(slugifyDraft("my-")), "my");
+  for (const typed of ["My Page", "my-", "  Leading", "a--b"]) {
+    const normalised = slugify(slugifyDraft(typed));
+    assert.equal(isValidSlug(normalised), true, `${typed} produced ${normalised}`);
+    assert.equal(slugify(normalised), normalised, `${normalised} is not stable`);
+  }
 });

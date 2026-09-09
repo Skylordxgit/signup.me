@@ -49,9 +49,18 @@ export function usePageEditor(onSaved: (page: SmartPage) => void) {
           if (JSON.stringify(saved.current?.blocks.find(item => item.id === block.id)) === JSON.stringify(block)) continue;
           await adminApi(`/api/blocks/${block.id}`, { method: "PUT", body: JSON.stringify(block) });
         }
-        saved.current = snapshot;
-        onSavedRef.current({ ...snapshot, updatedAt: response.updatedAt });
-        if (latest.current === snapshot) { setStatus("Saved"); setError(""); }
+        // The server normalises the slug (and keeps the previous one when the
+        // field is blank), so mirror what was stored instead of leaving the
+        // editor and the preview link pointing at a slug that does not exist.
+        const stored = { ...snapshot, slug: response.slug, updatedAt: response.updatedAt };
+        saved.current = stored;
+        onSavedRef.current(stored);
+        if (latest.current === snapshot) {
+          latest.current = stored;
+          setPage(stored);
+          setStatus("Saved");
+          setError("");
+        }
       } catch (cause) {
         setStatus("Save failed");
         setError(cause instanceof Error ? cause.message : "Could not save changes.");

@@ -43,6 +43,17 @@ export function slugify(input: string) {
     .slice(0, 70);
 }
 
+/** Sanitises a slug while it is still being typed. `slugify` drops a trailing
+ *  hyphen, which makes multi-word slugs impossible to enter one key at a time,
+ *  so keep it here and normalise on blur/save instead. */
+export function slugifyDraft(input: string) {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/, "")
+    .slice(0, 70);
+}
+
 export function isValidSlug(input: string) {
   return /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(input);
 }

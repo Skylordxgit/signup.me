@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, Plus, Trash2, User, X } from "lucide-react";
 import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "@/lib/types";
-import { blockTypes } from "@/lib/utils";
+import { blockTypes, slugify, slugifyDraft } from "@/lib/utils";
 import { applyThemeDefinition, resolveAlignment, resolveButtonStyle, resolveProfileLayout, themeLibrary } from "@/lib/themes";
 import { ImageUploader } from "../ImageUploader";
 import { PageRenderer, resolveBlockIcon } from "../PageRenderer";
@@ -150,7 +150,7 @@ export function ProfileFields({ page, onEdit }: { page: SmartPage; onEdit: (patc
   const theme = (patch: Partial<ThemeSettings>) => onEdit({ theme: { ...page.theme, ...patch } });
   return <><SectionHeading title="Profile" /><div className="admFormGrid">
     <Field label="Page name"><input value={page.name} onChange={event => onEdit({ name: event.target.value })} required /></Field>
-    <Field label="URL slug"><input value={page.slug} onChange={event => onEdit({ slug: event.target.value })} required /></Field>
+    <Field label="URL slug"><input value={page.slug} onChange={event => onEdit({ slug: slugifyDraft(event.target.value) })} onBlur={() => { const next = slugify(page.slug); if (next !== page.slug) onEdit({ slug: next }); }} required /></Field>
     <div className="admSpanFull"><Field label="Profile title"><input value={page.title} onChange={event => onEdit({ title: event.target.value })} /></Field></div>
     <div className="admSpanFull"><Field label="Bio"><textarea rows={3} value={page.bio} onChange={event => onEdit({ bio: event.target.value })} /></Field></div>
     <div className="admSpanFull"><ImageUploader category="logo" label="Logo" round value={page.logoImage || page.profileImage} onChange={logoImage => onEdit({ logoImage })} /></div>
