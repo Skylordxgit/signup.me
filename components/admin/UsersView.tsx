@@ -6,7 +6,7 @@ import { adminApi } from '@/lib/admin';
 import type { PublicWorkspaceUser } from '@/lib/workspaceUsers';
 import { Dialog, Field, IconButton, SectionHeading } from './AdminUI';
 
-export function UsersView() {
+export function UsersView({ role }: { role: 'owner' | 'admin' }) {
   const [users, setUsers] = useState<PublicWorkspaceUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -35,7 +35,7 @@ export function UsersView() {
   function openForm(value: 'create' | PublicWorkspaceUser) { setError(''); setPassword(''); setName(''); setEmail(''); setForm(value); }
   return <>
     <SectionHeading title="Workspace team"><button type="button" className="admButton admPrimary" disabled={busy} onClick={() => openForm('create')}><Plus size={16} />Add admin</button></SectionHeading>
-    <p className="admMuted">Owners manage team access. Admins manage all pages, media, analytics, and notifications in this workspace.</p>
+    <p className="admMuted">{role === 'owner' ? 'Owners and admins can add admins for this workspace.' : 'Admins can add other admins. Workspace owner details are hidden from admin accounts.'}</p>
     {error && !form && <p className="admError" role="alert">{error}</p>}
     {message && <p className="admSuccess" role="status">{message}</p>}
     {loading ? <p role="status">Loading team...</p> : <div className="admTeamList">{users.map(user => <article key={user.id} className="admTeamRow"><ShieldCheck size={20} /><div><strong>{user.name}</strong><small>{user.email}</small></div><span className="admBadge">{user.role}</span><span className={`admBadge admBadge-${user.active ? 'published' : 'disabled'}`}>{user.active ? 'Active' : 'Disabled'}</span><div className="admActionRow">{user.role === 'admin' && <><IconButton icon={KeyRound} label={`Reset password for ${user.name}`} disabled={busy} onClick={() => openForm(user)} /><IconButton icon={user.active ? UserX : UserCheck} label={`${user.active ? 'Disable' : 'Enable'} ${user.name}`} disabled={busy} onClick={() => void update(() => adminApi('/api/admin/users', { method: 'PATCH', body: JSON.stringify({ id: user.id, action: 'access', active: !user.active }) }), `${user.name} ${user.active ? 'disabled' : 'enabled'}.`)} /></>}</div></article>)}</div>}

@@ -8,18 +8,19 @@ function errorResponse(error: unknown) {
 
 async function authorize() {
   const session = await requireAdmin();
-  if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  if (session.role !== 'owner') return NextResponse.json({ error: 'Only the workspace owner can manage admins.' }, { status: 403 });
-  return null;
+  if (!session) return { denied: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) };
+  return { session };
 }
 
 export async function GET() {
-  const denied = await authorize();
-  if (denied) return denied;
+  const auth = await authorize();
+  if ('denied' in auth) return auth.denied;
   try {
+    const admins = (await listWorkspaceUsers()).map(publicWorkspaceUser);
+    if (auth.session.role !== 'owner') return NextResponse.json(admins);
     return NextResponse.json([
       { id: 'owner', email: ownerEmail(), name: 'Workspace owner', role: 'owner', active: true, createdAt: '' },
-      ...(await listWorkspaceUsers()).map(publicWorkspaceUser),
+      ...admins,
     ]);
   } catch (error) { return errorResponse(error); }
 }
@@ -30,8 +31,8 @@ function passwordHash(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  const denied = await authorize();
-  if (denied) return denied;
+  const auth = await authorize();
+  if ('denied' in auth) return auth.denied;
   try {
     const body = await request.json() as Record<string, unknown>;
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
@@ -44,8 +45,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const denied = await authorize();
-  if (denied) return denied;
+  const auth = await authorize();
+  if ('denied' in auth) return auth.denied;
   try {
     const body = await request.json() as Record<string, unknown>;
     if (typeof body.id !== 'string' || body.id === 'owner') throw new Error('Select an admin account.');
