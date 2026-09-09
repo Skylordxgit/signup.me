@@ -1,6 +1,7 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { findWorkspaceUser } from './workspaceUsers';
 
 const cookieName = "smartlink_session";
 const sessionTtlSeconds = 60 * 60 * 8;
@@ -26,9 +27,9 @@ function sign(value: string) {
   return createHash("sha256").update(`${value}.${secret()}`).digest("hex");
 }
 
-export function createSessionToken(email: string) {
+export function createSessionToken(email: string, version?: number) {
   const expiresAt = Date.now() + sessionTtlSeconds * 1000;
-  const payload = Buffer.from(JSON.stringify({ email, expiresAt })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ email, expiresAt, version })).toString("base64url");
   return `${payload}.${sign(payload)}`;
 }
 
@@ -41,16 +42,21 @@ export function readSessionToken(token?: string) {
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
       email: string;
       expiresAt: number;
+      version?: number;
     };
-    if (session.expiresAt < Date.now()) return null;
+    if (typeof session.email !== 'string' || !Number.isFinite(session.expiresAt) || session.expiresAt < Date.now()) return null;
     return session;
   } catch {
     return null;
   }
 }
 
+export function ownerEmail() {
+  return (process.env.ADMIN_EMAIL || "admin@example.com").trim().toLowerCase();
+}
+
 export function configuredAdmin() {
-  const email = process.env.ADMIN_EMAIL || "admin@example.com";
+  const email = ownerEmail();
   const passwordHash = process.env.ADMIN_PASSWORD_HASH || hashPassword("admin123");
   return { email, passwordHash };
 }
@@ -58,12 +64,20 @@ export function configuredAdmin() {
 export async function requireAdmin() {
   const cookieStore = await cookies();
   const session = readSessionToken(cookieStore.get(cookieName)?.value);
-  return session;
+  return resolveAdminSession(session);
 }
 
-export async function setSessionCookie(email: string) {
+export async function resolveAdminSession(session: ReturnType<typeof readSessionToken>) {
+  if (!session) return null;
+  if (session.email.toLowerCase() === ownerEmail()) return { ...session, role: 'owner' as const };
+  const user = await findWorkspaceUser(session.email);
+  if (!user?.active || session.version !== user.version) return null;
+  return { ...session, role: 'admin' as const };
+}
+
+export async function setSessionCookie(email: string, version?: number) {
   const cookieStore = await cookies();
-  cookieStore.set(cookieName, createSessionToken(email), {
+  cookieStore.set(cookieName, createSessionToken(email, version), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.COOKIE_SECURE === "true",

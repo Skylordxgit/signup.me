@@ -434,3 +434,9 @@ body:has(.admDialog[open]) { overflow: hidden; }
   .admShell .uploader, .admDialog .uploader { gap: 9px; padding: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { .admSpinner { animation: none; } }
+.admTeamList { margin-top: 24px; }
+.admTeamRow { display: grid; grid-template-columns: 24px minmax(0, 1fr) 70px 76px 80px; align-items: center; gap: 16px; padding: 18px 0; border-top: 1px solid var(--adm-line); }
+.admTeamRow strong, .admTeamRow small { display: block; overflow-wrap: anywhere; }
+.admTeamRow small { color: #677489; margin-top: 4px; }
+.admTeamFields { padding: 0; border: 0; min-width: 0; }
+@media (max-width: 600px) { .admTeamRow { grid-template-columns: minmax(0, 1fr) 76px 80px; gap: 10px; } .admTeamRow > svg { display: none; } .admTeamRow > .admBadge:first-of-type { grid-column: 1; grid-row: auto; } .admTeamRow > div:first-of-type { grid-column: 1 / -1; } }

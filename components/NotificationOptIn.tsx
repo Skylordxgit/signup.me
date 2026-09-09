@@ -127,8 +127,6 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
         : <p>{support === 'ios-update' ? copy.updateMessage : support === 'blocked' ? copy.blockedMessage : support === 'insecure' ? copy.secureMessage : copy.unsupportedMessage}</p>}
     </div> : success ? <button type="button" className="pushPromptAllow" onClick={dismiss}>{copy.continueLabel}</button> : <>
       <button type="button" className="pushPromptAllow" disabled={busy} onClick={() => void allow()}>{busy ? copy.busyLabel : error ? copy.retryLabel : copy.allowLabel}</button>
-      <small>{copy.footer}</small>
-      <small>{copy.dataNotice}</small>
     </>}
   </dialog>;
 }

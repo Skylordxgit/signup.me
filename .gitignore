@@ -41,3 +41,4 @@ next-env.d.ts
 
 # Runtime media uploads
 data/uploads/
+data/workspace-users.json*

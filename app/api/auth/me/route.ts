@@ -7,5 +7,5 @@ export async function GET() {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  return NextResponse.json({ email: session.email });
+  return NextResponse.json({ email: session.email, role: session.role });
 }

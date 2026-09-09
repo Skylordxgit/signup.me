@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createSessionToken, readSessionToken, resolveAdminSession, ownerEmail, hashPassword, verifyPassword } from '../lib/auth';
+import { mysqlPool } from '../lib/mysql';
+import { publicWorkspaceUser } from '../lib/workspaceUsers';
+
+test('workspace roles reject unknown, disabled and revoked admin sessions', async t => {
+  const original = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = 'mysql://test:test@localhost/test';
+  t.after(() => { if (original === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = original; });
+  const user = { id: 'test-admin', email: 'teammate@example.test', name: 'Teammate', passwordHash: hashPassword('a-long-test-password'), active: true, version: 1, createdAt: new Date().toISOString() };
+  t.mock.method(mysqlPool(), 'query', async () => [[], []]);
+  t.mock.method(mysqlPool(), 'execute', async () => [[user], []]);
+  const session = readSessionToken(createSessionToken(user.email, 1));
+  assert.equal((await resolveAdminSession(session))?.role, 'admin');
+  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(ownerEmail()))))?.role, 'owner');
+  assert.equal(await resolveAdminSession(readSessionToken(createSessionToken('missing@example.test', 1))), null);
+  assert.equal(await resolveAdminSession(readSessionToken(createSessionToken(user.email))), null);
+  user.active = false;
+  assert.equal(await resolveAdminSession(session), null);
+  user.active = true;
+  user.version = 2;
+  assert.equal(await resolveAdminSession(session), null);
+  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(user.email, 2))))?.role, 'admin');
+  assert.equal(verifyPassword('a-long-test-password', user.passwordHash), true);
+  assert.equal(verifyPassword('wrong', user.passwordHash), false);
+  assert.equal('passwordHash' in publicWorkspaceUser(user), false);
+  assert.equal('version' in publicWorkspaceUser(user), false);
+  assert.equal(readSessionToken(createSessionToken(user.email, 2) + 'tampered'), null);
+});

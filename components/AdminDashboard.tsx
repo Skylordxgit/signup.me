@@ -11,10 +11,11 @@ import { ImageUploader } from "./ImageUploader";
 import { BuilderEditor, ThemeGallery, type BuilderTab } from "./admin/BuilderEditor";
 import { AnalyticsView, DashboardHome, MediaView, NotificationsView, PagesTable, SettingsView } from "./admin/DashboardViews";
 import { Dialog, EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./admin/AdminUI";
+import { UsersView } from "./admin/UsersView";
 import { usePageEditor } from "./admin/usePageEditor";
 import "./admin/admin.css";
 
-type View = 'dashboard' | 'pages' | 'create' | 'analytics' | 'media' | 'themes' | 'notifications' | 'settings' | 'builder';
+type View = 'dashboard' | 'pages' | 'create' | 'analytics' | 'media' | 'themes' | 'notifications' | 'settings' | 'users' | 'builder';
 const navigation = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'pages', label: 'Pages', icon: FileText },
@@ -23,12 +24,14 @@ const navigation = [
   { id: 'media', label: 'Media', icon: ImageIcon },
   { id: 'themes', label: 'Themes', icon: Palette },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'users', label: 'Team', icon: User },
   { id: 'settings', label: 'Settings', icon: Settings },
 ] as const;
 
 export function AdminDashboard() {
   const [view, setView] = useState<View>('dashboard');
   const [pages, setPages] = useState<PageSummary[]>([]);
+  const [role, setRole] = useState<'owner' | 'admin'>('admin');
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -88,10 +91,11 @@ export function AdminDashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([adminApi<PageSummary[]>('/api/pages'), adminApi<{ email: string }>('/api/auth/me')]).then(async ([items, account]) => {
+    Promise.all([adminApi<PageSummary[]>('/api/pages'), adminApi<{ email: string; role: 'owner' | 'admin' }>('/api/auth/me')]).then(async ([items, account]) => {
       if (cancelled) return;
       setPages(items);
       setEmail(account.email);
+      setRole(account.role);
       try { setCollapsed(localStorage.getItem('smartlink_sidebar_collapsed') === 'true'); } catch { /* Use the expanded sidebar. */ }
       const cookieSlug = document.cookie.split('; ').find(value => value.startsWith('smartlink_claim='))?.split('=')[1];
       const requested = new URLSearchParams(window.location.search).get('slug') || cookieSlug || '';
@@ -193,7 +197,7 @@ export function AdminDashboard() {
   function sidebar(drawer = false) {
     return <>
       <div className="admBrand"><Image className="admBrandLogo" src="/signup888-logo.png" alt="" width={34} height={34} priority /><strong>signup888</strong>{drawer && <IconButton icon={X} label="Close navigation" onClick={() => setDrawerOpen(false)} />}</div>
-      <nav aria-label={drawer ? 'Mobile admin navigation' : 'Admin navigation'}>{navigation.map(item => <button type="button" key={item.id} className={view === item.id || view === 'builder' && item.id === 'pages' ? 'admNavActive' : ''} aria-current={view === item.id || view === 'builder' && item.id === 'pages' ? 'page' : undefined} title={item.label} aria-label={item.label} disabled={busy} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'pages' && <small>{pages.length}</small>}</button>)}</nav>
+      <nav aria-label={drawer ? 'Mobile admin navigation' : 'Admin navigation'}>{navigation.filter(item => item.id !== 'users' || role === 'owner').map(item => <button type="button" key={item.id} className={view === item.id || view === 'builder' && item.id === 'pages' ? 'admNavActive' : ''} aria-current={view === item.id || view === 'builder' && item.id === 'pages' ? 'page' : undefined} title={item.label} aria-label={item.label} disabled={busy} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'pages' && <small>{pages.length}</small>}</button>)}</nav>
       <div className="admSidebarBottom"><button type="button" title="Log out" disabled={busy} onClick={logout}><LogOut size={19} /><span>Logout</span></button>{!drawer && <button type="button" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => collapse(!collapsed)}>{collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>Collapse sidebar</span></button>}</div>
     </>;
   }
@@ -220,6 +224,7 @@ export function AdminDashboard() {
           {view === 'media' && <MediaView />}
           {view === 'themes' && <><SectionHeading title="Theme library" /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
           {view === 'notifications' && <NotificationsView pages={pages} />}
+          {view === 'users' && role === 'owner' && <UsersView />}
           {view === 'settings' && <SettingsView email={email} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
         </>}
       </main>

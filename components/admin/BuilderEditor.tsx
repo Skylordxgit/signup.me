@@ -33,8 +33,6 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
           {renderPromptField('heading', 'Heading')}
           {renderPromptField('message', 'Message', true)}
           {renderPromptField('allowLabel', 'Allow button')}
-          {renderPromptField('footer', 'Footer', true)}
-          {renderPromptField('dataNotice', 'Subscriber data note', true)}
         </section>
         <section className="admFormSection">
           <h3>After subscription</h3>
@@ -74,9 +72,6 @@ export function NotificationPromptPreview({ page }: { page: SmartPage }) {
       <strong>{page.title || page.name}</strong>
       <p>{copy.message}</p>
       <div>{copy.allowLabel}</div>
-      <small>{copy.footer}</small>
-      <small>{copy.dataNotice}</small>
-      {!enabled && <em>Hidden on public page until Visitor prompt is turned on.</em>}
     </section>
   </aside>;
 }
