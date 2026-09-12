@@ -106,12 +106,24 @@ test("Share is shown only when enabled, including pages without a cover", () => 
   }
 });
 
-test("button animation follows the page design toggle", () => {
+test("button effects can be set per individual button", () => {
+  const page = fixture();
+  page.blocks = [
+    { ...page.blocks[0], id: 1, title: "Plain", settings: { buttonEffect: "none" } },
+    { ...page.blocks[1], id: 2, title: "Glow", settings: { buttonEffect: "border-glow" } },
+  ];
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(html, /Plain/);
+  assert.equal((html.match(/pageButtonEffect-/g) || []).length, 1);
+  assert.match(html, /pageButtonEffect-border-glow/);
+});
+
+test("legacy page design animation falls back to a shine effect", () => {
   const page = fixture();
   page.blocks = [page.blocks[0]];
-  assert.doesNotMatch(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonAnimated/);
+  assert.doesNotMatch(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonEffect-/);
   page.theme = { ...page.theme, buttonAnimation: true };
-  assert.match(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonAnimated/);
+  assert.match(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonEffect-shine/);
 });
 
 test("changing themes preserves the uploaded cover and profile choices", () => {

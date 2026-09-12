@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
-import { listPushSubscribers } from "@/lib/store";
+import { listNotificationCampaigns, listPushSubscribers } from "@/lib/store";
 import { webPushConfigured } from "@/lib/push";
 
 export async function GET() {
@@ -10,5 +10,6 @@ export async function GET() {
   return NextResponse.json({
     configured: webPushConfigured(),
     subscribers: await listPushSubscribers(session.workspaceId),
+    campaigns: await listNotificationCampaigns(session.workspaceId),
   }, { headers: { 'Cache-Control': 'private, no-store' } });
 }

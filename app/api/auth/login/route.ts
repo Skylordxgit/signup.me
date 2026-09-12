@@ -27,12 +27,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error }, { status });
   }
 
-  // The master admin is checked first and never resolves to a workspace.
+  // The master admin is checked first and enters the unified admin shell with
+  // master-only global controls enabled.
   if (master && normalizedEmail === master.email) {
     if (!usable || !verifyPassword(password!, master.passwordHash)) return reject();
     attempts.delete(ip);
     await setSessionCookie({ email: normalizedEmail, scope: 'master' });
-    return NextResponse.json({ ok: true, scope: 'master', redirect: '/admin/master' });
+    return NextResponse.json({ ok: true, scope: 'master', redirect: '/admin' });
   }
 
   if (normalizedEmail === admin.email) {

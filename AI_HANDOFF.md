@@ -380,17 +380,16 @@ At minimum, add a short note under this section:
   - Imports default to draft; the dialog has a "Keep the original published
     status" checkbox. Views, unique visitors, and block clicks always reset.
   - The workspace always comes from the session; `workspaceId` in the file is
-    ignored. Master admin sessions are refused by both routes (verified: 401).
+    ignored. In the unified admin model, master admin sessions are anchored to
+    the default workspace for workspace APIs.
   - Tests: `tests/pageTransfer.test.ts` covers the full round trip across two
     workspaces, repeat imports taking the next free slug, keepStatus, and a
     hostile export (path traversal, bad category, non-image payload) being
     rejected without failing the whole import. Test count is now 43.
-- 2026-09-12: Added a Page Designs toggle for animated buttons. The setting is
-  stored on `ThemeSettings.buttonAnimation`, defaults off in `defaultTheme`, is
-  exposed in `components/admin/BuilderEditor.tsx` under Buttons & spacing, and
-  is rendered by the shared `PageRenderer` as `pageButtonAnimated` so the admin
-  phone preview and public page match. The CSS effect is a subtle float plus
-  sheen and respects `prefers-reduced-motion`.
+- 2026-09-12: Added the first version of animated buttons as a Page Designs
+  toggle. `ThemeSettings.buttonAnimation` still exists as a backward-compatible
+  fallback, but the visible editor control was later replaced by per-button
+  effects.
   - Theme changes now preserve `buttonAnimation` alongside cover/profile/share
     choices.
   - Added `tests/PageRenderer.test.tsx` coverage proving the class appears only
@@ -403,3 +402,35 @@ At minimum, add a short note under this section:
     the lockfile was out of sync around optional `@emnapi/*` packages.
   - Verification passed: `npm run lint`, `./node_modules/.bin/tsc --noEmit
     --incremental false`, `npm test` (49 passing), and `npm run build`.
+- 2026-09-12: Changed button animations from a visible page-wide design toggle
+  to per-button effects. Each link/button block now has `Button effect` in its
+  content editor, stored in `block.settings.buttonEffect`; supported effects are
+  `shine`, `border-glow`, `neon-border`, `pulse`, `breathe`, `lift`,
+  `slide-light`, `aurora`, `double-ring`, and `spotlight`, plus `none`.
+  Existing pages with `theme.buttonAnimation` still fall back to the `shine`
+  effect unless an individual button explicitly sets `none`. Custom button
+  colors also update `--button-bg` so the effect uses that button's own color.
+  Verification passed: `npm run lint`, `./node_modules/.bin/tsc --noEmit
+  --incremental false`, `npm test` (50 passing), and `npm run build`.
+- 2026-09-12: Merged master admin access into the normal `/admin` shell.
+  Master login now redirects to `/admin`, `/admin/master` redirects to `/admin`,
+  and `resolveAdminSession()` resolves a configured master session as the
+  default workspace owner with `isMaster: true`. `/api/auth/me` exposes that flag
+  to the client. Normal workspace users still see the same Settings page; master
+  users additionally see `Master controls` inside Settings with Signup access
+  and global Branding panels wired to the existing `/api/master/signup` and
+  `/api/master/branding` APIs. Verification passed: `npm run lint`,
+  `./node_modules/.bin/tsc --noEmit --incremental false`, `npm test` (49
+  passing), and `npm run build`.
+- 2026-09-12: Added notification campaign history. Every admin notification send
+  now creates a `NotificationCampaign` record in JSON fallback storage or the
+  MySQL `notification_campaigns` table. The Notifications page shows the latest
+  100 campaigns with date sent, title/body/link, audience, accepted/sent,
+  delivered, seen, clicked, and blocked counts. The service worker reports
+  `delivered` when the push event reaches it, `seen` after the browser displays
+  the notification, and `clicked` when the notification is opened. `Blocked` in
+  the UI is `failed + removed`; web push does not expose a cleaner per-device
+  browser-blocked metric. Public event writes go through
+  `/api/notifications/campaign-event`. Verification passed: `npm run lint`,
+  `./node_modules/.bin/tsc --noEmit --incremental false`, `npm test` (50
+  passing), and `npm run build`.

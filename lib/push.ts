@@ -39,6 +39,7 @@ export function notificationPayload(input: NotificationSendInput) {
     title: input.title.trim(),
     body: input.body.trim(),
     url: input.url.trim() || "/",
+    campaignId: input.campaignId,
     icon: "/favicon.png",
     badge: "/favicon-32x32.png",
   });

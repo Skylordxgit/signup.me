@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, BlockType, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
 import { defaultTheme, seedPages } from "../defaults";
@@ -14,6 +14,7 @@ type DatabaseShape = {
   pageViews: { id: number; pageId: number; date: string; device: string; referrer: string; visitorKey: string }[];
   linkClicks: { id: number; pageId: number; blockId: number; date: string; device: string; referrer: string }[];
   pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
+  notificationCampaigns: NotificationCampaign[];
 };
 
 /* Resolved per call rather than at import, so the working directory in effect
@@ -31,9 +32,10 @@ async function readJsonDb(): Promise<DatabaseShape> {
       pageViews: db.pageViews ?? [],
       linkClicks: db.linkClicks ?? [],
       pushSubscriptions: db.pushSubscriptions ?? [],
+      notificationCampaigns: db.notificationCampaigns ?? [],
     };
   } catch {
-    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [], pushSubscriptions: [] };
+    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [], pushSubscriptions: [], notificationCampaigns: [] };
     await writeJsonDb(initial);
     return initial;
   }
@@ -453,15 +455,56 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
     item.isActive !== false
     && (!input.pageId || item.pageId === input.pageId)
     && (!input.workspaceId || inWorkspace(db.pages.find(page => page.id === item.pageId) ?? ({} as SmartPage), input.workspaceId)));
-  const { result, expired } = await sendPushBatch(subscribers.map(item => item.subscription), notificationPayload(input));
+  const timestamp = nowIso();
+  const campaign: NotificationCampaign = {
+    id: nextId(db.notificationCampaigns),
+    workspaceId: input.workspaceId || DEFAULT_WORKSPACE_ID,
+    pageId: input.pageId ?? null,
+    pageSlug: input.pageId ? db.pages.find(page => page.id === input.pageId)?.slug : undefined,
+    title: input.title,
+    body: input.body,
+    url: input.url,
+    audience: input.pageId ? `/${db.pages.find(page => page.id === input.pageId)?.slug || input.pageId}` : 'All subscribers',
+    attempted: subscribers.length,
+    sent: 0,
+    delivered: 0,
+    seen: 0,
+    clicked: 0,
+    failed: 0,
+    removed: 0,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  db.notificationCampaigns.push(campaign);
+  await writeJsonDb(db);
+
+  const { result, expired } = await sendPushBatch(subscribers.map(item => item.subscription), notificationPayload({ ...input, campaignId: campaign.id }));
+  const latest = await readJsonDb();
+  latest.notificationCampaigns = latest.notificationCampaigns.map(item => item.id === campaign.id ? { ...item, ...result, updatedAt: nowIso() } : item);
   if (expired.length) {
     const hashes = new Set(expired.map(subscriptionHash));
-    // Re-read after delivery so subscribers added while sending are retained.
-    const latest = await readJsonDb();
-    const timestamp = nowIso();
     latest.pushSubscriptions = latest.pushSubscriptions.map(item => hashes.has(item.endpointHash) ? { ...item, isActive: false, lastFailedAt: timestamp, updatedAt: timestamp } : item);
-    await writeJsonDb(latest);
   }
+  await writeJsonDb(latest);
 
-  return result;
+  return { ...result, campaignId: campaign.id };
+}
+
+export async function listNotificationCampaigns(workspaceId?: string): Promise<NotificationCampaign[]> {
+  const db = await readJsonDb();
+  return db.notificationCampaigns
+    .filter(campaign => !workspaceId || campaign.workspaceId === workspaceId)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 100);
+}
+
+export async function recordNotificationCampaignEvent(campaignId: number, event: 'delivered' | 'seen' | 'clicked') {
+  if (!Number.isFinite(campaignId)) return null;
+  const db = await readJsonDb();
+  const campaign = db.notificationCampaigns.find(item => item.id === campaignId);
+  if (!campaign) return null;
+  campaign[event] += 1;
+  campaign.updatedAt = nowIso();
+  await writeJsonDb(db);
+  return campaign;
 }

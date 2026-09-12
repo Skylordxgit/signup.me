@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import type { AnalyticsReport, BlockType, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
 import { defaultTheme } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
@@ -57,6 +57,26 @@ type PushRow = {
   client_details: unknown;
   is_active?: number | boolean;
   last_failed_at?: string | Date | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type CampaignRow = {
+  id: number;
+  workspace_id: string;
+  page_id: number | null;
+  page_slug: string | null;
+  title: string;
+  body: string;
+  url: string;
+  audience: string;
+  attempted: number;
+  sent: number;
+  delivered: number;
+  seen: number;
+  clicked: number;
+  failed: number;
+  removed: number;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -157,6 +177,7 @@ function subscriptionHash(endpoint: string) {
 }
 
 let pushTableReady: Promise<void> | null = null;
+let campaignTableReady: Promise<void> | null = null;
 
 function ensurePushTable() {
   pushTableReady ??= mysqlQuery(
@@ -189,6 +210,55 @@ function ensurePushTable() {
     }
   }).catch(error => { pushTableReady = null; throw error; });
   return pushTableReady;
+}
+
+function ensureCampaignTable() {
+  campaignTableReady ??= mysqlQuery(
+    `CREATE TABLE IF NOT EXISTS notification_campaigns (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      workspace_id VARCHAR(80) NOT NULL,
+      page_id BIGINT UNSIGNED NULL,
+      page_slug VARCHAR(120) NULL,
+      title VARCHAR(120) NOT NULL,
+      body VARCHAR(255) NOT NULL,
+      url VARCHAR(700) NOT NULL,
+      audience VARCHAR(190) NOT NULL,
+      attempted INT UNSIGNED NOT NULL DEFAULT 0,
+      sent INT UNSIGNED NOT NULL DEFAULT 0,
+      delivered INT UNSIGNED NOT NULL DEFAULT 0,
+      seen INT UNSIGNED NOT NULL DEFAULT 0,
+      clicked INT UNSIGNED NOT NULL DEFAULT 0,
+      failed INT UNSIGNED NOT NULL DEFAULT 0,
+      removed INT UNSIGNED NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_campaign_workspace_created (workspace_id, created_at),
+      INDEX idx_campaign_page (page_id)
+    )`,
+  ).then(() => {}).catch(error => { campaignTableReady = null; throw error; });
+  return campaignTableReady;
+}
+
+function mapCampaign(row: CampaignRow): NotificationCampaign {
+  return {
+    id: Number(row.id),
+    workspaceId: row.workspace_id,
+    pageId: row.page_id,
+    pageSlug: row.page_slug || undefined,
+    title: row.title,
+    body: row.body,
+    url: row.url,
+    audience: row.audience,
+    attempted: Number(row.attempted),
+    sent: Number(row.sent),
+    delivered: Number(row.delivered),
+    seen: Number(row.seen),
+    clicked: Number(row.clicked),
+    failed: Number(row.failed),
+    removed: Number(row.removed),
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
 }
 
 export async function listPages(workspaceId?: string) {
@@ -691,6 +761,7 @@ export async function listPushSubscribers(workspaceId?: string): Promise<Notific
 export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
   configureWebPush();
   await ensurePushTable();
+  await ensureCampaignTable();
   const rows = await mysqlQuery<PushRow[]>(
     `SELECT ps.*, p.slug FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
@@ -698,11 +769,41 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
     [input.pageId ?? null, input.pageId ?? null, input.workspaceId ?? null, input.workspaceId ?? null],
   );
   const subscriptions = rows.map(row => toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }));
-  const { result, expired } = await sendPushBatch(subscriptions, notificationPayload(input));
+  const pageSlug = input.pageId ? rows.find(row => row.page_id === input.pageId)?.slug ?? null : null;
+  const audience = input.pageId ? `/${pageSlug || input.pageId}` : 'All subscribers';
+  const inserted = await mysqlQuery<{ insertId: number }>(
+    `INSERT INTO notification_campaigns (workspace_id, page_id, page_slug, title, body, url, audience, attempted)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [input.workspaceId || DEFAULT_WORKSPACE_ID, input.pageId ?? null, pageSlug, input.title.slice(0, 120), input.body.slice(0, 255), input.url.slice(0, 700), audience, subscriptions.length],
+  );
+  const campaignId = Number(inserted.insertId);
+  const { result, expired } = await sendPushBatch(subscriptions, notificationPayload({ ...input, campaignId }));
+  await mysqlQuery(
+    `UPDATE notification_campaigns SET sent = ?, failed = ?, removed = ? WHERE id = ?`,
+    [result.sent, result.failed, result.removed, campaignId],
+  );
   if (expired.length) {
     const hashes = expired.map(subscriptionHash);
     await mysqlQuery(`UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE endpoint_hash IN (${hashes.map(() => '?').join(',')})`, hashes);
   }
 
-  return result;
+  return { ...result, campaignId };
+}
+
+export async function listNotificationCampaigns(workspaceId?: string): Promise<NotificationCampaign[]> {
+  await ensureCampaignTable();
+  const rows = await mysqlQuery<CampaignRow[]>(
+    `SELECT * FROM notification_campaigns ${workspaceId ? 'WHERE workspace_id = ?' : ''} ORDER BY created_at DESC LIMIT 100`,
+    workspaceId ? [workspaceId] : [],
+  );
+  return rows.map(mapCampaign);
+}
+
+export async function recordNotificationCampaignEvent(campaignId: number, event: 'delivered' | 'seen' | 'clicked') {
+  if (!Number.isFinite(campaignId)) return null;
+  await ensureCampaignTable();
+  const column = event === 'clicked' ? 'clicked' : event === 'seen' ? 'seen' : 'delivered';
+  await mysqlQuery(`UPDATE notification_campaigns SET ${column} = ${column} + 1 WHERE id = ?`, [campaignId]);
+  const rows = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
+  return rows[0] ? mapCampaign(rows[0]) : null;
 }

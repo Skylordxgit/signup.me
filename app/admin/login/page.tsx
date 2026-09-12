@@ -28,9 +28,8 @@ export default function LoginPage() {
     });
 
     if (response.ok) {
-      // A master admin session has no workspace, so it goes to its own area.
       const { redirect } = (await response.json()) as { redirect?: string };
-      if (redirect === "/admin/master") {
+      if (redirect && redirect !== "/admin") {
         window.location.href = redirect;
         return;
       }
@@ -114,4 +113,3 @@ function GoogleGlyph() {
     </svg>
   );
 }
-

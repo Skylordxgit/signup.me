@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   Camera,
   CircleHelp,
@@ -26,6 +27,19 @@ import {
 import type { PageBlock, SmartPage } from "@/lib/types";
 import { buildSmartUrl, parseBlockIcon, publicPageUrl, readableTextColor } from "@/lib/utils";
 import { resolveAlignment, resolveButtonStyle, resolveProfileLayout, resolveSurface, themeCssVariables } from "@/lib/themes";
+
+const buttonEffects = new Set([
+  "shine",
+  "border-glow",
+  "neon-border",
+  "pulse",
+  "breathe",
+  "lift",
+  "slide-light",
+  "aurora",
+  "double-ring",
+  "spotlight",
+]);
 
 /**
  * Editing affordances supplied by the admin builder. When absent the renderer
@@ -290,11 +304,17 @@ export function PageBlockView({
   }
 
   const buttonColor = typeof block.settings.buttonColor === "string" ? block.settings.buttonColor : "";
-  const colorOverride = buttonColor ? { background: buttonColor, color: readableTextColor(buttonColor) } : undefined;
+  const savedEffect = typeof block.settings.buttonEffect === "string" ? block.settings.buttonEffect : "";
+  const buttonEffect = buttonEffects.has(savedEffect) ? savedEffect : savedEffect === "none" ? "" : buttonAnimation ? "shine" : "";
+  const colorOverride = buttonColor ? {
+    "--button-bg": buttonColor,
+    background: buttonColor,
+    color: readableTextColor(buttonColor),
+  } as CSSProperties : undefined;
 
   return (
     <a
-      className={`pageButton buttonStyle-${buttonStyle} ${buttonAnimation ? "pageButtonAnimated" : ""}`}
+      className={`pageButton buttonStyle-${buttonStyle}${buttonEffect ? ` pageButtonEffect pageButtonEffect-${buttonEffect}` : ""}`}
       href={buildSmartUrl(block)}
       style={colorOverride}
       target={preview ? undefined : "_blank"}

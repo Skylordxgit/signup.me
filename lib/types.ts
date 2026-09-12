@@ -213,14 +213,36 @@ export type NotificationSendInput = {
   title: string;
   body: string;
   url: string;
+  campaignId?: number;
   pageId?: number | null;
   /** Restricts delivery to pages in this workspace. */
   workspaceId?: string;
 };
 
 export type NotificationSendResult = {
+  campaignId?: number;
   attempted: number;
   sent: number;
   removed: number;
   failed: number;
+};
+
+export type NotificationCampaign = {
+  id: number;
+  workspaceId: string;
+  pageId?: number | null;
+  pageSlug?: string;
+  title: string;
+  body: string;
+  url: string;
+  audience: string;
+  attempted: number;
+  sent: number;
+  delivered: number;
+  seen: number;
+  clicked: number;
+  failed: number;
+  removed: number;
+  createdAt: string;
+  updatedAt: string;
 };

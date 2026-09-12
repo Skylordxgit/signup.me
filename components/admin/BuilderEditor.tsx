@@ -13,6 +13,20 @@ import { notificationPromptDefaults, resolveNotificationPrompt, type Notificatio
 
 export type BuilderTab = "profile" | "content" | "design" | "seo" | "integrations" | "notifications";
 
+const buttonEffects = [
+  ["none", "None"],
+  ["shine", "Shine sweep"],
+  ["border-glow", "Border glow"],
+  ["neon-border", "Neon border"],
+  ["pulse", "Soft pulse"],
+  ["breathe", "Breathe"],
+  ["lift", "Floating lift"],
+  ["slide-light", "Sliding light"],
+  ["aurora", "Aurora wash"],
+  ["double-ring", "Double ring"],
+  ["spotlight", "Spotlight"],
+] as const;
+
 export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; onEdit: (patch: Partial<SmartPage>) => void }) {
   const settings = page.integrations.notificationPrompt || {};
   const enabled = settings.enabled === true;
@@ -129,7 +143,6 @@ export function BuilderEditor(props: Props) {
             <Range label="Content spacing" value={page.theme.spacing} min={6} max={32} onChange={spacing => theme({ spacing })} />
             <Range label="Button opacity" value={page.theme.buttonTransparency} min={15} max={100} onChange={buttonTransparency => theme({ buttonTransparency })} />
             <Range label="Glass blur" value={page.theme.glassBlur} max={40} onChange={glassBlur => theme({ glassBlur })} />
-            <label className="admCheck"><input type="checkbox" checked={page.theme.buttonAnimation ?? false} onChange={event => theme({ buttonAnimation: event.target.checked })} />Button animation</label>
           </div></section>
         </>}
         {tab === 'seo' && <><SectionHeading title="Search & sharing" /><div className="admFormStack">{([['seoTitle', 'Search title'], ['metaDescription', 'Search description'], ['socialTitle', 'Social title'], ['socialDescription', 'Social description']] as const).map(([key, label]) => <Field label={label} key={key}><input value={page.seo[key]} onChange={event => onEdit({ seo: { ...page.seo, [key]: event.target.value } })} /></Field>)}<ImageUploader category="og" label="Social preview image" value={page.seo.ogImage} onChange={ogImage => onEdit({ seo: { ...page.seo, ogImage } })} /><ImageUploader category="favicon" label="Favicon" value={page.seo.favicon} onChange={favicon => onEdit({ seo: { ...page.seo, favicon } })} /></div></>}
@@ -181,7 +194,7 @@ function BlockFields({ block, selected, first, last, busy, onSelect, onEdit, onD
       {video && <Field label="Video URL"><input type="url" value={block.videoUrl || block.url} onChange={event => onEdit({ videoUrl: event.target.value, url: event.target.value })} /></Field>}
       {block.type === 'youtube' && <p className="admFieldHint">Age-restricted YouTube videos cannot play inside public pages. In YouTube Studio, remove the age restriction and keep embedding enabled, or use a direct MP4/WebM URL.</p>}
       {block.type === 'image' && <ImageUploader category="block" label="Image" value={block.imageUrl || block.url} onChange={imageUrl => onEdit({ imageUrl })} />}
-      {link && <><div className="admFormGrid"><Field label="Icon"><button type="button" className="admButton" onClick={() => setIconsOpen(true)}>{resolveBlockIcon(block.icon, block.type)}Choose icon</button></Field><Field label="Button color"><div className="admActionRow"><input aria-label="Custom button color" type="color" value={typeof block.settings.buttonColor === 'string' ? block.settings.buttonColor : '#000000'} onChange={event => onEdit({ settings: { ...block.settings, buttonColor: event.target.value } })} /><IconButton icon={X} label="Use theme button color" onClick={() => onEdit({ settings: { ...block.settings, buttonColor: '' } })} /></div></Field></div></>}
+      {link && <><div className="admFormGrid"><Field label="Icon"><button type="button" className="admButton" onClick={() => setIconsOpen(true)}>{resolveBlockIcon(block.icon, block.type)}Choose icon</button></Field><Field label="Button color"><div className="admActionRow"><input aria-label="Custom button color" type="color" value={typeof block.settings.buttonColor === 'string' ? block.settings.buttonColor : '#000000'} onChange={event => onEdit({ settings: { ...block.settings, buttonColor: event.target.value } })} /><IconButton icon={X} label="Use theme button color" onClick={() => onEdit({ settings: { ...block.settings, buttonColor: '' } })} /></div></Field><Field label="Button effect"><select value={typeof block.settings.buttonEffect === 'string' ? block.settings.buttonEffect : 'none'} onChange={event => onEdit({ settings: { ...block.settings, buttonEffect: event.target.value } })}>{buttonEffects.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field></div></>}
     </div>}
     {iconsOpen && <Dialog title="Choose icon" onClose={() => setIconsOpen(false)}><div className="admFormStack"><div className="admIconPicker">{['none', 'link', 'globe', 'message', 'mail', 'phone', 'send', 'share', 'map-pin', 'shopping-bag', 'star', 'heart', 'music', 'video', 'image', 'help', 'sparkles', 'instagram', 'facebook', 'whatsapp', 'telegram', 'youtube'].map(icon => <button type="button" key={icon} title={icon} aria-label={icon} aria-pressed={block.icon === icon} onClick={() => { onEdit({ icon }); setIconsOpen(false); }}>{icon === 'none' ? <X size={18} /> : resolveBlockIcon(icon, block.type)}</button>)}</div><Field label="Emoji"><input value={block.icon.startsWith('emoji:') ? block.icon.slice(6) : ''} onChange={event => onEdit({ icon: `emoji:${event.target.value}` })} /></Field><ImageUploader category="icon" label="Custom icon" value={block.icon.startsWith('/uploads/') || block.icon.startsWith('https://') ? block.icon : ''} onChange={icon => { onEdit({ icon }); setIconsOpen(false); }} /></div></Dialog>}
   </article>;

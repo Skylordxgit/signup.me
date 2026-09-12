@@ -252,7 +252,9 @@
 .admMediaItem > div > span { min-width: 0; flex: 1; }
 .admMediaItem strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 550; }
 .admMediaItem small { display: block; color: #929ead; font-size: 11px; }
+.admSettingsStack { display: grid; gap: 42px; max-width: 1180px; }
 .admSettingsGrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; max-width: 1100px; }
+.admMasterSettings .admSettingsGrid { max-width: none; }
 .admSettingsSession { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--adm-line); }
 .admSettingsSession > span { overflow-wrap: anywhere; }
 .admNotifications { width: 100%; max-width: 1080px; margin-inline: auto; }

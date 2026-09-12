@@ -9,11 +9,11 @@ const cookieName = "smartlink_session";
 const sessionTtlSeconds = 60 * 60 * 8;
 
 export type SessionRole = 'owner' | 'admin';
-/** 'workspace' sessions reach the admin app; 'master' sessions reach only the
- *  master admin routes. The two never overlap. */
+/** Workspace sessions reach one workspace. Master sessions reach the unified
+ *  admin shell plus master-only global routes. */
 export type SessionScope = 'workspace' | 'master';
 export type SessionDescriptor = { email: string; version?: number; workspaceId?: string; role?: SessionRole; scope?: SessionScope };
-export type AdminSession = { email: string; workspaceId: string; role: SessionRole; version?: number; expiresAt: number };
+export type AdminSession = { email: string; workspaceId: string; role: SessionRole; version?: number; expiresAt: number; isMaster?: boolean };
 export type MasterSession = { email: string; expiresAt: number };
 
 function secret() {
@@ -78,10 +78,16 @@ export async function requireAdmin() {
   return resolveAdminSession(await readSession());
 }
 
-/** Resolves a workspace session. Master sessions are rejected here: they carry
- *  no workspace and must not reach any workspace API. */
+/** Resolves an admin session for the unified admin shell. Master sessions also
+ *  enter the shell, anchored to the default workspace, and are marked so only
+ *  they can see global controls. */
 export async function resolveAdminSession(session: ReturnType<typeof readSessionToken>): Promise<AdminSession | null> {
-  if (!session || session.scope === 'master') return null;
+  if (!session) return null;
+
+  if (session.scope === 'master') {
+    if (!isMasterEmail(session.email)) return null;
+    return { ...session, workspaceId: DEFAULT_WORKSPACE_ID, role: 'owner', isMaster: true };
+  }
 
   // ADMIN_EMAIL owns the default workspace and has no workspace_users row.
   if (session.email.toLowerCase() === ownerEmail()) {

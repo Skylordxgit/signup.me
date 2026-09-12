@@ -3465,48 +3465,154 @@ button:hover:not(:disabled) {
   line-height: 1.35;
 }
 
-.pageButtonAnimated {
-  overflow: hidden;
-  animation: buttonFloat 2.8s ease-in-out infinite;
+.pageButtonLabel,
+.pageButtonIcon {
+  z-index: 1;
 }
 
-.pageButtonAnimated::after {
+.pageButtonEffect {
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.pageButtonEffect::before,
+.pageButtonEffect::after {
   position: absolute;
-  inset: 0;
   border-radius: inherit;
-  background: linear-gradient(110deg, transparent 12%, rgba(255, 255, 255, 0.34) 36%, transparent 58%);
-  transform: translateX(-120%);
-  animation: buttonSheen 3.4s ease-in-out infinite;
   content: "";
   pointer-events: none;
 }
 
-@keyframes buttonFloat {
-  0%,
-  100% {
-    translate: 0 0;
-  }
+.pageButtonEffect-shine {
+  animation: buttonFloat 3s ease-in-out infinite;
+}
 
-  50% {
-    translate: 0 -2px;
-  }
+.pageButtonEffect-shine::after {
+  inset: 0;
+  background: linear-gradient(110deg, transparent 12%, rgba(255, 255, 255, 0.36) 36%, transparent 58%);
+  transform: translateX(-120%);
+  animation: buttonSheen 3.4s ease-in-out infinite;
+}
+
+.pageButtonEffect-border-glow::after {
+  inset: 0;
+  border: 1.5px solid color-mix(in srgb, var(--button-bg), white 38%);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--button-bg), transparent 42%);
+  opacity: 0.55;
+  animation: buttonBorderGlow 2.4s ease-in-out infinite;
+}
+
+.pageButtonEffect-neon-border::after {
+  inset: 0;
+  border: 1.5px solid var(--button-bg);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--button-bg), transparent 48%), 0 0 18px color-mix(in srgb, var(--button-bg), transparent 40%);
+  animation: buttonNeonBorder 2.8s ease-in-out infinite;
+}
+
+.pageButtonEffect-pulse {
+  animation: buttonPulse 2.2s ease-in-out infinite;
+}
+
+.pageButtonEffect-breathe {
+  animation: buttonBreathe 3.2s ease-in-out infinite;
+}
+
+.pageButtonEffect-lift {
+  animation: buttonLift 2.6s ease-in-out infinite;
+}
+
+.pageButtonEffect-slide-light::after {
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent);
+  transform: translateX(-100%);
+  animation: buttonSlideLight 2.8s ease-in-out infinite;
+}
+
+.pageButtonEffect-aurora::before {
+  inset: -40%;
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.35), transparent 28%), radial-gradient(circle at 80% 30%, color-mix(in srgb, var(--button-bg), white 40%), transparent 30%);
+  opacity: 0.52;
+  animation: buttonAurora 4.8s ease-in-out infinite;
+}
+
+.pageButtonEffect-double-ring::before,
+.pageButtonEffect-double-ring::after {
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--button-bg), white 46%);
+  opacity: 0;
+  animation: buttonRing 2.6s ease-out infinite;
+}
+
+.pageButtonEffect-double-ring::after {
+  animation-delay: 1.25s;
+}
+
+.pageButtonEffect-spotlight::after {
+  inset: -80% -20%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.34), transparent 34%);
+  transform: translate(-38%, 0);
+  animation: buttonSpotlight 3.2s ease-in-out infinite;
+}
+
+@keyframes buttonFloat {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -2px; }
 }
 
 @keyframes buttonSheen {
-  0%,
-  42% {
-    transform: translateX(-120%);
-  }
+  0%, 42% { transform: translateX(-120%); }
+  72%, 100% { transform: translateX(120%); }
+}
 
-  72%,
-  100% {
-    transform: translateX(120%);
-  }
+@keyframes buttonBorderGlow {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.9; box-shadow: 0 0 24px color-mix(in srgb, var(--button-bg), transparent 24%); }
+}
+
+@keyframes buttonNeonBorder {
+  0%, 100% { opacity: 0.45; filter: brightness(1); }
+  50% { opacity: 1; filter: brightness(1.25); }
+}
+
+@keyframes buttonPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--button-bg), transparent 58%); }
+  50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--button-bg), transparent 100%); }
+}
+
+@keyframes buttonBreathe {
+  0%, 100% { scale: 1; filter: brightness(1); }
+  50% { scale: 1.018; filter: brightness(1.08); }
+}
+
+@keyframes buttonLift {
+  0%, 100% { translate: 0 0; box-shadow: var(--shadow); }
+  50% { translate: 0 -3px; box-shadow: 0 20px 38px rgba(15, 23, 42, 0.24); }
+}
+
+@keyframes buttonSlideLight {
+  0%, 45% { transform: translateX(-100%); }
+  75%, 100% { transform: translateX(100%); }
+}
+
+@keyframes buttonAurora {
+  0%, 100% { transform: translate3d(-8%, -4%, 0) rotate(0deg); }
+  50% { transform: translate3d(8%, 5%, 0) rotate(12deg); }
+}
+
+@keyframes buttonRing {
+  0% { opacity: 0.6; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.14); }
+}
+
+@keyframes buttonSpotlight {
+  0%, 100% { transform: translate(-38%, 0); }
+  50% { transform: translate(38%, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pageButtonAnimated,
-  .pageButtonAnimated::after {
+  .pageButtonEffect,
+  .pageButtonEffect::before,
+  .pageButtonEffect::after {
     animation: none;
   }
 }
