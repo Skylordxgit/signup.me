@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Building2, LogOut, Power, RefreshCw, ShieldCheck, X } from "lucide-react";
+import { Building2, LogOut, Power, RefreshCw, ShieldCheck, UserPlus, X } from "lucide-react";
 import { adminApi } from "@/lib/admin";
 import { ImageUploader } from "./ImageUploader";
 import { Dialog, EmptyState, Field, IconButton, SectionHeading } from "./admin/AdminUI";
@@ -27,6 +27,7 @@ type BrandingSettings = {
 };
 
 type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
+type SignupSettings = { enabled: boolean };
 const fallbackBranding: BrandingSettings = {
   name: "signup888",
   siteTitle: "signup888 - Your Link. Your World.",
@@ -38,6 +39,7 @@ export function MasterDashboard({ email }: { email: string }) {
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
   const [defaultWorkspaceId, setDefaultWorkspaceId] = useState("default");
   const [branding, setBranding] = useState<BrandingSettings>(fallbackBranding);
+  const [signup, setSignup] = useState<SignupSettings>({ enabled: true });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
@@ -54,8 +56,8 @@ export function MasterDashboard({ email }: { email: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([adminApi<Payload>("/api/master/workspaces"), adminApi<BrandingSettings>("/api/master/branding")])
-      .then(([data, brand]) => { if (!cancelled) { apply(data); setBranding(brand); } })
+    Promise.all([adminApi<Payload>("/api/master/workspaces"), adminApi<BrandingSettings>("/api/master/branding"), adminApi<SignupSettings>("/api/master/signup")])
+      .then(([data, brand, signupSettings]) => { if (!cancelled) { apply(data); setBranding(brand); setSignup(signupSettings); } })
       .catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load workspaces."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -102,6 +104,21 @@ export function MasterDashboard({ email }: { email: string }) {
     }
   }
 
+  async function updateSignup(enabled: boolean) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      setSignup(await adminApi<SignupSettings>("/api/master/signup", { method: "PATCH", body: JSON.stringify({ enabled }) }));
+      setMessage(`Signup turned ${enabled ? "on" : "off"}.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not update signup.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function logout() {
     void adminApi("/api/auth/logout", { method: "POST" }).then(() => window.location.assign("/admin/login"));
   }
@@ -133,6 +150,20 @@ export function MasterDashboard({ email }: { email: string }) {
             <article className="admMetric"><div><span>Admins</span><strong>{totals.admins}</strong></div></article>
             <article className="admMetric"><div><span>Subscribers</span><strong>{totals.subscribers}</strong></div></article>
           </div>
+
+          <SectionHeading title="Signup access" />
+          <section className="admBrandingPanel">
+            <div className="admSettingRow">
+              <div>
+                <span className={`admBadge admBadge-${signup.enabled ? "published" : "disabled"}`}><UserPlus size={13} />Signup {signup.enabled ? "on" : "off"}</span>
+                <h2>Public account creation</h2>
+                <p className="admMuted">Turn signup off to block the create-account page and prevent new accounts from being created.</p>
+              </div>
+              <button type="button" className="admButton admPrimary" disabled={busy} onClick={() => void updateSignup(!signup.enabled)}>
+                <Power size={16} />Turn {signup.enabled ? "off" : "on"}
+              </button>
+            </div>
+          </section>
 
           <SectionHeading title="Branding" />
           <section className="admBrandingPanel">

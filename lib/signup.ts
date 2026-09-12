@@ -1,5 +1,6 @@
 import { hashPassword, ownerEmail } from './auth';
 import { isMasterEmail } from './master';
+import { isSignupEnabled } from './signupSettings';
 import { addWorkspaceUser, findWorkspaceUser, isPendingInvite, updateWorkspaceUser, type WorkspaceUser } from './workspaceUsers';
 import { createWorkspace, ensureDefaultWorkspace, isWorkspaceActive, workspaceName } from './workspaces';
 
@@ -35,6 +36,8 @@ export type SignupResult = { email: string; workspaceId: string; role: 'owner' |
  *  activated inside THAT workspace. Any other email gets a brand-new workspace
  *  that it owns — never the default one. */
 export async function signUp(input: { email: unknown; password: unknown; name?: unknown }): Promise<SignupResult> {
+  if (!(await isSignupEnabled())) throw new Error('Signup is currently turned off. Please contact the administrator.');
+
   const email = assertEmail(normalizeEmail(input.email));
   const password = assertPassword(input.password);
 

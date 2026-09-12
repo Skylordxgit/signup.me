@@ -444,6 +444,9 @@ body:has(.admDialog[open]) { overflow: hidden; }
 /* Master admin: one full-width column, no workspace sidebar. */
 .admShellPlain { grid-template-columns: minmax(0, 1fr); }
 .admBrandingPanel { display: grid; gap: 16px; margin-bottom: 28px; padding: 18px; border: 1px solid var(--adm-line); border-radius: 8px; background: white; }
+.admSettingRow { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.admSettingRow h2 { margin: 10px 0 4px; font-size: 18px; line-height: 1.25; }
+.admSettingRow p { margin: 0; }
 .admMasterList { display: grid; }
 .admMasterRow { display: grid; grid-template-columns: minmax(0, 1fr) 84px repeat(4, 88px) 44px; align-items: center; gap: 16px; padding: 16px 0; border-top: 1px solid var(--adm-line); }
 .admMasterName { display: flex; align-items: center; gap: 12px; min-width: 0; border: 0; background: transparent; padding: 0; text-align: left; color: inherit; }
@@ -464,6 +467,8 @@ body:has(.admDialog[open]) { overflow: hidden; }
   .admMasterCount { grid-column: span 1; }
 }
 @media (max-width: 600px) {
+  .admSettingRow { align-items: stretch; flex-direction: column; }
+  .admSettingRow .admButton { width: 100%; }
   .admMasterRow { grid-template-columns: repeat(2, minmax(0, 1fr)) 44px; gap: 12px; }
   .admMasterDetail div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
