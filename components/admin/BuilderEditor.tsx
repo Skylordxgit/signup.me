@@ -129,6 +129,7 @@ export function BuilderEditor(props: Props) {
             <Range label="Content spacing" value={page.theme.spacing} min={6} max={32} onChange={spacing => theme({ spacing })} />
             <Range label="Button opacity" value={page.theme.buttonTransparency} min={15} max={100} onChange={buttonTransparency => theme({ buttonTransparency })} />
             <Range label="Glass blur" value={page.theme.glassBlur} max={40} onChange={glassBlur => theme({ glassBlur })} />
+            <label className="admCheck"><input type="checkbox" checked={page.theme.buttonAnimation ?? false} onChange={event => theme({ buttonAnimation: event.target.checked })} />Button animation</label>
           </div></section>
         </>}
         {tab === 'seo' && <><SectionHeading title="Search & sharing" /><div className="admFormStack">{([['seoTitle', 'Search title'], ['metaDescription', 'Search description'], ['socialTitle', 'Social title'], ['socialDescription', 'Social description']] as const).map(([key, label]) => <Field label={label} key={key}><input value={page.seo[key]} onChange={event => onEdit({ seo: { ...page.seo, [key]: event.target.value } })} /></Field>)}<ImageUploader category="og" label="Social preview image" value={page.seo.ogImage} onChange={ogImage => onEdit({ seo: { ...page.seo, ogImage } })} /><ImageUploader category="favicon" label="Favicon" value={page.seo.favicon} onChange={favicon => onEdit({ seo: { ...page.seo, favicon } })} /></div></>}

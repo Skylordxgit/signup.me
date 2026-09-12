@@ -385,3 +385,21 @@ At minimum, add a short note under this section:
     workspaces, repeat imports taking the next free slug, keepStatus, and a
     hostile export (path traversal, bad category, non-image payload) being
     rejected without failing the whole import. Test count is now 43.
+- 2026-09-12: Added a Page Designs toggle for animated buttons. The setting is
+  stored on `ThemeSettings.buttonAnimation`, defaults off in `defaultTheme`, is
+  exposed in `components/admin/BuilderEditor.tsx` under Buttons & spacing, and
+  is rendered by the shared `PageRenderer` as `pageButtonAnimated` so the admin
+  phone preview and public page match. The CSS effect is a subtle float plus
+  sheen and respects `prefers-reduced-motion`.
+  - Theme changes now preserve `buttonAnimation` alongside cover/profile/share
+    choices.
+  - Added `tests/PageRenderer.test.tsx` coverage proving the class appears only
+    when the page design toggle is on.
+  - While verifying, fixed two pre-existing blockers: `app/admin/signup/page.tsx`
+    now narrows the signup settings response before reading `enabled`, and the
+    JSON fallback store now assigns block IDs with `nextId` instead of
+    `Date.now()` so rapid import/duplicate operations cannot collide.
+  - `package-lock.json` was repaired by `npm install` because `npm ci` reported
+    the lockfile was out of sync around optional `@emnapi/*` packages.
+  - Verification passed: `npm run lint`, `./node_modules/.bin/tsc --noEmit
+    --incremental false`, `npm test` (49 passing), and `npm run build`.

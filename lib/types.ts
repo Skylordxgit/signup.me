@@ -72,6 +72,7 @@ export type ThemeSettings = {
   spacing: number;
   /* Optional: pages saved before these existed fall back to their theme. */
   buttonStyle?: ButtonStyle;
+  buttonAnimation?: boolean;
   surface?: SurfaceStyle;
   backgroundStyle?: "solid" | "gradient";
   showShareButton?: boolean;

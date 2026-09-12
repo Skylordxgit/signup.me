@@ -106,11 +106,20 @@ test("Share is shown only when enabled, including pages without a cover", () => 
   }
 });
 
+test("button animation follows the page design toggle", () => {
+  const page = fixture();
+  page.blocks = [page.blocks[0]];
+  assert.doesNotMatch(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonAnimated/);
+  page.theme = { ...page.theme, buttonAnimation: true };
+  assert.match(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonAnimated/);
+});
+
 test("changing themes preserves the uploaded cover and profile choices", () => {
-  const theme = { ...fixture().theme, profileLayout: "avatar" as const, profileAlignment: "right" as const, showShareButton: true };
+  const theme = { ...fixture().theme, buttonAnimation: true, profileLayout: "avatar" as const, profileAlignment: "right" as const, showShareButton: true };
   for (const definition of themeLibrary) {
     const result = applyThemeDefinition(definition, theme);
     assert.equal(result.backgroundImage, theme.backgroundImage);
+    assert.equal(result.buttonAnimation, true);
     assert.equal(result.profileLayout, "avatar");
     assert.equal(result.profileAlignment, "right");
     assert.equal(result.showShareButton, true);

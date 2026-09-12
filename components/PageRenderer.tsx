@@ -57,6 +57,7 @@ export function PageRenderer({
 }) {
   const theme = page.theme;
   const buttonStyle = resolveButtonStyle(theme);
+  const buttonAnimation = theme.buttonAnimation ?? false;
   const surface = resolveSurface(theme);
   const align = resolveAlignment(theme);
   const layout = resolveProfileLayout(theme);
@@ -114,7 +115,7 @@ export function PageRenderer({
                 {group.map((block) => <SocialRow block={block} edit={edit} key={block.id} onTrack={onTrack} preview={isPreview} />)}
               </div>
             ) : (
-              <BlockRow block={group[0]} buttonStyle={buttonStyle} edit={edit} key={group[0].id} onTrack={onTrack} preview={isPreview} />
+              <BlockRow block={group[0]} buttonAnimation={buttonAnimation} buttonStyle={buttonStyle} edit={edit} key={group[0].id} onTrack={onTrack} preview={isPreview} />
             ))}
           </div>
         )}
@@ -226,18 +227,20 @@ function ShareAction({ page, preview }: { page: SmartPage; preview: boolean }) {
  */
 function BlockRow({
   block,
+  buttonAnimation,
   buttonStyle,
   edit,
   onTrack,
   preview,
 }: {
   block: PageBlock;
+  buttonAnimation: boolean;
   buttonStyle: string;
   edit?: PageEditHooks;
   onTrack?: (block: PageBlock) => void;
   preview: boolean;
 }) {
-  const view = <PageBlockView block={block} buttonStyle={buttonStyle} preview={preview} onTrack={onTrack} />;
+  const view = <PageBlockView block={block} buttonAnimation={buttonAnimation} buttonStyle={buttonStyle} preview={preview} onTrack={onTrack} />;
   if (!edit) return view;
 
   const selected = edit.selectedBlockId === block.id;
@@ -259,11 +262,13 @@ function BlockRow({
 /** A single block, rendered identically for the builder and for visitors. */
 export function PageBlockView({
   block,
+  buttonAnimation,
   buttonStyle,
   onTrack,
   preview,
 }: {
   block: PageBlock;
+  buttonAnimation?: boolean;
   buttonStyle: string;
   onTrack?: (block: PageBlock) => void;
   preview: boolean;
@@ -289,7 +294,7 @@ export function PageBlockView({
 
   return (
     <a
-      className={`pageButton buttonStyle-${buttonStyle}`}
+      className={`pageButton buttonStyle-${buttonStyle} ${buttonAnimation ? "pageButtonAnimated" : ""}`}
       href={buildSmartUrl(block)}
       style={colorOverride}
       target={preview ? undefined : "_blank"}

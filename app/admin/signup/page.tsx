@@ -15,7 +15,7 @@ export default function SignupPage() {
     fetch("/api/auth/signup")
       .then(response => response.ok ? response.json() : null)
       .then(data => {
-        if (!cancelled && data && data.enabled === false) setEnabled(false);
+        if (!cancelled && data && typeof data === "object" && "enabled" in data && data.enabled === false) setEnabled(false);
       })
       .catch(() => {});
     return () => { cancelled = true; };

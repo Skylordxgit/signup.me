@@ -49,6 +49,10 @@ function nextId(items: { id: number }[]) {
   return Math.max(0, ...items.map((item) => item.id)) + 1;
 }
 
+function nextBlockId(pages: SmartPage[]) {
+  return nextId(pages.flatMap((page) => page.blocks));
+}
+
 function sortBlocks(page: SmartPage) {
   // Pages stored before workspaces existed belong to the default workspace.
   return { ...page, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID, blocks: [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder) };
@@ -176,6 +180,7 @@ export async function duplicatePage(id: number) {
 
   const timestamp = nowIso();
   const newId = nextId(db.pages);
+  const firstBlockId = nextBlockId(db.pages);
   const duplicateSlugBase = `${page.slug}-copy`;
   let duplicateSlug = duplicateSlugBase;
   let suffix = 2;
@@ -196,7 +201,7 @@ export async function duplicatePage(id: number) {
     updatedAt: timestamp,
     blocks: page.blocks.map((block, index) => ({
       ...block,
-      id: Date.now() + index,
+      id: firstBlockId + index,
       pageId: newId,
       clicks: 0,
       createdAt: timestamp,
@@ -214,7 +219,7 @@ export async function createBlock(pageId: number, type: BlockType) {
   const page = db.pages.find((item) => item.id === pageId);
   if (!page) return null;
 
-  const block = emptyBlock(pageId, type, page.blocks.length + 1);
+  const block = { ...emptyBlock(pageId, type, page.blocks.length + 1), id: nextBlockId(db.pages) };
   page.blocks.push(block);
   page.updatedAt = nowIso();
   await writeJsonDb(db);
@@ -269,7 +274,7 @@ export async function duplicateBlock(id: number) {
 
     const duplicate: PageBlock = {
       ...block,
-      id: Date.now(),
+      id: nextBlockId(db.pages),
       title: `${block.title} Copy`,
       sortOrder: block.sortOrder + 1,
       clicks: 0,

@@ -3465,6 +3465,52 @@ button:hover:not(:disabled) {
   line-height: 1.35;
 }
 
+.pageButtonAnimated {
+  overflow: hidden;
+  animation: buttonFloat 2.8s ease-in-out infinite;
+}
+
+.pageButtonAnimated::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(110deg, transparent 12%, rgba(255, 255, 255, 0.34) 36%, transparent 58%);
+  transform: translateX(-120%);
+  animation: buttonSheen 3.4s ease-in-out infinite;
+  content: "";
+  pointer-events: none;
+}
+
+@keyframes buttonFloat {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+
+  50% {
+    translate: 0 -2px;
+  }
+}
+
+@keyframes buttonSheen {
+  0%,
+  42% {
+    transform: translateX(-120%);
+  }
+
+  72%,
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pageButtonAnimated,
+  .pageButtonAnimated::after {
+    animation: none;
+  }
+}
+
 .pageHeading {
   margin: 6px 0 0;
   color: var(--heading);
