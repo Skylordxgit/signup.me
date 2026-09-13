@@ -363,7 +363,7 @@ function MasterSettings({ onBrandingChanged }: { onBrandingChanged?: (branding: 
     setMessage('');
     try {
       setSignup(await adminApi<SignupSettings>('/api/master/signup', { method: 'PATCH', body: JSON.stringify({ enabled }) }));
-      setMessage(`Signup turned .`);
+      setMessage(`Signup turned ${enabled ? 'on' : 'off'}.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not update signup.');
     } finally {
@@ -379,7 +379,7 @@ function MasterSettings({ onBrandingChanged }: { onBrandingChanged?: (branding: 
       <section className="admBrandingPanel">
         <div className="admSettingRow">
           <div>
-            <span className={`dmBadge admBadge-`}><UserPlus size={13} />Signup {signup.enabled ? 'on' : 'off'}</span>
+            <span className={`admBadge admBadge-${signup.enabled ? 'published' : 'disabled'}`}><UserPlus size={13} />Signup {signup.enabled ? 'on' : 'off'}</span>
             <h2>Public account creation</h2>
             <p className="admMuted">Turn signup off to block the create-account page and prevent new accounts from being created.</p>
           </div>
