@@ -1,4 +1,4 @@
-.admShell, .admDialog {
+.admShell, .admDialog, .masterShell, .masterDrawer {
   --adm-ink: #202731;
   --adm-muted: #737c89;
   --adm-line: #e5e8ec;
@@ -12,13 +12,13 @@
 }
 .admShell { display: grid; grid-template-columns: var(--adm-sidebar) minmax(0, 1fr); min-height: 100dvh; width: 100%; background: #f8f9fb; }
 .admShell[data-collapsed="true"] { --adm-sidebar: 76px; }
-.admShell h1:not(:where(.smartPage *)), .admShell h2:not(:where(.smartPage *)), .admShell h3:not(:where(.smartPage *)), .admDialog h2 { margin: 0; color: var(--adm-ink); letter-spacing: 0; }
+.admShell h1:not(:where(.smartPage *)), .admShell h2:not(:where(.smartPage *)), .admShell h3:not(:where(.smartPage *)), .admDialog h2, .masterShell h1, .masterShell h2, .masterShell h3 { margin: 0; color: var(--adm-ink); letter-spacing: 0; }
 .admShell h2:not(:where(.smartPage *)) { font-size: 24px; font-weight: 650; line-height: 1.3; }
 .admShell h3:not(:where(.smartPage *)) { font-size: 15px; font-weight: 650; }
-.admShell p:not(:where(.smartPage *)) { margin: 6px 0 0; }
-.admShell button, .admDialog button { font: inherit; }
-.admShell button, .admDialog button, .admShell a { -webkit-tap-highlight-color: transparent; }
-.admShell input, .admShell select, .admShell textarea, .admDialog input, .admDialog select, .admDialog textarea { min-width: 0; border: 1px solid #dce1e8; border-radius: 6px; font-size: 14px; min-height: 42px; padding: 9px 12px; box-shadow: 0 1px 2px #18233305; }
+.admShell p:not(:where(.smartPage *)), .masterShell p { margin: 6px 0 0; }
+.admShell button, .admDialog button, .masterShell button { font: inherit; }
+.admShell button, .admDialog button, .admShell a, .masterShell button { -webkit-tap-highlight-color: transparent; }
+.admShell input, .admShell select, .admShell textarea, .admDialog input, .admDialog select, .admDialog textarea, .masterShell input, .masterShell select, .masterShell textarea { min-width: 0; border: 1px solid #dce1e8; border-radius: 6px; font-size: 14px; min-height: 42px; padding: 9px 12px; box-shadow: 0 1px 2px #18233305; }
 .admShell input[type="checkbox"], .admDialog input[type="checkbox"] { width: 16px; height: 16px; min-height: 16px; accent-color: var(--adm-blue); padding: 0; flex: none; }
 .admShell input[type="range"], .admDialog input[type="range"] { padding: 0; box-shadow: none; accent-color: var(--adm-blue); }
 .admShell input[type="color"], .admDialog input[type="color"] { width: 42px; height: 38px; min-height: 38px; padding: 3px; flex: none; cursor: pointer; }
@@ -288,11 +288,11 @@
 .admSwitchRow strong, .admSwitchRow small { display: block; }
 .admSwitchRow strong { font-size: 15px; margin-bottom: 4px; }
 .admSwitchRow small { color: var(--adm-muted); line-height: 1.45; }
-.admShell .admSwitchRow input[type="checkbox"] { position: relative; flex: 0 0 48px; width: 48px; height: 28px; min-height: 28px; margin: 0; padding: 0; appearance: none; border: 1px solid #cbd6e5; border-radius: 999px; background: #d9e1ec; box-shadow: inset 0 1px 2px #15223a14; transition: background .16s ease, border-color .16s ease; cursor: pointer; }
-.admShell .admSwitchRow input[type="checkbox"]::before { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: white; box-shadow: 0 2px 7px #15223a2b; transition: transform .16s ease; }
-.admShell .admSwitchRow input[type="checkbox"]:checked { border-color: #2465d7; background: #2465d7; }
-.admShell .admSwitchRow input[type="checkbox"]:checked::before { transform: translateX(20px); }
-.admShell .admSwitchRow input[type="checkbox"]:focus-visible { outline: 3px solid #8eb7ff; outline-offset: 3px; }
+.admShell .admSwitchRow input[type="checkbox"], .masterShell .admSwitchRow input[type="checkbox"] { position: relative; flex: 0 0 48px; width: 48px; height: 28px; min-height: 28px; margin: 0; padding: 0; appearance: none; border: 1px solid #cbd6e5; border-radius: 999px; background: #d9e1ec; box-shadow: inset 0 1px 2px #15223a14; transition: background .16s ease, border-color .16s ease; cursor: pointer; }
+.admShell .admSwitchRow input[type="checkbox"]::before, .masterShell .admSwitchRow input[type="checkbox"]::before { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: white; box-shadow: 0 2px 7px #15223a2b; transition: transform .16s ease; }
+.admShell .admSwitchRow input[type="checkbox"]:checked, .masterShell .admSwitchRow input[type="checkbox"]:checked { border-color: #2465d7; background: #2465d7; }
+.admShell .admSwitchRow input[type="checkbox"]:checked::before, .masterShell .admSwitchRow input[type="checkbox"]:checked::before { transform: translateX(20px); }
+.admShell .admSwitchRow input[type="checkbox"]:focus-visible, .masterShell .admSwitchRow input[type="checkbox"]:focus-visible { outline: 3px solid #8eb7ff; outline-offset: 3px; }
 .admPromptAdvanced { padding: 16px; }
 .admPromptAdvanced summary { cursor: pointer; font-weight: 650; }
 .admPromptAdvanced .admFormStack { margin-top: 16px; }
@@ -596,6 +596,12 @@ body:has(.admDialog[open]) { overflow: hidden; }
 .masterAccessOff .masterAccessIcon { color: #b14d5c; background: #fae6e9; }
 .masterAccessCard h2 { margin-top: 7px; font-size: 25px; letter-spacing: -.025em; }
 .masterAccessCard p { margin-top: 7px; color: #707b90; line-height: 1.55; }
+.masterAccessCard > button { flex: none; justify-self: end; min-height: 46px; padding: 12px 20px; font-size: 14px; white-space: nowrap; }
+.masterAccessOn > button { background: #b4483f; border-color: #b4483f; color: #fff; }
+.masterAccessOn > button:hover:not(:disabled) { background: #9d3c34; border-color: #9d3c34; }
+.masterAccessOff > button { background: #1f7f63; border-color: #1f7f63; color: #fff; }
+.masterAccessOff > button:hover:not(:disabled) { background: #1a6d55; border-color: #1a6d55; }
+.masterShell button:disabled { opacity: .55; cursor: not-allowed; }
 .masterBackdrop, .masterDrawer { display: none; }
 
 @media (max-width: 1080px) {
