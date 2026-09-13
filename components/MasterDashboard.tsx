@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Building2, LogOut, Power, RefreshCw, ShieldCheck, UserPlus, X } from "lucide-react";
+import { ArrowUpRight, Building2, LogOut, Power, RefreshCw, ShieldCheck, UserPlus, X } from "lucide-react";
+import type { PublicWorkspaceUser } from '@/lib/workspaceUsers';
 import { adminApi } from "@/lib/admin";
 import { defaultBranding, type BrandingSettings } from "@/lib/brandingConstants";
 import { ImageUploader } from "./ImageUploader";
@@ -26,7 +27,7 @@ type SignupSettings = { enabled: boolean };
 
 export function MasterDashboard({ email }: { email: string }) {
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
-  const [defaultWorkspaceId, setDefaultWorkspaceId] = useState("default");
+  const [users, setUsers] = useState<PublicWorkspaceUser[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(fallbackBranding);
   const [signup, setSignup] = useState<SignupSettings>({ enabled: true });
   const [loading, setLoading] = useState(true);
@@ -38,15 +39,17 @@ export function MasterDashboard({ email }: { email: string }) {
 
   const apply = useCallback((data: Payload) => {
     setWorkspaces(data.workspaces);
-    setDefaultWorkspaceId(data.defaultWorkspaceId);
   }, []);
-  const load = useCallback(async () => apply(await adminApi<Payload>("/api/master/workspaces")), [apply]);
+  const load = useCallback(async () => {
+    const [data, accounts] = await Promise.all([adminApi<Payload>('/api/master/workspaces'), adminApi<PublicWorkspaceUser[]>('/api/master/users')]);
+    apply(data); setUsers(accounts);
+  }, [apply]);
   const loadBranding = useCallback(async () => setBranding(await adminApi<BrandingSettings>("/api/master/branding")), []);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([adminApi<Payload>("/api/master/workspaces"), adminApi<BrandingSettings>("/api/master/branding"), adminApi<SignupSettings>("/api/master/signup")])
-      .then(([data, brand, signupSettings]) => { if (!cancelled) { apply(data); setBranding(brand); setSignup(signupSettings); } })
+    Promise.all([adminApi<Payload>("/api/master/workspaces"), adminApi<BrandingSettings>("/api/master/branding"), adminApi<SignupSettings>("/api/master/signup"), adminApi<PublicWorkspaceUser[]>('/api/master/users')])
+      .then(([data, brand, signupSettings, accounts]) => { if (!cancelled) { apply(data); setBranding(brand); setSignup(signupSettings); setUsers(accounts); } })
       .catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load workspaces."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -110,6 +113,11 @@ export function MasterDashboard({ email }: { email: string }) {
 
   function logout() {
     void adminApi("/api/auth/logout", { method: "POST" }).then(() => window.location.assign("/admin/login"));
+  }
+
+  async function openWorkspace(workspaceId: string) {
+    await adminApi('/api/master/context', { method: 'POST', body: JSON.stringify({ workspaceId }) });
+    window.location.assign('/admin');
   }
 
   const totals = workspaces.reduce((sum, workspace) => ({
@@ -189,16 +197,24 @@ export function MasterDashboard({ email }: { email: string }) {
               <span className="admMasterCount"><small>Subscribers</small><strong>{workspace.subscribers}</strong></span>
               <span className="admMasterCount"><small>Created</small><strong>{workspace.createdAt ? new Date(workspace.createdAt).toLocaleDateString() : "—"}</strong></span>
               <div className="admActionRow">
+                <IconButton icon={ArrowUpRight} label={`Manage ${workspace.name}`} disabled={busy} onClick={() => void run(() => openWorkspace(workspace.id))} />
                 <IconButton
                   icon={Power}
                   label={`${workspace.status === "active" ? "Disable" : "Enable"} ${workspace.name}`}
-                  disabled={busy || workspace.id === defaultWorkspaceId}
+                  disabled={busy}
                   onClick={() => void run(() => adminApi("/api/master/workspaces", { method: "PATCH", body: JSON.stringify({ id: workspace.id, status: workspace.status === "active" ? "disabled" : "active" }) }))}
                 />
               </div>
             </article>)}
           </div>}
-          <p className="admMuted">The main workspace cannot be disabled. Disabling a workspace signs out its owner and admins; public pages stay online.</p>
+          <SectionHeading title="All accounts" />
+          <div className="admTeamList">{users.map(user => <article className="admTeamRow" key={user.id}>
+            <ShieldCheck size={20} /><div><strong>{user.name}</strong><small>{user.email}</small></div>
+            <span className="admBadge">{user.role === 'owner' ? 'Admin / Owner' : user.role}</span>
+            <span>{workspaces.find(workspace => workspace.id === user.workspaceId)?.name || user.workspaceId}</span>
+            <span className="admBadge">{user.pending ? 'Invited' : user.active ? 'Active' : 'Disabled'}</span>
+            <IconButton icon={ArrowUpRight} label={`Manage team for ${user.email}`} onClick={() => void run(() => openWorkspace(user.workspaceId))} />
+          </article>)}</div>
         </>}
       </main>
     </div>

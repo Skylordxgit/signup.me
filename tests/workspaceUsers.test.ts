@@ -1,55 +1,75 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
-import { createSessionToken, readSessionToken, resolveAdminSession, ownerEmail, hashPassword, verifyPassword } from '../lib/auth';
-import { mysqlPool } from '../lib/mysql';
-import { publicWorkspaceUser } from '../lib/workspaceUsers';
-import { DEFAULT_WORKSPACE_ID } from '../lib/workspaces';
+import { createSessionToken, readSessionToken, resolveAdminSession, hashPassword, verifyPassword } from '../lib/auth';
+import { publicWorkspaceUser, findWorkspaceUser, updateWorkspaceUser } from '../lib/workspaceUsers';
+import { signUp } from '../lib/signup';
+import { isWorkspaceActive, updateWorkspace } from '../lib/workspaces';
+import { masterCredentialVersion, provisionMaster, validMasterSession } from '../lib/master';
+import { canAccess } from '../lib/permissions';
 
-test('workspace roles reject unknown, disabled and revoked admin sessions', async t => {
-  const original = process.env.DATABASE_URL;
-  const originalMasterEmail = process.env.MASTER_ADMIN_EMAIL;
-  const originalMasterHash = process.env.MASTER_ADMIN_PASSWORD_HASH;
-  process.env.DATABASE_URL = 'mysql://test:test@localhost/test';
+test('stored membership, account identity and session version control workspace access', async () => {
+  const previous = process.cwd();
+  const directory = await mkdtemp(path.join(tmpdir(), 'signup-auth-'));
+  process.chdir(directory);
+  try {
+    const result = await signUp({ email: 'owner@example.test', password: 'a-long-password' });
+    const user = (await findWorkspaceUser(result.email))!;
+    const token = createSessionToken({ ...result, scope: 'workspace' });
+    const session = readSessionToken(token);
+    assert.equal((await resolveAdminSession(session))?.workspaceId, result.workspaceId);
+    assert.equal(await resolveAdminSession(readSessionToken(createSessionToken(user.email))), null);
+    assert.equal(await resolveAdminSession({ ...session!, workspaceId: 'default' }), null);
+    assert.equal(await resolveAdminSession({ ...session!, accountId: 'deleted-account-id' }), null);
+    assert.equal(readSessionToken(token + '.extra'), null);
+    assert.equal(readSessionToken(token + 'tampered'), null);
+    assert.equal(verifyPassword('a-long-password', user.passwordHash), true);
+    assert.equal(verifyPassword('wrong', user.passwordHash), false);
+    assert.equal('passwordHash' in publicWorkspaceUser(user), false);
+    assert.equal('inviteHash' in publicWorkspaceUser(user), false);
+    await updateWorkspaceUser(user.id, { active: false }, user.workspaceId);
+    assert.equal(await resolveAdminSession(session), null);
+    await updateWorkspaceUser(user.id, { active: true, role: 'member', permissions: ['analytics'] }, user.workspaceId);
+    assert.equal(await resolveAdminSession(session), null);
+    const fresh = readSessionToken(createSessionToken({ ...result, version: 3, role: 'owner', scope: 'workspace' }));
+    const member = (await resolveAdminSession(fresh))!;
+    assert.equal(member.role, 'member', 'a token cannot elevate the stored role');
+    assert.equal(canAccess(member, 'analytics'), true);
+    assert.equal(canAccess(member, 'team'), false);
+    await updateWorkspace(result.workspaceId, { status: 'disabled' });
+    assert.equal(await resolveAdminSession(fresh), null);
+    assert.equal(await isWorkspaceActive('nonexistent'), false);
+  } finally { process.chdir(previous); await rm(directory, { recursive: true, force: true }); }
+});
+
+test('master credentials need a matching database record and explicit workspace context', async () => {
+  const previous = process.cwd();
+  const oldEmail = process.env.MASTER_ADMIN_EMAIL;
+  const oldHash = process.env.MASTER_ADMIN_PASSWORD_HASH;
+  const directory = await mkdtemp(path.join(tmpdir(), 'signup-master-'));
+  process.chdir(directory);
   process.env.MASTER_ADMIN_EMAIL = 'master@example.test';
   process.env.MASTER_ADMIN_PASSWORD_HASH = hashPassword('master-password');
-  t.after(() => {
-    if (original === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = original;
-    if (originalMasterEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = originalMasterEmail;
-    if (originalMasterHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = originalMasterHash;
-  });
-  const user = { id: 'test-admin', email: 'teammate@example.test', name: 'Teammate', passwordHash: hashPassword('a-long-test-password'), workspaceId: DEFAULT_WORKSPACE_ID, role: 'admin' as const, active: true, version: 1, createdAt: new Date().toISOString() };
-  t.mock.method(mysqlPool(), 'query', async () => [[], []]);
-  t.mock.method(mysqlPool(), 'execute', async () => [[user], []]);
-  const session = readSessionToken(createSessionToken(user.email, 1));
-  assert.equal((await resolveAdminSession(session))?.role, 'admin');
-  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(ownerEmail()))))?.role, 'owner');
-  assert.equal(await resolveAdminSession(readSessionToken(createSessionToken('missing@example.test', 1))), null);
-  assert.equal(await resolveAdminSession(readSessionToken(createSessionToken(user.email))), null);
-  user.active = false;
-  assert.equal(await resolveAdminSession(session), null);
-  user.active = true;
-  user.version = 2;
-  assert.equal(await resolveAdminSession(session), null);
-  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(user.email, 2))))?.role, 'admin');
-  assert.equal(verifyPassword('a-long-test-password', user.passwordHash), true);
-  assert.equal(verifyPassword('wrong', user.passwordHash), false);
-  assert.equal('passwordHash' in publicWorkspaceUser(user), false);
-  assert.equal('version' in publicWorkspaceUser(user), false);
-  assert.equal(readSessionToken(createSessionToken(user.email, 2) + 'tampered'), null);
-
-  // Every resolved session names the workspace it may touch.
-  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(user.email, 2))))?.workspaceId, DEFAULT_WORKSPACE_ID);
-  assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(ownerEmail()))))?.workspaceId, DEFAULT_WORKSPACE_ID);
-
-  // A master session now enters the unified admin shell with master controls.
-  const masterSession = await resolveAdminSession(readSessionToken(createSessionToken({ email: 'master@example.test', scope: 'master' })));
-  assert.equal(masterSession?.workspaceId, DEFAULT_WORKSPACE_ID);
-  assert.equal(masterSession?.role, 'owner');
-  assert.equal(masterSession?.isMaster, true);
-
-  // A pending invite has no password yet, so it cannot hold a session.
-  const pendingHash = user.passwordHash;
-  user.passwordHash = '';
-  assert.equal(await resolveAdminSession(readSessionToken(createSessionToken(user.email, 2))), null);
-  user.passwordHash = pendingHash;
+  try {
+    const workspace = await signUp({ email: 'workspace@example.test', password: 'a-long-password' });
+    const descriptor = { email: 'master@example.test', scope: 'master' as const, version: 1, credentialVersion: masterCredentialVersion() };
+    assert.equal(await validMasterSession(descriptor), false);
+    await provisionMaster();
+    assert.equal(await validMasterSession(descriptor), true);
+    assert.equal((await resolveAdminSession(readSessionToken(createSessionToken(descriptor))))?.isMaster, true);
+    await updateWorkspace(workspace.workspaceId, { status: 'disabled' });
+    const scoped = await resolveAdminSession(readSessionToken(createSessionToken(descriptor)));
+    assert.equal(scoped?.isMaster, true);
+    assert.equal(scoped?.workspaceId, '');
+    assert.equal(await validMasterSession({ ...workspace, scope: 'workspace' }), false);
+    process.env.MASTER_ADMIN_PASSWORD_HASH = hashPassword('rotated-password');
+    assert.equal(await validMasterSession(descriptor), false, 'credential rotation revokes existing sessions');
+  } finally {
+    process.chdir(previous);
+    if (oldEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = oldEmail;
+    if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;
+    await rm(directory, { recursive: true, force: true });
+  }
 });

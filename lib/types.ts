@@ -98,6 +98,7 @@ export type IntegrationSettings = {
 };
 
 export type PageBlock = {
+  workspaceId?: string;
   id: number;
   pageId: number;
   type: BlockType;
@@ -179,6 +180,7 @@ export type PushSubscriptionRecord = {
 };
 
 export type NotificationSubscriber = {
+  workspaceId?: string;
   id: number;
   pageId: number;
   slug: string;

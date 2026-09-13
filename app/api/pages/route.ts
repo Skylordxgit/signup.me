@@ -1,10 +1,15 @@
-import { NextRequest } from "next/server";
-import { protectedJson } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { protectedJson, requireAdmin } from "@/lib/auth";
+import { canAccess } from '@/lib/permissions';
 import { createPage, listPages } from "@/lib/store";
 
 export async function GET() {
   // Scoped to the session's workspace, never a workspace id from the client.
-  return protectedJson((session) => listPages(session.workspaceId));
+  const session = await requireAdmin();
+  if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  if (!['pages', 'analytics', 'notifications'].some(permission => canAccess(session, permission as 'pages' | 'analytics' | 'notifications'))) return NextResponse.json({ error: 'Permission required' }, { status: 403 });
+  const pages = await listPages(session.workspaceId);
+  return NextResponse.json(canAccess(session, 'analytics') ? pages : pages.map(page => ({ ...page, views: 0, clicks: 0, uniqueVisitors: 0 })));
 }
 
 export async function POST(request: NextRequest) {
@@ -20,7 +25,7 @@ export async function POST(request: NextRequest) {
       title: (body.title as string) || "",
       bio: (body.bio as string) || "",
       profileImage: (body.profileImage as string) || "",
-      workspaceId: session.workspaceId,
+      workspaceId: session.isMaster && typeof body.workspaceId === "string" ? body.workspaceId : session.workspaceId,
     });
   });
 }

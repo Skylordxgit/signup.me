@@ -4,6 +4,13 @@ let pool: mysql.Pool | null = null;
 let schemaReady: Promise<void> | null = null;
 
 const schemaStatements = [
+  `CREATE TABLE IF NOT EXISTS workspace_settings (
+    workspace_id CHAR(36) NOT NULL,
+    setting_key VARCHAR(190) NOT NULL,
+    setting_value JSON NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (workspace_id, setting_key)
+  )`,
   `CREATE TABLE IF NOT EXISTS workspaces (
     id CHAR(36) PRIMARY KEY,
     name VARCHAR(190) NOT NULL,
@@ -145,6 +152,11 @@ const schemaStatements = [
 const migrationStatements = [
   `ALTER TABLE workspace_users ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
   `ALTER TABLE workspace_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'`,
+  `ALTER TABLE workspace_users ADD COLUMN permissions JSON NULL`,
+  `ALTER TABLE workspace_users ADD COLUMN invite_hash CHAR(64) NULL`,
+  `ALTER TABLE workspace_users ADD COLUMN invite_expires_at DATETIME NULL`,
+  `ALTER TABLE admins ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE`,
+  `ALTER TABLE admins ADD COLUMN session_version INT UNSIGNED NOT NULL DEFAULT 1`,
   `ALTER TABLE workspace_users ADD INDEX idx_workspace_users_workspace (workspace_id)`,
   `ALTER TABLE workspace_users MODIFY COLUMN password_hash VARCHAR(255) NOT NULL DEFAULT ''`,
   `ALTER TABLE pages ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
@@ -152,6 +164,15 @@ const migrationStatements = [
   `ALTER TABLE uploads ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
   `ALTER TABLE media_files ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
   `ALTER TABLE media_files ADD INDEX idx_media_workspace (workspace_id)`,
+  `UPDATE uploads u INNER JOIN pages p ON p.id = u.page_id SET u.workspace_id = p.workspace_id WHERE u.workspace_id <> p.workspace_id`,
+  ...['page_blocks', 'page_views', 'link_clicks'].flatMap(table => [
+    `ALTER TABLE ${table} ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
+    `ALTER TABLE ${table} ADD INDEX idx_${table}_workspace (workspace_id)`,
+    `UPDATE ${table} child INNER JOIN pages p ON p.id = child.page_id SET child.workspace_id = p.workspace_id WHERE child.workspace_id <> p.workspace_id`,
+  ]),
+  // This table only holds platform settings. Page-specific settings live on
+  // pages (workspace_id) and blocks (workspace_id), never in the global table.
+  `ALTER TABLE settings ADD COLUMN workspace_id CHAR(36) NULL DEFAULT NULL`,
 ];
 
 /* Errors that mean "this migration already ran". */

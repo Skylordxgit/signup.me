@@ -9,8 +9,8 @@ import type { SmartPage } from './types';
  *  route resolves its page through here, which is why a page id coming from
  *  the client can never reach data outside the session's workspace. */
 export async function pageForSession(session: AdminSession, id: number): Promise<SmartPage> {
-  if (!Number.isFinite(id)) throw new Error('Page not found');
-  const page = await getPageById(id);
+  if (!session.workspaceId || !Number.isSafeInteger(id) || id < 1) throw new Error('Page not found');
+  const page = await getPageById(id, session.workspaceId);
   if (!page || page.workspaceId !== session.workspaceId) throw new Error('Page not found');
   return page;
 }
@@ -19,6 +19,6 @@ export async function pageForSession(session: AdminSession, id: number): Promise
 export async function assertBlockInWorkspace(session: AdminSession, id: number) {
   const pageId = Number.isFinite(id) ? await blockPageId(id) : null;
   if (pageId === null) throw new Error('Block not found');
-  const page = await getPageById(pageId);
+  const page = session.workspaceId ? await getPageById(pageId, session.workspaceId) : null;
   if (!page || page.workspaceId !== session.workspaceId) throw new Error('Block not found');
 }

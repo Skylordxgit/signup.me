@@ -14,5 +14,5 @@ export async function GET(_: NextRequest, { params }: Props) {
     const report = await analyticsForPage(Number(id));
     if (!report) throw new Error("Page not found");
     return report;
-  });
+  }, 'analytics');
 }

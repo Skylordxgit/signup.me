@@ -16,12 +16,12 @@ function fail(message: string, status: number) {
 
 export async function GET() {
   // The media library only lists this workspace's files.
-  return protectedJson((session) => listMediaUploads(session.workspaceId));
+  return protectedJson((session) => listMediaUploads(session.workspaceId), 'media');
 }
 
 export async function POST(request: NextRequest) {
   // Only a signed-in admin may write files to the server.
-  const session = await requireAdmin();
+  const session = await requireAdmin('media');
   if (!session) return fail("Authentication required", 401);
 
   // Reject an oversized body before reading it into memory where we can.

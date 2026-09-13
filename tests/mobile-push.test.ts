@@ -68,15 +68,15 @@ test('MySQL automatically migrates existing subscriber table and saves details',
   t.mock.method(pool, 'execute', async (sql: string, values: unknown[] = []) => {
     if (sql.startsWith('SHOW COLUMNS')) return [[], []];
     if (sql.startsWith('ALTER TABLE')) { upgrades++; return [[], []]; }
-    if (sql.startsWith('SELECT id FROM pages')) return [[{ id: 1 }], []];
-    if (sql.startsWith('INSERT INTO push_subscriptions')) { stored = values[4] as string; return [[], []]; }
+    if (sql.startsWith('SELECT id, workspace_id FROM pages')) return [[{ id: 1, workspace_id: 'default' }], []];
+    if (sql.startsWith('INSERT INTO push_subscriptions')) { stored = values[5] as string; return [[], []]; }
     if (sql.includes('COUNT(*) AS subscribers')) return [[{ page_id: 1, slug: 'example', subscribers: 1 }], []];
     return [sql.startsWith('SELECT') ? [row()] : [], []];
   });
   const details = { device: 'iPhone', browser: 'Safari', ipAddress: '198.51.100.8', country: 'BD', city: '', timezone: 'Asia/Dhaka' };
   await mysqlStore.savePushSubscription('example', row().subscription_json, iphone, details);
   const summary = await mysqlStore.listPushSubscribers();
-  assert.equal(upgrades, 3);
+  assert.equal(upgrades, 5);
   assert.equal(summary.total, 1);
   assert.equal(summary.inactive, 0);
   assert.equal(summary.recent?.[0].ipAddress, details.ipAddress);
@@ -84,9 +84,10 @@ test('MySQL automatically migrates existing subscriber table and saves details',
 });
 
 test('JSON subscribers preserve older records and persist details for new subscriptions', async t => {
-  let database = JSON.stringify({ pages: [{ id: 1, slug: 'example', status: 'published' }], pushSubscriptions: [{ id: 1, pageId: 1, slug: 'example', endpointHash: 'old', userAgent: 'Android Chrome/120', createdAt: '2026-09-01', updatedAt: '2026-09-01', subscription: { endpoint: 'https://push.example/old', keys: { auth: 'secret' } } }] });
+  let database = JSON.stringify({ pages: [{ id: 1, slug: 'example', status: 'published', blocks: [] }], pushSubscriptions: [{ id: 1, pageId: 1, slug: 'example', endpointHash: 'old', userAgent: 'Android Chrome/120', createdAt: '2026-09-01', updatedAt: '2026-09-01', subscription: { endpoint: 'https://push.example/old', keys: { auth: 'secret' } } }] });
   t.mock.method(fs, 'readFile', async () => database);
   t.mock.method(fs, 'mkdir', async () => undefined);
+  t.mock.method(fs, 'rename', async () => undefined);
   t.mock.method(fs, 'writeFile', async (_path: unknown, text: string) => { database = text; });
   const details = { device: 'iPhone', browser: 'Safari', ipAddress: '198.51.100.9', country: '', city: '', timezone: '' };
   await jsonStore.savePushSubscription('example', { endpoint: 'https://push.example/new', keys: { auth: 'secret', p256dh: 'secret' } }, iphone, details);

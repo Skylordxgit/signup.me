@@ -5,7 +5,7 @@ import { sendPushNotification } from "@/lib/store";
 import { isNotificationUrl } from '@/lib/notificationUrl';
 
 export async function POST(request: NextRequest) {
-  const session = await requireAdmin();
+  const session = await requireAdmin('notifications');
   if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
   try {

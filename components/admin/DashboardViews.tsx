@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Download, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, Power, RefreshCw, Send, Trash2, User, UserPlus } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Download, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
@@ -265,141 +265,30 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   </div>;
 }
 
-type BrandingSettings = { name: string; siteTitle: string; logo: string; favicon: string };
-type SignupSettings = { enabled: boolean };
-
-const fallbackBranding: BrandingSettings = {
-  name: "signup888",
-  siteTitle: "signup888 - Your Link. Your World.",
-  logo: "/signup888-logo.png",
-  favicon: "/favicon.ico",
-};
-
 export function SettingsView({
   collapsed,
   email,
-  isMaster = false,
-  onBrandingChanged,
   onCollapse,
   onLogout,
 }: {
   collapsed: boolean;
   email: string;
-  isMaster?: boolean;
-  onBrandingChanged?: (branding: { name: string; logo: string }) => void;
   onCollapse: (collapsed: boolean) => void;
   onLogout: () => void;
 }) {
-  const [name, setName] = useState(() => readPreferences().name || '');
-  const [avatar, setAvatar] = useState(() => readPreferences().avatar || '');
+  const [name, setName] = useState('');
+  const [avatar, setAvatar] = useState('');
   const [message, setMessage] = useState('');
-  function save(event: React.FormEvent) {
+  useEffect(() => {
+    let cancelled = false;
+    adminApi<{ name: string; avatar: string }>('/api/admin/preferences').then(value => { if (!cancelled) { setName(value.name); setAvatar(value.avatar); } }).catch(cause => { if (!cancelled) setMessage(cause.message); });
+    return () => { cancelled = true; };
+  }, []);
+  async function save(event: React.FormEvent) {
     event.preventDefault();
-    try { const previous = JSON.parse(localStorage.getItem('smartlink_profile') || '{}'); localStorage.setItem('smartlink_profile', JSON.stringify({ ...previous, name, avatar })); setMessage('Preferences saved'); } catch { setMessage('Unable to save browser preferences.'); }
+    try { await adminApi('/api/admin/preferences', { method: 'PATCH', body: JSON.stringify({ name, avatar }) }); setMessage('Preferences saved'); } catch { setMessage('Unable to save preferences.'); }
   }
   return <div className="admSettingsStack">
     <div className="admSettingsGrid"><form onSubmit={save}><SectionHeading title="Account preferences" /><div className="admFormStack"><Field label="Display name"><input value={name} onChange={event => setName(event.target.value)} autoComplete="nickname" /></Field><Field label="Signed-in email"><input type="email" readOnly value={email} /></Field><ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} /><button type="submit" className="admButton admPrimary"><Check size={16} />Save preferences</button><span role="status" className="admMuted">{message}</span></div></form><section><SectionHeading title="Workspace" /><label className="admCheck"><input type="checkbox" checked={collapsed} onChange={event => onCollapse(event.target.checked)} />Compact sidebar</label><p className="admMuted">Browser preferences</p><div className="admSettingsSession"><User size={20} /><span>{email || 'Administrator'}</span><button type="button" className="admButton" onClick={onLogout}><LogOut size={16} />Log out</button></div></section></div>
-    {isMaster && <MasterSettings onBrandingChanged={onBrandingChanged} />}
   </div>;
-}
-
-function MasterSettings({ onBrandingChanged }: { onBrandingChanged?: (branding: { name: string; logo: string }) => void }) {
-  const [branding, setBranding] = useState<BrandingSettings>(fallbackBranding);
-  const [signup, setSignup] = useState<SignupSettings>({ enabled: true });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      adminApi<BrandingSettings>('/api/master/branding'),
-      adminApi<SignupSettings>('/api/master/signup'),
-    ]).then(([brand, signupSettings]) => {
-      if (cancelled) return;
-      setBranding(brand);
-      setSignup(signupSettings);
-      onBrandingChanged?.({ name: brand.name, logo: brand.logo });
-    }).catch(cause => {
-      if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load master settings.');
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [onBrandingChanged]);
-
-  async function saveBranding(next = branding) {
-    if (saving) return;
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      const saved = await adminApi<BrandingSettings>('/api/master/branding', { method: 'PATCH', body: JSON.stringify(next) });
-      setBranding(saved);
-      onBrandingChanged?.({ name: saved.name, logo: saved.logo });
-      setMessage('Branding saved.');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save branding.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function updateBrandingImage(key: 'logo' | 'favicon', value: string) {
-    const next = { ...branding, [key]: value || fallbackBranding[key] };
-    setBranding(next);
-    await saveBranding(next);
-  }
-
-  async function updateSignup(enabled: boolean) {
-    if (saving) return;
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      setSignup(await adminApi<SignupSettings>('/api/master/signup', { method: 'PATCH', body: JSON.stringify({ enabled }) }));
-      setMessage(`Signup turned ${enabled ? 'on' : 'off'}.`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not update signup.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return <section className="admMasterSettings" aria-busy={loading || saving}>
-    <SectionHeading title="Master controls" />
-    {error && <p className="admError" role="alert">{error}</p>}
-    {message && <p className="admSuccess" role="status">{message}</p>}
-    <div className="admSettingsGrid">
-      <section className="admBrandingPanel">
-        <div className="admSettingRow">
-          <div>
-            <span className={`admBadge admBadge-${signup.enabled ? 'published' : 'disabled'}`}><UserPlus size={13} />Signup {signup.enabled ? 'on' : 'off'}</span>
-            <h2>Public account creation</h2>
-            <p className="admMuted">Turn signup off to block the create-account page and prevent new accounts from being created.</p>
-          </div>
-          <button type="button" className="admButton admPrimary" disabled={loading || saving} onClick={() => void updateSignup(!signup.enabled)}>
-            <Power size={16} />Turn {signup.enabled ? 'off' : 'on'}
-          </button>
-        </div>
-      </section>
-      <section className="admBrandingPanel">
-        <SectionHeading title="Branding" />
-        <div className="admFormGrid">
-          <Field label="Brand name"><input maxLength={80} value={branding.name} onChange={event => setBranding({ ...branding, name: event.target.value })} /></Field>
-          <Field label="Site title"><input maxLength={140} value={branding.siteTitle} onChange={event => setBranding({ ...branding, siteTitle: event.target.value })} /></Field>
-          <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="logo" label="Master logo" round value={branding.logo} onChange={logo => void updateBrandingImage('logo', logo)} /></div>
-          <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="favicon" label="Master favicon" value={branding.favicon} onChange={favicon => void updateBrandingImage('favicon', favicon)} /></div>
-        </div>
-        <div className="admFormFooter">
-          <button type="button" className="admButton admPrimary" disabled={loading || saving} onClick={() => void saveBranding()}>{saving ? 'Saving...' : 'Save branding'}</button>
-        </div>
-      </section>
-    </div>
-  </section>;
-}
-
-function readPreferences(): { name?: string; avatar?: string } {
-  try { return JSON.parse(localStorage.getItem('smartlink_profile') || '{}'); } catch { return {}; }
 }

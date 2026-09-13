@@ -50,16 +50,17 @@ test('an invited email joins the inviting workspace instead of creating one', as
 
     const host = await signup.signUp({ email: 'host@example.test', password: 'a-long-password' });
     // The host invites a teammate who has no account yet: a pending record.
-    const invite = await users.addWorkspaceUser({ email: 'guest@example.test', name: 'Guest', passwordHash: '', workspaceId: host.workspaceId });
+    const token = 'a'.repeat(64);
+    const invite = await users.addWorkspaceUser({ email: 'guest@example.test', name: 'Guest', passwordHash: '', workspaceId: host.workspaceId, inviteHash: signup.invitationHash(token), inviteExpiresAt: new Date(Date.now() + 86400000).toISOString() });
     assert.equal(invite.pending, true);
     assert.equal(invite.workspaceId, host.workspaceId);
 
     const before = (await workspaces.listWorkspaces()).length;
-    const joined = await signup.signUp({ email: 'guest@example.test', password: 'another-long-password' });
+    const joined = await signup.acceptInvitation({ email: 'guest@example.test', password: 'another-long-password', token });
 
     assert.equal(joined.joinedInvite, true);
     assert.equal(joined.workspaceId, host.workspaceId);
-    assert.equal(joined.role, 'admin');
+    assert.equal(joined.role, 'member');
     assert.equal((await workspaces.listWorkspaces()).length, before, 'signing up on an invite must not create a workspace');
 
     const account = await users.findWorkspaceUser('guest@example.test');
@@ -78,11 +79,11 @@ test('signup refuses duplicates, weak passwords and the configured owner', async
     await assert.rejects(signup.signUp({ email: 'short@example.test', password: '1234567' }), /between 8 and 128/);
     await assert.rejects(signup.signUp({ email: 'not-an-email', password: 'a-long-password' }), /valid email/);
     // ADMIN_EMAIL owns the default workspace and cannot be re-registered.
-    await assert.rejects(signup.signUp({ email: 'admin@example.com', password: 'a-long-password' }), /already has an account/);
+    assert.notEqual((await signup.signUp({ email: 'admin@example.com', password: 'a-long-password' })).workspaceId, workspaces.DEFAULT_WORKSPACE_ID, 'there is no built-in admin email bypass');
   });
 });
 
-test('a disabled workspace blocks its members and the main workspace cannot be disabled', async () => {
+test('a disabled workspace blocks its members, including the legacy workspace', async () => {
   await withDataDirectory(async () => {
 
     const owner = await signup.signUp({ email: 'closing@example.test', password: 'a-long-password' });
@@ -92,8 +93,8 @@ test('a disabled workspace blocks its members and the main workspace cannot be d
     assert.equal(await workspaces.isWorkspaceActive(owner.workspaceId), false);
 
     await workspaces.ensureDefaultWorkspace('admin@example.com');
-    await assert.rejects(workspaces.updateWorkspace(workspaces.DEFAULT_WORKSPACE_ID, { status: 'disabled' }), /cannot be disabled/);
-    assert.equal(await workspaces.isWorkspaceActive(workspaces.DEFAULT_WORKSPACE_ID), true);
+    await workspaces.updateWorkspace(workspaces.DEFAULT_WORKSPACE_ID, { status: 'disabled' });
+    assert.equal(await workspaces.isWorkspaceActive(workspaces.DEFAULT_WORKSPACE_ID), false);
   });
 });
 

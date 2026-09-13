@@ -1,22 +1,24 @@
-import { createHash, randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { findWorkspaceUser, isPendingInvite } from './workspaceUsers';
-import { DEFAULT_WORKSPACE_ID, isWorkspaceActive } from './workspaces';
-import { isMasterEmail } from './master';
+import { isWorkspaceActive } from './workspaces';
+import { validMasterSession } from './master';
+import { canAccess, type WorkspacePermission, type WorkspaceRole } from './permissions';
 
 const cookieName = "smartlink_session";
 const sessionTtlSeconds = 60 * 60 * 8;
 
-export type SessionRole = 'owner' | 'admin';
+export type SessionRole = WorkspaceRole;
 /** Workspace sessions reach one workspace. Master sessions reach the unified
  *  admin shell plus master-only global routes. */
 export type SessionScope = 'workspace' | 'master';
-export type SessionDescriptor = { email: string; version?: number; workspaceId?: string; role?: SessionRole; scope?: SessionScope };
-export type AdminSession = { email: string; workspaceId: string; role: SessionRole; version?: number; expiresAt: number; isMaster?: boolean };
+export type SessionDescriptor = { email: string; accountId?: string; version?: number; credentialVersion?: string; workspaceId?: string; role?: SessionRole; scope?: SessionScope };
+export type AdminSession = { email: string; workspaceId: string; role: SessionRole; permissions?: WorkspacePermission[]; version?: number; expiresAt: number; isMaster?: boolean };
 export type MasterSession = { email: string; expiresAt: number };
 
 function secret() {
+  if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) throw new Error('SESSION_SECRET must be configured in production.');
   return process.env.SESSION_SECRET || "dev-secret-change-me-before-production";
 }
 
@@ -34,10 +36,10 @@ export function verifyPassword(password: string, storedHash: string) {
 }
 
 function sign(value: string) {
-  return createHash("sha256").update(`${value}.${secret()}`).digest("hex");
+  return createHmac('sha256', secret()).update(value).digest('hex');
 }
 
-/** Accepts a bare email so sessions minted before workspaces keep working. */
+/** Legacy bare tokens can be decoded but cannot authorize workspace access. */
 export function createSessionToken(input: string | SessionDescriptor, version?: number) {
   const descriptor: SessionDescriptor = typeof input === 'string' ? { email: input, version } : input;
   const expiresAt = Date.now() + sessionTtlSeconds * 1000;
@@ -47,8 +49,8 @@ export function createSessionToken(input: string | SessionDescriptor, version?: 
 
 export function readSessionToken(token?: string) {
   if (!token) return null;
-  const [payload, signature] = token.split(".");
-  if (!payload || !signature || sign(payload) !== signature) return null;
+  const [payload, signature, extra] = token.split(".");
+  if (!payload || !signature || extra !== undefined || !/^[a-f0-9]{64}$/.test(signature) || !timingSafeEqual(Buffer.from(sign(payload), 'hex'), Buffer.from(signature, 'hex'))) return null;
 
   try {
     const session = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionDescriptor & { expiresAt: number };
@@ -60,12 +62,13 @@ export function readSessionToken(token?: string) {
 }
 
 export function ownerEmail() {
-  return (process.env.ADMIN_EMAIL || "admin@example.com").trim().toLowerCase();
+  return (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
 }
 
 export function configuredAdmin() {
-  const email = ownerEmail();
-  const passwordHash = process.env.ADMIN_PASSWORD_HASH || hashPassword("admin123");
+  const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+  if (!email || !passwordHash) return null;
   return { email, passwordHash };
 }
 
@@ -74,35 +77,31 @@ async function readSession() {
   return readSessionToken(cookieStore.get(cookieName)?.value);
 }
 
-export async function requireAdmin() {
-  return resolveAdminSession(await readSession());
+export async function requireAdmin(permission?: WorkspacePermission) {
+  const session = await resolveAdminSession(await readSession());
+  return session && (!permission || canAccess(session, permission)) ? session : null;
 }
 
-/** Resolves an admin session for the unified admin shell. Master sessions also
- *  enter the shell, anchored to the default workspace, and are marked so only
- *  they can see global controls. */
+/** Master credentials remain global; workspace context is explicitly selected. */
 export async function resolveAdminSession(session: ReturnType<typeof readSessionToken>): Promise<AdminSession | null> {
   if (!session) return null;
 
   if (session.scope === 'master') {
-    if (!isMasterEmail(session.email)) return null;
-    return { ...session, workspaceId: DEFAULT_WORKSPACE_ID, role: 'owner', isMaster: true };
+    if (!(await validMasterSession(session))) return null;
+    return { ...session, workspaceId: session.workspaceId || '', role: 'owner', isMaster: true };
   }
 
-  // ADMIN_EMAIL owns the default workspace and has no workspace_users row.
-  if (session.email.toLowerCase() === ownerEmail()) {
-    return { ...session, workspaceId: DEFAULT_WORKSPACE_ID, role: 'owner' };
-  }
-
+  if (session.scope !== 'workspace' || !session.workspaceId) return null;
   const user = await findWorkspaceUser(session.email);
-  if (!user?.active || isPendingInvite(user) || session.version !== user.version) return null;
+  if (!user?.active || isPendingInvite(user) || session.version !== user.version || session.accountId !== user.id) return null;
+  if (session.workspaceId !== user.workspaceId) return null;
   if (!(await isWorkspaceActive(user.workspaceId))) return null;
-  return { ...session, workspaceId: user.workspaceId, role: user.role };
+  return { ...session, workspaceId: user.workspaceId, role: user.role, permissions: user.permissions };
 }
 
 export async function requireMaster(): Promise<MasterSession | null> {
   const session = await readSession();
-  if (!session || session.scope !== 'master' || !isMasterEmail(session.email)) return null;
+  if (!session || !(await validMasterSession(session))) return null;
   return { email: session.email, expiresAt: session.expiresAt };
 }
 
@@ -125,11 +124,12 @@ export async function clearSessionCookie() {
 /** Runs `handler` with the caller's workspace session. Every workspace API goes
  *  through here, so the workspace id is always the session's, never the
  *  client's. */
-export async function protectedJson<T>(handler: (session: AdminSession) => Promise<T>) {
+export async function protectedJson<T>(handler: (session: AdminSession) => Promise<T>, permission: WorkspacePermission = 'pages') {
   const session = await requireAdmin();
   if (!session) {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
+  if (!canAccess(session, permission)) return NextResponse.json({ error: 'Permission required' }, { status: 403 });
 
   try {
     return NextResponse.json(await handler(session));

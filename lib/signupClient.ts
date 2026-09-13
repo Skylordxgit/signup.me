@@ -1,11 +1,11 @@
 // Client-only request handling; do not import the server signup/auth modules here.
-export async function submitSignup(input: { email: unknown; password: unknown; name?: unknown }) {
+export async function submitSignup(input: { email: unknown; password: unknown; name?: unknown; token?: string }) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
   try {
     let response: Response;
     try {
-      response = await fetch("/api/auth/signup", {
+      response = await fetch(input.token !== undefined ? '/api/auth/invite' : '/api/auth/signup', {
         method: "POST",
         headers: { "content-type": "application/json", accept: "application/json" },
         credentials: "same-origin",

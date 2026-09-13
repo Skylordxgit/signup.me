@@ -5,7 +5,7 @@ import { exportFileName, exportPages } from '@/lib/pageTransfer';
 export async function POST(request: NextRequest) {
   // Workspace owners and admins only; a master session has no workspace and is
   // rejected here, so it cannot export workspace pages.
-  const session = await requireAdmin();
+  const session = await requireAdmin('pages');
   if (!session) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
   try {

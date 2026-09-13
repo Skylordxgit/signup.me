@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { configuredAdmin, setSessionCookie, verifyPassword } from "@/lib/auth";
-import { masterAdmin } from '@/lib/master';
-import { findWorkspaceUser, isPendingInvite } from '@/lib/workspaceUsers';
+import { masterAdmin, masterCredentialVersion, provisionMaster } from '@/lib/master';
+import { addWorkspaceUser, findWorkspaceUser, isPendingInvite } from '@/lib/workspaceUsers';
 import { DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, isWorkspaceActive } from '@/lib/workspaces';
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -31,17 +31,19 @@ export async function POST(request: NextRequest) {
   // master-only global controls enabled.
   if (master && normalizedEmail === master.email) {
     if (!usable || !verifyPassword(password!, master.passwordHash)) return reject();
+    const account = await provisionMaster();
+    if (!account?.active || !verifyPassword(password!, account.passwordHash)) return reject();
     attempts.delete(ip);
-    await setSessionCookie({ email: normalizedEmail, scope: 'master' });
-    return NextResponse.json({ ok: true, scope: 'master', redirect: '/admin' });
+    await setSessionCookie({ email: normalizedEmail, scope: 'master', version: account.version, credentialVersion: masterCredentialVersion() });
+    return NextResponse.json({ ok: true, scope: 'master', redirect: '/admin/master' });
   }
 
-  if (normalizedEmail === admin.email) {
+  // Migrate the old configured workspace owner once, then use normal database
+  // membership validation. There is no environment-only workspace session.
+  if (admin && normalizedEmail === admin.email && !(await findWorkspaceUser(normalizedEmail))) {
     if (!usable || !verifyPassword(password!, admin.passwordHash)) return reject();
     await ensureDefaultWorkspace(admin.email);
-    attempts.delete(ip);
-    await setSessionCookie({ email: normalizedEmail, workspaceId: DEFAULT_WORKSPACE_ID, role: 'owner', scope: 'workspace' });
-    return NextResponse.json({ ok: true, scope: 'workspace', redirect: '/admin' });
+    await addWorkspaceUser({ email: admin.email, passwordHash: admin.passwordHash, name: 'Workspace owner', workspaceId: DEFAULT_WORKSPACE_ID, role: 'owner' });
   }
 
   const member = await findWorkspaceUser(normalizedEmail);
@@ -50,6 +52,6 @@ export async function POST(request: NextRequest) {
   if (!(await isWorkspaceActive(member.workspaceId))) return reject(403, 'This workspace is disabled. Contact your administrator.');
 
   attempts.delete(ip);
-  await setSessionCookie({ email: normalizedEmail, version: member.version, workspaceId: member.workspaceId, role: member.role, scope: 'workspace' });
+  await setSessionCookie({ email: normalizedEmail, accountId: member.id, version: member.version, workspaceId: member.workspaceId, role: member.role, scope: 'workspace' });
   return NextResponse.json({ ok: true, scope: 'workspace', redirect: '/admin' });
 }

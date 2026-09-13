@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json() as Record<string, unknown> | null;
     const result = await signUp({ email: body?.email, password: body?.password, name: body?.name });
-    await setSessionCookie({ email: result.email, version: result.version, workspaceId: result.workspaceId, role: result.role, scope: 'workspace' });
+    await setSessionCookie({ email: result.email, accountId: result.accountId, version: result.version, workspaceId: result.workspaceId, role: result.role, scope: 'workspace' });
     return NextResponse.json({ ok: true, workspaceId: result.workspaceId, joinedInvite: result.joinedInvite }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Could not create the account." }, { status: 400 });

@@ -28,6 +28,7 @@ type PageRow = {
 };
 
 type BlockRow = {
+  workspace_id: string;
   id: number;
   page_id: number;
   type: BlockType;
@@ -48,6 +49,7 @@ type BlockRow = {
 };
 
 type PushRow = {
+  workspace_id: string;
   id: number;
   page_id: number;
   slug: string;
@@ -107,6 +109,7 @@ function toJson<T>(value: unknown, fallback: T): T {
 
 function mapBlock(row: BlockRow): PageBlock {
   return {
+    workspaceId: row.workspace_id,
     id: row.id,
     pageId: row.page_id,
     type: row.type,
@@ -162,8 +165,8 @@ async function blocksForPage(pageId: number) {
   return rows.map(mapBlock);
 }
 
-async function loadPage(pageId: number) {
-  const rows = await mysqlQuery<PageRow[]>("SELECT * FROM pages WHERE id = ?", [pageId]);
+async function loadPage(pageId: number, workspaceId?: string) {
+  const rows = await mysqlQuery<PageRow[]>(`SELECT * FROM pages WHERE id = ?${workspaceId !== undefined ? ' AND workspace_id = ?' : ''}`, [pageId, ...(workspaceId !== undefined ? [workspaceId] : [])]);
   if (!rows[0]) return null;
   return mapPage(rows[0], await blocksForPage(pageId));
 }
@@ -184,7 +187,8 @@ function ensurePushTable() {
     `CREATE TABLE IF NOT EXISTS push_subscriptions (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
       page_id BIGINT UNSIGNED NOT NULL,
-      endpoint_hash CHAR(64) NOT NULL UNIQUE,
+      workspace_id CHAR(36) NOT NULL,
+      endpoint_hash CHAR(64) NOT NULL,
       subscription_json JSON NOT NULL,
       user_agent VARCHAR(500) NULL,
       client_details JSON NULL,
@@ -194,10 +198,12 @@ function ensurePushTable() {
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       CONSTRAINT fk_push_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
       INDEX idx_push_page (page_id)
+      ,UNIQUE KEY idx_push_workspace_endpoint (workspace_id, endpoint_hash)
     )`,
   ).then(async () => {
     // Upgrade existing installations automatically; concurrent workers may race.
     for (const { name, sql } of [
+      { name: 'workspace_id', sql: "ALTER TABLE push_subscriptions ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'" },
       { name: 'client_details', sql: 'ALTER TABLE push_subscriptions ADD COLUMN client_details JSON NULL' },
       { name: 'is_active', sql: 'ALTER TABLE push_subscriptions ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1' },
       { name: 'last_failed_at', sql: 'ALTER TABLE push_subscriptions ADD COLUMN last_failed_at TIMESTAMP NULL' },
@@ -207,6 +213,16 @@ function ensurePushTable() {
         try { await mysqlQuery(sql); }
         catch (error) { if ((error as { code?: string }).code !== 'ER_DUP_FIELDNAME') throw error; }
       }
+    }
+    await mysqlQuery('UPDATE push_subscriptions ps INNER JOIN pages p ON p.id = ps.page_id SET ps.workspace_id = p.workspace_id WHERE ps.workspace_id <> p.workspace_id');
+    const indexes = await mysqlQuery<{ Key_name: string }[]>('SHOW INDEX FROM push_subscriptions');
+    if (!indexes.some(index => index.Key_name === 'idx_push_workspace_endpoint')) {
+      try { await mysqlQuery('ALTER TABLE push_subscriptions ADD UNIQUE KEY idx_push_workspace_endpoint (workspace_id, endpoint_hash)'); }
+      catch (error) { if ((error as { code?: string }).code !== 'ER_DUP_KEYNAME') throw error; }
+    }
+    if (indexes.some(index => index.Key_name === 'endpoint_hash')) {
+      try { await mysqlQuery('ALTER TABLE push_subscriptions DROP INDEX endpoint_hash'); }
+      catch (error) { if ((error as { code?: string }).code !== 'ER_CANT_DROP_FIELD_OR_KEY') throw error; }
     }
   }).catch(error => { pushTableReady = null; throw error; });
   return pushTableReady;
@@ -274,8 +290,8 @@ export async function listPages(workspaceId?: string) {
   }));
 }
 
-export async function getPageById(id: number) {
-  return loadPage(id);
+export async function getPageById(id: number, workspaceId?: string) {
+  return loadPage(id, workspaceId);
 }
 
 /** Page totals per workspace, for the master admin overview. */
@@ -423,9 +439,10 @@ export async function duplicatePage(id: number) {
 
     for (const block of page.blocks) {
       await query(
-        `INSERT INTO page_blocks (page_id, type, title, subtitle, url, icon, phone, message, image_url, video_url, settings, sort_order, is_active, clicks)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+        `INSERT INTO page_blocks (workspace_id, page_id, type, title, subtitle, url, icon, phone, message, image_url, video_url, settings, sort_order, is_active, clicks)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
         [
+          page.workspaceId,
           newPageId,
           block.type,
           block.title,
@@ -455,9 +472,10 @@ export async function createBlock(pageId: number, type: BlockType) {
 
   const block = emptyBlock(pageId, type, page.blocks.length + 1);
   const result = await mysqlQuery<{ insertId: number }>(
-    `INSERT INTO page_blocks (page_id, type, title, subtitle, url, icon, phone, message, image_url, video_url, settings, sort_order, is_active, clicks)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    `INSERT INTO page_blocks (workspace_id, page_id, type, title, subtitle, url, icon, phone, message, image_url, video_url, settings, sort_order, is_active, clicks)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     [
+      page.workspaceId,
       pageId,
       block.type,
       block.title,
@@ -475,7 +493,7 @@ export async function createBlock(pageId: number, type: BlockType) {
   );
   await mysqlQuery("UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [pageId]);
 
-  return { ...block, id: result.insertId };
+  return { ...block, workspaceId: page.workspaceId, id: result.insertId };
 }
 
 /** The page a block belongs to, so routes can check the workspace before
@@ -544,9 +562,10 @@ export async function duplicateBlock(id: number) {
   await mysqlQuery("UPDATE page_blocks SET sort_order = sort_order + 1 WHERE page_id = ? AND sort_order > ?", [row.page_id, block.sortOrder]);
 
   const result = await mysqlQuery<{ insertId: number }>(
-    `INSERT INTO page_blocks (page_id, type, title, subtitle, url, icon, phone, message, image_url, video_url, settings, sort_order, is_active, clicks)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    `INSERT INTO page_blocks (workspace_id, page_id, type, title, subtitle, url, icon, phone, message, image_url, video_url, settings, sort_order, is_active, clicks)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     [
+      row.workspace_id,
       row.page_id,
       block.type,
       `${block.title} Copy`,
@@ -601,8 +620,8 @@ export async function trackView(slug: string, userAgent: string, referrer: strin
     [isNewVisitor ? 1 : 0, pageId],
   );
   await mysqlQuery(
-    "INSERT INTO page_views (page_id, visitor_hash, device_type, referrer) VALUES (?, ?, ?, ?)",
-    [pageId, hash, detectDevice(userAgent), safeReferrer(referrer)],
+    "INSERT INTO page_views (workspace_id, page_id, visitor_hash, device_type, referrer) SELECT workspace_id, id, ?, ?, ? FROM pages WHERE id = ?",
+    [hash, detectDevice(userAgent), safeReferrer(referrer), pageId],
   );
 
   return { ok: true };
@@ -614,8 +633,8 @@ export async function trackClick(pageId: number, blockId: number, userAgent: str
 
   await mysqlQuery("UPDATE page_blocks SET clicks = clicks + 1 WHERE id = ?", [blockId]);
   await mysqlQuery(
-    "INSERT INTO link_clicks (page_id, block_id, device_type, referrer) VALUES (?, ?, ?, ?)",
-    [pageId, blockId, detectDevice(userAgent), safeReferrer(referrer)],
+    "INSERT INTO link_clicks (workspace_id, page_id, block_id, device_type, referrer) SELECT workspace_id, page_id, id, ?, ? FROM page_blocks WHERE id = ? AND page_id = ?",
+    [detectDevice(userAgent), safeReferrer(referrer), blockId, pageId],
   );
 
   return { ok: true };
@@ -680,29 +699,30 @@ export async function analyticsForPage(pageId: number): Promise<AnalyticsReport 
 
 export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails) {
   await ensurePushTable();
-  const rows = await mysqlQuery<{ id: number }[]>("SELECT id FROM pages WHERE slug = ? AND status = 'published'", [slug]);
+  const rows = await mysqlQuery<{ id: number; workspace_id: string }[]>("SELECT id, workspace_id FROM pages WHERE slug = ? AND status = 'published'", [slug]);
   const pageId = rows[0]?.id;
   if (!pageId) return null;
 
   const endpointHash = subscriptionHash(subscription.endpoint);
   await mysqlQuery(
-    `INSERT INTO push_subscriptions (page_id, endpoint_hash, subscription_json, user_agent, client_details, is_active, last_failed_at)
-     VALUES (?, ?, ?, ?, ?, 1, NULL)
+    `INSERT INTO push_subscriptions (workspace_id, page_id, endpoint_hash, subscription_json, user_agent, client_details, is_active, last_failed_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, NULL)
      ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), client_details = COALESCE(VALUES(client_details), client_details), is_active = 1, last_failed_at = NULL`,
-    [pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500), details ? JSON.stringify(details) : null],
+    [rows[0].workspace_id, pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500), details ? JSON.stringify(details) : null],
   );
 
   const saved = await mysqlQuery<PushRow[]>(
     `SELECT ps.*, p.slug FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
-     WHERE ps.endpoint_hash = ?`,
-    [endpointHash],
+     WHERE ps.endpoint_hash = ? AND ps.workspace_id = ?`,
+    [endpointHash, rows[0].workspace_id],
   );
   const row = saved[0];
   if (!row) return null;
   return {
     id: row.id,
     pageId: row.page_id,
+    workspaceId: row.workspace_id,
     slug: row.slug,
     endpointHash: row.endpoint_hash,
     subscription: toJson<PushSubscriptionRecord>(row.subscription_json, subscription),
@@ -809,7 +829,7 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   const { result, expired } = await sendPushBatch(subscriptions, notificationPayload({ ...input, campaignId }));
   if (expired.length) {
     const hashes = expired.map(subscriptionHash);
-    await mysqlQuery(`UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE endpoint_hash IN (${hashes.map(() => '?').join(',')})`, hashes);
+    await mysqlQuery(`UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE workspace_id = ? AND endpoint_hash IN (${hashes.map(() => '?').join(',')})`, [input.workspaceId || DEFAULT_WORKSPACE_ID, ...hashes]);
   }
   await mysqlQuery(
     `UPDATE notification_campaigns

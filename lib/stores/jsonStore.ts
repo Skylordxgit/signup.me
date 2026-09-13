@@ -1,4 +1,4 @@
-import { createHash } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
 import type { AnalyticsReport, BlockType, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
@@ -11,14 +11,39 @@ import { DEFAULT_WORKSPACE_ID } from "../workspaces";
 
 type DatabaseShape = {
   pages: SmartPage[];
-  pageViews: { id: number; pageId: number; date: string; device: string; referrer: string; visitorKey: string }[];
-  linkClicks: { id: number; pageId: number; blockId: number; date: string; device: string; referrer: string }[];
+  pageViews: { id: number; workspaceId: string; pageId: number; date: string; device: string; referrer: string; visitorKey: string }[];
+  linkClicks: { id: number; workspaceId: string; pageId: number; blockId: number; date: string; device: string; referrer: string }[];
   pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
   notificationCampaigns: NotificationCampaign[];
 };
 
 /* Resolved per call rather than at import, so the working directory in effect
    when the store is used decides the file. */
+// ponytail: one process-wide JSON writer; use MySQL for multiple server processes.
+let writeQueue: Promise<unknown> = Promise.resolve();
+function serialized<Args extends unknown[], Result>(run: (...args: Args) => Promise<Result>) {
+  return (...args: Args): Promise<Result> => {
+    const operation = writeQueue.catch(() => {}).then(() => run(...args));
+    writeQueue = operation;
+    return operation;
+  };
+}
+
+export const createPage = serialized(createPageUnlocked);
+export const updatePage = serialized(updatePageUnlocked);
+export const deletePage = serialized(deletePageUnlocked);
+export const duplicatePage = serialized(duplicatePageUnlocked);
+export const createBlock = serialized(createBlockUnlocked);
+export const updateBlock = serialized(updateBlockUnlocked);
+export const deleteBlock = serialized(deleteBlockUnlocked);
+export const duplicateBlock = serialized(duplicateBlockUnlocked);
+export const reorderBlocks = serialized(reorderBlocksUnlocked);
+export const trackView = serialized(trackViewUnlocked);
+export const trackClick = serialized(trackClickUnlocked);
+export const savePushSubscription = serialized(savePushSubscriptionUnlocked);
+export const sendPushNotification = serialized(sendPushNotificationUnlocked);
+export const recordNotificationCampaignEvent = serialized(recordNotificationCampaignEventUnlocked);
+
 function dataFile() {
   return path.join(process.cwd(), "data", "db.json");
 }
@@ -27,16 +52,18 @@ async function readJsonDb(): Promise<DatabaseShape> {
   try {
     const file = await fs.readFile(dataFile(), "utf8");
     const db = JSON.parse(file) as Partial<DatabaseShape>;
+    const pages = (db.pages ?? []).map(sortBlocks);
+    const scope = <T extends { pageId: number }>(record: T) => ({ ...record, workspaceId: pages.find(page => page.id === record.pageId)?.workspaceId || DEFAULT_WORKSPACE_ID });
     return {
-      pages: db.pages ?? [],
-      pageViews: db.pageViews ?? [],
-      linkClicks: db.linkClicks ?? [],
-      pushSubscriptions: db.pushSubscriptions ?? [],
+      pages,
+      pageViews: (db.pageViews ?? []).map(scope),
+      linkClicks: (db.linkClicks ?? []).map(scope),
+      pushSubscriptions: (db.pushSubscriptions ?? []).map(scope),
       notificationCampaigns: db.notificationCampaigns ?? [],
     };
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [], pushSubscriptions: [], notificationCampaigns: [] };
-    await writeJsonDb(initial);
     return initial;
   }
 }
@@ -44,7 +71,9 @@ async function readJsonDb(): Promise<DatabaseShape> {
 async function writeJsonDb(db: DatabaseShape) {
   const target = dataFile();
   await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, JSON.stringify(db, null, 2));
+  const temporary = target + '.' + randomUUID() + '.tmp';
+  await fs.writeFile(temporary, JSON.stringify(db, null, 2), { mode: 0o600 });
+  await fs.rename(temporary, target);
 }
 
 function nextId(items: { id: number }[]) {
@@ -55,9 +84,10 @@ function nextBlockId(pages: SmartPage[]) {
   return nextId(pages.flatMap((page) => page.blocks));
 }
 
-function sortBlocks(page: SmartPage) {
+function sortBlocks(page: SmartPage): SmartPage {
   // Pages stored before workspaces existed belong to the default workspace.
-  return { ...page, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID, blocks: [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder) };
+  const workspaceId = page.workspaceId || DEFAULT_WORKSPACE_ID;
+  return { ...page, workspaceId, blocks: page.blocks.map(block => ({ ...block, workspaceId })).sort((a, b) => a.sortOrder - b.sortOrder) };
 }
 
 function inWorkspace(page: SmartPage, workspaceId?: string) {
@@ -75,9 +105,9 @@ export async function pagesByWorkspace() {
   return db.pages.map((page) => ({ id: page.id, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID }));
 }
 
-export async function getPageById(id: number) {
+export async function getPageById(id: number, workspaceId?: string) {
   const db = await readJsonDb();
-  const page = db.pages.find((item) => item.id === id);
+  const page = db.pages.find((item) => item.id === id && (workspaceId === undefined || item.workspaceId === workspaceId || !item.workspaceId && workspaceId === DEFAULT_WORKSPACE_ID));
   return page ? sortBlocks(page) : null;
 }
 
@@ -87,7 +117,7 @@ export async function getPublicPageBySlug(slug: string) {
   return page ? sortBlocks(page) : null;
 }
 
-export async function createPage(input: {
+async function createPageUnlocked(input: {
   name: string;
   slug: string;
   title: string;
@@ -136,7 +166,7 @@ export async function createPage(input: {
   return sortBlocks(page);
 }
 
-export async function updatePage(id: number, patch: Partial<SmartPage>) {
+async function updatePageUnlocked(id: number, patch: Partial<SmartPage>) {
   const db = await readJsonDb();
   const index = db.pages.findIndex((page) => page.id === id);
   if (index === -1) return null;
@@ -156,26 +186,30 @@ export async function updatePage(id: number, patch: Partial<SmartPage>) {
   db.pages[index] = {
     ...db.pages[index],
     ...patch,
+    id: db.pages[index].id,
     // The owning workspace is not editable through the page API.
     workspaceId: db.pages[index].workspaceId || DEFAULT_WORKSPACE_ID,
     slug: nextSlug,
     updatedAt: nowIso(),
-    blocks: patch.blocks ?? db.pages[index].blocks,
+    blocks: db.pages[index].blocks,
   };
 
   await writeJsonDb(db);
   return sortBlocks(db.pages[index]);
 }
 
-export async function deletePage(id: number) {
+async function deletePageUnlocked(id: number) {
   const db = await readJsonDb();
   const before = db.pages.length;
   db.pages = db.pages.filter((page) => page.id !== id);
+  db.pageViews = db.pageViews.filter(row => row.pageId !== id);
+  db.linkClicks = db.linkClicks.filter(row => row.pageId !== id);
+  db.pushSubscriptions = db.pushSubscriptions.filter(row => row.pageId !== id);
   await writeJsonDb(db);
   return db.pages.length !== before;
 }
 
-export async function duplicatePage(id: number) {
+async function duplicatePageUnlocked(id: number) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === id);
   if (!page) return null;
@@ -216,12 +250,12 @@ export async function duplicatePage(id: number) {
   return sortBlocks(duplicate);
 }
 
-export async function createBlock(pageId: number, type: BlockType) {
+async function createBlockUnlocked(pageId: number, type: BlockType) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId);
   if (!page) return null;
 
-  const block = { ...emptyBlock(pageId, type, page.blocks.length + 1), id: nextBlockId(db.pages) };
+  const block = { ...emptyBlock(pageId, type, page.blocks.length + 1), workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID, id: nextBlockId(db.pages) };
   page.blocks.push(block);
   page.updatedAt = nowIso();
   await writeJsonDb(db);
@@ -235,7 +269,7 @@ export async function blockPageId(id: number) {
   return db.pages.find((page) => page.blocks.some((block) => block.id === id))?.id ?? null;
 }
 
-export async function updateBlock(id: number, patch: Partial<PageBlock>) {
+async function updateBlockUnlocked(id: number, patch: Partial<PageBlock>) {
   const db = await readJsonDb();
   for (const page of db.pages) {
     const index = page.blocks.findIndex((block) => block.id === id);
@@ -245,7 +279,7 @@ export async function updateBlock(id: number, patch: Partial<PageBlock>) {
       throw new Error("Invalid URL");
     }
 
-    page.blocks[index] = { ...page.blocks[index], ...patch, updatedAt: nowIso() };
+    page.blocks[index] = { ...page.blocks[index], ...patch, id: page.blocks[index].id, pageId: page.id, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID, updatedAt: nowIso() };
     page.updatedAt = nowIso();
     await writeJsonDb(db);
     return page.blocks[index];
@@ -253,7 +287,7 @@ export async function updateBlock(id: number, patch: Partial<PageBlock>) {
   return null;
 }
 
-export async function deleteBlock(id: number) {
+async function deleteBlockUnlocked(id: number) {
   const db = await readJsonDb();
   for (const page of db.pages) {
     const index = page.blocks.findIndex((block) => block.id === id);
@@ -268,7 +302,7 @@ export async function deleteBlock(id: number) {
   return false;
 }
 
-export async function duplicateBlock(id: number) {
+async function duplicateBlockUnlocked(id: number) {
   const db = await readJsonDb();
   for (const page of db.pages) {
     const block = page.blocks.find((item) => item.id === id);
@@ -292,7 +326,7 @@ export async function duplicateBlock(id: number) {
   return null;
 }
 
-export async function reorderBlocks(pageId: number, blockIds: number[]) {
+async function reorderBlocksUnlocked(pageId: number, blockIds: number[]) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId);
   if (!page) return null;
@@ -308,7 +342,7 @@ export async function reorderBlocks(pageId: number, blockIds: number[]) {
   return sortBlocks(page);
 }
 
-export async function trackView(slug: string, userAgent: string, referrer: string | null, visitorKey: string) {
+async function trackViewUnlocked(slug: string, userAgent: string, referrer: string | null, visitorKey: string) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.slug === slug && item.status === "published");
   if (!page) return null;
@@ -318,6 +352,7 @@ export async function trackView(slug: string, userAgent: string, referrer: strin
     page.uniqueVisitors += 1;
   }
   db.pageViews.push({
+    workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID,
     id: nextId(db.pageViews),
     pageId: page.id,
     date: nowIso(),
@@ -329,7 +364,7 @@ export async function trackView(slug: string, userAgent: string, referrer: strin
   return { ok: true };
 }
 
-export async function trackClick(pageId: number, blockId: number, userAgent: string, referrer: string | null) {
+async function trackClickUnlocked(pageId: number, blockId: number, userAgent: string, referrer: string | null) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId);
   const block = page?.blocks.find((item) => item.id === blockId);
@@ -337,6 +372,7 @@ export async function trackClick(pageId: number, blockId: number, userAgent: str
 
   block.clicks += 1;
   db.linkClicks.push({
+    workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID,
     id: nextId(db.linkClicks),
     pageId,
     blockId,
@@ -393,14 +429,15 @@ function subscriptionHash(endpoint: string) {
   return createHash("sha256").update(endpoint).digest("hex");
 }
 
-export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails) {
+async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.slug === slug && item.status === "published");
   if (!page) return null;
 
   const timestamp = nowIso();
   const endpointHash = subscriptionHash(subscription.endpoint);
-  const existing = db.pushSubscriptions.find((item) => item.endpointHash === endpointHash);
+  const workspaceId = page.workspaceId || DEFAULT_WORKSPACE_ID;
+  const existing = db.pushSubscriptions.find((item) => item.endpointHash === endpointHash && item.workspaceId === workspaceId);
   if (existing) {
     existing.pageId = page.id;
     existing.slug = page.slug;
@@ -415,6 +452,7 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
   }
 
   const subscriber = {
+    workspaceId,
     id: nextId(db.pushSubscriptions),
     pageId: page.id,
     slug: page.slug,
@@ -477,7 +515,7 @@ export async function trackNotificationCampaignClick(campaignId: number) {
   return Boolean(await recordNotificationCampaignEvent(campaignId, 'clicked'));
 }
 
-export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
+async function sendPushNotificationUnlocked(input: NotificationSendInput): Promise<NotificationSendResult> {
   configureWebPush();
   const db = await readJsonDb();
   const page = input.pageId ? db.pages.find(item => item.id === input.pageId) : undefined;
@@ -521,14 +559,14 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   }
   if (expired.length) {
     const hashes = new Set(expired.map(subscriptionHash));
-    latest.pushSubscriptions = latest.pushSubscriptions.map(item => hashes.has(item.endpointHash) ? { ...item, isActive: false, lastFailedAt: timestamp, updatedAt: timestamp } : item);
+    latest.pushSubscriptions = latest.pushSubscriptions.map(item => item.workspaceId === campaign.workspaceId && hashes.has(item.endpointHash) ? { ...item, isActive: false, lastFailedAt: timestamp, updatedAt: timestamp } : item);
   }
   await writeJsonDb(latest);
 
   return { ...result, campaignId: campaign.id, campaign: stored ?? campaign };
 }
 
-export async function recordNotificationCampaignEvent(campaignId: number, event: 'delivered' | 'seen' | 'clicked') {
+async function recordNotificationCampaignEventUnlocked(campaignId: number, event: 'delivered' | 'seen' | 'clicked') {
   if (!Number.isFinite(campaignId)) return null;
   const db = await readJsonDb();
   const campaign = db.notificationCampaigns.find(item => item.id === campaignId);

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
-import { hasMysqlConfig, mysqlQuery } from './mysql';
+import { hasMysqlConfig, mysqlQuery, type TransactionQuery } from './mysql';
 import { DEFAULT_WORKSPACE_ID } from './workspaceConstants';
 
 /* The workspace every pre-multi-workspace page and admin belongs to. It is a
@@ -64,17 +64,19 @@ export async function listWorkspaces(): Promise<Workspace[]> {
 }
 
 export async function getWorkspace(id: string): Promise<Workspace | null> {
+  if (hasMysqlConfig()) {
+    const rows = await mysqlQuery<(Workspace & { createdAt: Date })[]>('SELECT id, name, owner_email AS ownerEmail, status, created_at AS createdAt FROM workspaces WHERE id = ?', [id]);
+    return rows[0] ? { ...rows[0], createdAt: new Date(rows[0].createdAt).toISOString() } : null;
+  }
   return (await listWorkspaces()).find(workspace => workspace.id === id) ?? null;
 }
 
-/** A workspace with no stored record is treated as active so existing
- *  single-workspace installs keep working before the default row is written. */
+/** Missing or unreadable workspace state never grants access. */
 export async function isWorkspaceActive(id: string) {
-  try { return (await getWorkspace(id))?.status !== 'disabled'; }
-  catch { return true; }
+  return (await getWorkspace(id))?.status === 'active';
 }
 
-export async function createWorkspace(input: { name: string; ownerEmail: string; id?: string }): Promise<Workspace> {
+export async function createWorkspace(input: { name: string; ownerEmail: string; id?: string }, query: TransactionQuery = mysqlQuery): Promise<Workspace> {
   const workspace: Workspace = {
     id: input.id || randomUUID(),
     name: input.name.trim().slice(0, 190) || 'New workspace',
@@ -83,7 +85,7 @@ export async function createWorkspace(input: { name: string; ownerEmail: string;
     createdAt: new Date().toISOString(),
   };
   if (hasMysqlConfig()) {
-    await mysqlQuery(
+    await query(
       'INSERT INTO workspaces (id, name, owner_email, status) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE id = id',
       [workspace.id, workspace.name, workspace.ownerEmail, workspace.status],
     );
@@ -95,6 +97,14 @@ export async function createWorkspace(input: { name: string; ownerEmail: string;
   return workspace;
 }
 
+export async function removeEmptyWorkspace(id: string) {
+  if (hasMysqlConfig()) throw new Error('Use a transaction to roll back workspace creation.');
+  await mutateWorkspaces(workspaces => {
+    const index = workspaces.findIndex(workspace => workspace.id === id);
+    if (index !== -1) workspaces.splice(index, 1);
+  });
+}
+
 /** Writes the record for the workspace that existing data already belongs to,
  *  owned by ADMIN_EMAIL. Safe to call repeatedly; it never overwrites. */
 export async function ensureDefaultWorkspace(ownerEmail: string) {
@@ -104,7 +114,6 @@ export async function ensureDefaultWorkspace(ownerEmail: string) {
 }
 
 export async function updateWorkspace(id: string, patch: { status?: WorkspaceStatus; name?: string }) {
-  if (id === DEFAULT_WORKSPACE_ID && patch.status === 'disabled') throw new Error('The main workspace cannot be disabled.');
   if (hasMysqlConfig()) {
     const result = await mysqlQuery<{ affectedRows: number }>(
       'UPDATE workspaces SET status = COALESCE(?, status), name = COALESCE(?, name) WHERE id = ?',

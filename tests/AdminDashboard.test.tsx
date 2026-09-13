@@ -18,11 +18,13 @@ import { isValidImageUrl, isValidSlug, parseBlockIcon, slugify, slugifyDraft } f
 import { resolveUploadPath, uploadRoots } from "../lib/uploads";
 import type { AnalyticsReport } from "../lib/types";
 
-test("the admin shell uses full workspace navigation without a phone frame", () => {
+test("the admin shell waits for permissions before showing workspace tools", () => {
   const html = renderToStaticMarkup(<AdminDashboard />);
   assert.match(html, /admSidebar/);
   assert.match(html, /admTopbar/);
-  for (const name of ['Dashboard', 'Pages', 'Create Page', 'Analytics', 'Media', 'Themes', 'Notifications', 'Settings', 'Logout']) assert.ok(html.includes(name));
+  assert.ok(html.includes('Settings'));
+  assert.ok(html.includes('Logout'));
+  assert.doesNotMatch(html, /aria-label="Team"|aria-label="Create Page"/);
   assert.doesNotMatch(html, /phoneDevice|phoneStage/);
 });
 

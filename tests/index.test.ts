@@ -9,3 +9,4 @@ import './branding.test';
 import './authUi.test';
 import './pageTransfer.test';
 import './signupClient.test';
+import './workspaceIsolation.test';

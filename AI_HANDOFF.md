@@ -303,6 +303,9 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-13: Refactored Admin and Workspace architecture to enforce exactly two admin types: Master Admin (global) and Workspace Admin/Owner (scoped). Removed 'admin' role in favor of 'owner'. Direct signups create isolated workspaces without default inheritance. Master Admins now have universal global access across the platform without requiring an explicit workspace_id.
+
+
 - 2026-09-09: Added notification campaign history. `/api/admin/notifications`
   now returns recent campaigns with per-workspace scoping. Sending a push
   creates a `notification_campaigns` row before delivery, attaches the campaign
@@ -467,3 +470,4 @@ At minimum, add a short note under this section:
   `/api/notifications/campaign-event`. Verification passed: `npm run lint`,
   `./node_modules/.bin/tsc --noEmit --incremental false`, `npm test` (50
   passing), and `npm run build`.
+

@@ -4,7 +4,7 @@ import { listNotificationCampaigns, listPushSubscribers } from "@/lib/store";
 import { webPushConfigured } from "@/lib/push";
 
 export async function GET() {
-  const session = await requireAdmin();
+  const session = await requireAdmin('notifications');
   if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
   return NextResponse.json({
