@@ -303,6 +303,13 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-13: Rebuilt `/admin/master` as a responsive control center instead
+  of a long stacked settings page. Desktop now uses a dark persistent sidebar
+  with Overview, Workspaces, All users, Global branding, and Signup access;
+  mobile uses an accessible drawer. Added an overview hero, clearer metrics,
+  workspace/user cards, a live branding preview, and a focused signup-status
+  panel. Also removed corrupted template strings left by an earlier scripted
+  edit. Verification passed: lint, TypeScript, 57 tests, and production build.
 - 2026-09-13: Refactored Admin and Workspace architecture to enforce exactly two admin types: Master Admin (global) and Workspace Admin/Owner (scoped). Removed 'admin' role in favor of 'owner'. Direct signups create isolated workspaces without default inheritance. Master Admins now have universal global access across the platform without requiring an explicit workspace_id.
 
 

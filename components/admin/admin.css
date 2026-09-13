@@ -492,6 +492,156 @@ body:has(.admDialog[open]) { overflow: hidden; }
   .admMasterDetail div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 
+/* Master control center */
+.masterShell { --master-navy: #101b36; --master-blue: #3669e8; min-height: 100dvh; display: grid; grid-template-columns: 284px minmax(0, 1fr); color: #18233b; background: #f4f6fb; }
+.masterSidebar, .masterDrawer { display: flex; flex-direction: column; color: #dce6ff; background: radial-gradient(circle at 15% 0%, #29467f 0, transparent 34%), linear-gradient(165deg, #142346 0%, #0d1730 72%); }
+.masterSidebar { position: sticky; top: 0; height: 100dvh; padding: 24px 18px; }
+.masterBrand { display: flex; align-items: center; gap: 12px; padding: 0 8px 22px; }
+.masterBrand > span:nth-child(2) { min-width: 0; }
+.masterBrand strong, .masterBrand small { display: block; }
+.masterBrand strong { color: #fff; font-size: 17px; overflow-wrap: anywhere; }
+.masterBrand small { margin-top: 2px; color: #91a6d5; font-size: 11px; text-transform: uppercase; letter-spacing: .11em; }
+.masterBrandMark { display: grid; place-items: center; width: 42px; height: 42px; flex: none; border: 1px solid #ffffff2b; border-radius: 12px; color: #fff; background: #ffffff13; box-shadow: inset 0 1px #ffffff1f; }
+.masterBrand .admIconButton { margin-left: auto; color: #dce6ff; }
+.masterIdentity { display: flex; align-items: center; gap: 10px; margin: 0 3px 22px; padding: 12px; border: 1px solid #ffffff12; border-radius: 12px; background: #ffffff0a; }
+.masterIdentity > span { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 9px; color: #9fbaff; background: #4779ed22; }
+.masterIdentity div { min-width: 0; }
+.masterIdentity small, .masterIdentity strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.masterIdentity small { color: #8096c5; font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.masterIdentity strong { margin-top: 3px; color: #f5f8ff; font-size: 12px; }
+.masterSidebar nav, .masterDrawer nav { display: grid; gap: 5px; }
+.masterSidebar nav button, .masterDrawer nav button { display: grid; grid-template-columns: 34px minmax(0, 1fr) 14px; align-items: center; gap: 9px; width: 100%; padding: 10px; border: 1px solid transparent; border-radius: 11px; color: #aebee1; background: transparent; text-align: left; }
+.masterSidebar nav button > svg:first-child, .masterDrawer nav button > svg:first-child { justify-self: center; }
+.masterSidebar nav button > svg:last-child, .masterDrawer nav button > svg:last-child { opacity: 0; transform: translateX(-3px); transition: .16s ease; }
+.masterSidebar nav button:hover, .masterDrawer nav button:hover { color: #fff; background: #ffffff0c; }
+.masterSidebar nav button:hover > svg:last-child, .masterDrawer nav button:hover > svg:last-child, .masterSidebar nav .masterNavActive > svg:last-child, .masterDrawer nav .masterNavActive > svg:last-child { opacity: 1; transform: none; }
+.masterSidebar nav .masterNavActive, .masterDrawer nav .masterNavActive { border-color: #7196ff3d; color: #fff; background: linear-gradient(100deg, #3f70e83b, #4779ed13); box-shadow: inset 3px 0 #6f95ff; }
+.masterSidebar nav span, .masterDrawer nav span { min-width: 0; }
+.masterSidebar nav strong, .masterSidebar nav small, .masterDrawer nav strong, .masterDrawer nav small { display: block; }
+.masterSidebar nav strong, .masterDrawer nav strong { font-size: 13px; }
+.masterSidebar nav small, .masterDrawer nav small { margin-top: 2px; color: #7289b8; font-size: 10px; }
+.masterLogout { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: auto; padding: 10px; border: 1px solid #ffffff17; border-radius: 10px; color: #bac9e8; background: #ffffff08; }
+.masterLogout:hover { color: #fff; background: #ffffff12; }
+.masterWorkspace { min-width: 0; }
+.masterTopbar { position: sticky; top: 0; z-index: 20; min-height: 76px; display: flex; align-items: center; gap: 14px; padding: 12px clamp(20px, 3vw, 42px); border-bottom: 1px solid #e3e8f2; background: #fffffff0; backdrop-filter: blur(14px); }
+.masterTopbar > div { min-width: 0; }
+.masterTopbar > div > span { display: block; color: #8791a6; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.masterTopbar h1 { margin-top: 2px; font-size: 19px; letter-spacing: -.02em; }
+.masterTopbar > .admButton { margin-left: auto; }
+.masterMenuButton { display: none; place-items: center; width: 40px; height: 40px; flex: none; border: 1px solid #dce2ed; border-radius: 10px; color: #33415c; background: #fff; }
+.masterMain { padding: clamp(22px, 3.5vw, 48px); }
+.masterView { display: grid; gap: 26px; max-width: 1260px; margin-inline: auto; }
+.masterNotice { max-width: 1260px; margin: 0 auto 18px; }
+.masterHero { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: end; justify-content: space-between; gap: 28px; min-height: 230px; padding: clamp(28px, 4vw, 50px); border-radius: 24px; color: #fff; background: linear-gradient(125deg, #13254c, #244f9c 66%, #3976d8); box-shadow: 0 20px 50px #17356a22; }
+.masterHero::before { content: ""; position: absolute; z-index: -1; width: 330px; height: 330px; top: -180px; right: 8%; border: 70px solid #ffffff0b; border-radius: 50%; }
+.masterHero h2 { max-width: 620px; margin-top: 13px; font-size: clamp(30px, 4vw, 50px); line-height: 1.04; letter-spacing: -.045em; }
+.masterHero p { max-width: 610px; margin-top: 14px; color: #d5e1fa; line-height: 1.65; }
+.masterHero > button { display: inline-flex; align-items: center; gap: 9px; flex: none; padding: 12px 16px; border: 1px solid #ffffff38; border-radius: 11px; color: #fff; background: #ffffff13; backdrop-filter: blur(8px); }
+.masterHero > button:hover { background: #ffffff22; }
+.masterEyebrow { display: inline-flex; align-items: center; gap: 7px; color: #adc6ff; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .1em; }
+.masterMetrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; }
+.masterMetrics article { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 20px; border: 1px solid #e3e8f2; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #26365708; }
+.masterMetricIcon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 13px; }
+.masterToneBlue { color: #3167e3; background: #edf3ff; }
+.masterToneViolet { color: #7655d7; background: #f3efff; }
+.masterToneAmber { color: #b7771a; background: #fff5e4; }
+.masterToneGreen { color: #27836b; background: #eaf8f3; }
+.masterMetrics small, .masterMetrics strong, .masterMetrics em { display: block; }
+.masterMetrics small { color: #7e899d; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.masterMetrics strong { margin-top: 4px; font-size: 27px; letter-spacing: -.03em; }
+.masterMetrics em { margin-top: 2px; color: #98a1b2; font-size: 11px; font-style: normal; }
+.masterPanel { padding: clamp(18px, 2.5vw, 30px); border: 1px solid #e1e7f1; border-radius: 18px; background: #fff; box-shadow: 0 10px 35px #25355808; }
+.masterPanel > .admSectionHeading { margin-bottom: 8px; }
+.masterTextButton { display: inline-flex; align-items: center; gap: 5px; padding: 6px 9px; border: 0; border-radius: 7px; color: #3868d6; background: #eef4ff; font-size: 12px; }
+.masterWorkspaceList { display: grid; }
+.masterWorkspaceList article { display: grid; grid-template-columns: minmax(230px, 1fr) 78px minmax(240px, .8fr) auto; align-items: center; gap: 18px; padding: 17px 4px; border-top: 1px solid #edf0f5; }
+.masterWorkspaceList article:first-child { border-top: 0; }
+.masterWorkspaceIdentity { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; }
+.masterWorkspaceIdentity > span { display: grid; place-items: center; width: 38px; height: 38px; flex: none; border-radius: 11px; color: #3e6bd2; background: #edf3ff; }
+.masterWorkspaceIdentity div { min-width: 0; }
+.masterWorkspaceIdentity strong, .masterWorkspaceIdentity small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.masterWorkspaceIdentity strong { font-size: 14px; }
+.masterWorkspaceIdentity small { margin-top: 3px; color: #8791a4; font-size: 11px; }
+.masterWorkspaceStats { display: grid; grid-template-columns: repeat(3, minmax(58px, 1fr)); gap: 8px; }
+.masterWorkspaceStats span { display: grid; gap: 2px; }
+.masterWorkspaceStats small { color: #929bad; font-size: 10px; }
+.masterWorkspaceStats strong { font-size: 13px; }
+.masterWorkspaceActions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.masterWorkspaceActions .admButton { min-height: 34px; padding: 7px 10px; font-size: 12px; }
+.masterPageIntro { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 4px 2px; }
+.masterPageIntro span { color: #3868d6; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .1em; }
+.masterPageIntro h2 { margin-top: 7px; font-size: clamp(26px, 3vw, 37px); letter-spacing: -.035em; }
+.masterPageIntro p { margin-top: 8px; color: #758097; }
+.masterUserList { display: grid; }
+.masterUserList article { display: grid; grid-template-columns: 42px minmax(180px, 1fr) minmax(150px, .8fr) auto auto 36px; align-items: center; gap: 14px; padding: 15px 2px; border-top: 1px solid #edf0f5; }
+.masterUserList article:first-child { border-top: 0; }
+.masterUserAvatar { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: #315fbf; background: #eaf1ff; font-weight: 700; }
+.masterUserName, .masterUserList article > div { min-width: 0; }
+.masterUserName strong, .masterUserName small, .masterUserList article > div > small, .masterUserList article > div > strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.masterUserName small, .masterUserList article > div > small { color: #8a94a7; font-size: 11px; }
+.masterUserList article > div > strong { margin-top: 3px; font-size: 12px; }
+.masterBrandingLayout { display: grid; grid-template-columns: minmax(240px, .75fr) minmax(360px, 1.25fr); gap: 34px; align-items: start; }
+.masterBrandPreview { min-height: 300px; display: grid; place-content: center; justify-items: center; padding: 34px; border-radius: 16px; color: #fff; background: radial-gradient(circle at 80% 10%, #587edb, transparent 34%), linear-gradient(145deg, #172747, #243d70); text-align: center; }
+.masterBrandPreview > span { color: #a9bce4; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
+.masterBrandPreview > div { display: flex; align-items: center; gap: 13px; margin-top: 30px; }
+.masterBrandPreview img { width: 58px; height: 58px; object-fit: cover; border-radius: 17px; background: #fff; }
+.masterBrandPreview strong { max-width: 230px; font-size: 26px; overflow-wrap: anywhere; }
+.masterBrandPreview p { max-width: 330px; margin-top: 18px; color: #bfceec; line-height: 1.5; }
+.masterBrandForm { min-width: 0; }
+.masterAccessCard { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 22px; padding: clamp(24px, 4vw, 42px); border: 1px solid; border-radius: 20px; background: #fff; box-shadow: 0 12px 35px #2636570a; }
+.masterAccessOn { border-color: #bfe4d8; background: linear-gradient(110deg, #f4fcf9, #fff); }
+.masterAccessOff { border-color: #f0c9cf; background: linear-gradient(110deg, #fff7f8, #fff); }
+.masterAccessIcon { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 18px; }
+.masterAccessOn .masterAccessIcon { color: #23775f; background: #dff4ec; }
+.masterAccessOff .masterAccessIcon { color: #b14d5c; background: #fae6e9; }
+.masterAccessCard h2 { margin-top: 7px; font-size: 25px; letter-spacing: -.025em; }
+.masterAccessCard p { margin-top: 7px; color: #707b90; line-height: 1.55; }
+.masterBackdrop, .masterDrawer { display: none; }
+
+@media (max-width: 1080px) {
+  .masterShell { grid-template-columns: 240px minmax(0, 1fr); }
+  .masterMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .masterWorkspaceList article { grid-template-columns: minmax(200px, 1fr) auto auto; }
+  .masterWorkspaceStats { grid-column: 1 / 3; grid-row: 2; }
+  .masterUserList article { grid-template-columns: 42px minmax(180px, 1fr) auto auto 36px; }
+  .masterUserList article > div:nth-child(3) { grid-column: 2; grid-row: 2; }
+}
+
+@media (max-width: 760px) {
+  .masterShell { display: block; }
+  .masterSidebar { display: none; }
+  .masterMenuButton { display: grid; }
+  .masterBackdrop { display: block; position: fixed; inset: 0; z-index: 59; border: 0; background: #07102799; backdrop-filter: blur(3px); }
+  .masterDrawer { display: flex; position: fixed; inset: 0 auto 0 0; z-index: 60; width: min(88vw, 310px); padding: 24px 18px; box-shadow: 20px 0 60px #07102755; }
+  .masterMain { padding: 22px 16px 40px; }
+  .masterTopbar { padding: 10px 16px; }
+  .masterTopbar > div > span { display: none; }
+  .masterHero { min-height: 0; display: grid; padding: 28px 24px; border-radius: 18px; }
+  .masterHero > button { width: fit-content; }
+  .masterHero h2 { font-size: 34px; }
+  .masterBrandingLayout { grid-template-columns: minmax(0, 1fr); }
+  .masterAccessCard { grid-template-columns: 52px minmax(0, 1fr); }
+  .masterAccessCard > button { grid-column: 1 / -1; width: 100%; }
+  .masterUserList article { grid-template-columns: 38px minmax(0, 1fr) auto; }
+  .masterUserList article > div:nth-child(3) { grid-column: 2 / -1; grid-row: auto; }
+  .masterUserList article > .admBadge { grid-row: auto; }
+  .masterUserList article > .admIconButton { grid-column: 3; grid-row: 1; }
+}
+
+@media (max-width: 520px) {
+  .masterTopbar h1 { font-size: 16px; }
+  .masterTopbar > .admButton { padding-inline: 10px; }
+  .masterMetrics { grid-template-columns: minmax(0, 1fr); }
+  .masterPanel { padding: 16px; border-radius: 15px; }
+  .masterWorkspaceList article { grid-template-columns: minmax(0, 1fr) auto; gap: 11px; }
+  .masterWorkspaceIdentity { grid-column: 1 / -1; }
+  .masterWorkspaceStats { grid-column: 1 / -1; grid-row: auto; }
+  .masterWorkspaceActions { grid-column: 1 / -1; justify-content: stretch; }
+  .masterWorkspaceActions .admButton { flex: 1; width: auto; }
+  .masterBrandingLayout { padding: 0; border: 0; background: transparent; box-shadow: none; }
+  .masterBrandForm { padding: 18px; border: 1px solid #e1e7f1; border-radius: 15px; background: #fff; }
+}
+
 /* Import result summary */
 .admImportList { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .admImportList li { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--adm-line); border-radius: 6px; background: #fbfcfe; }
