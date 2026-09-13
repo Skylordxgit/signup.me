@@ -289,7 +289,7 @@ export function AdminDashboard() {
           {view === 'themes' && <><SectionHeading title="Theme library" /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
           {view === 'notifications' && <NotificationsView pages={pages} />}
           {view === 'users' && <UsersView role={role} permissions={permissions} isMaster={isMaster} />}
-          {view === 'settings' && <SettingsView email={email} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
+          {view === 'settings' && <SettingsView email={email} isMaster={isMaster} onBrandingChanged={brand => setBranding(current => ({ ...current, ...brand }))} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
         </>}
       </main>
     </div>
