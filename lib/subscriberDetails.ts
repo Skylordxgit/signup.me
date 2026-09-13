@@ -34,21 +34,28 @@ export function subscriberDevice(userAgent: string, touchPoints = 0) {
 export function collectSubscriberDetails(headers: Headers, hints: unknown): SubscriberDetails {
   const data = hints && typeof hints === 'object' ? hints as Record<string, unknown> : {};
   const touchPoints = typeof data.touchPoints === 'number' && data.touchPoints > 1 ? 2 : 0;
-  // Only read headers explicitly configured for a proxy that replaces client input.
+  // Read configured proxy headers or standard proxy/direct headers (x-forwarded-for, x-real-ip, cf-connecting-ip).
   const trusted = (key: string) => {
     const header = process.env[key]?.trim();
     return header ? (headers.get(header) || '').trim().slice(0, 160) : '';
   };
-  const candidate = trusted('SUBSCRIBER_IP_HEADER');
+  const configuredIp = trusted('SUBSCRIBER_IP_HEADER')?.split(',')[0]?.trim();
+  const fallbackIp = headers.get('cf-connecting-ip')
+    || headers.get('x-real-ip')
+    || headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || '';
+  const rawIp = configuredIp || fallbackIp;
+  const ip = isIP(rawIp) ? rawIp : '';
+
   let timezone = '';
   if (typeof data.timezone === 'string' && data.timezone.length <= 100) {
     try { timezone = new Intl.DateTimeFormat('en', { timeZone: data.timezone }).resolvedOptions().timeZone; } catch { /* Invalid client hint. */ }
   }
   return {
     ...subscriberDevice(headers.get('user-agent') || '', touchPoints),
-    ipAddress: isIP(candidate) ? candidate : '',
-    country: trusted('SUBSCRIBER_COUNTRY_HEADER'),
-    city: trusted('SUBSCRIBER_CITY_HEADER'),
+    ipAddress: ip,
+    country: trusted('SUBSCRIBER_COUNTRY_HEADER') || headers.get('cf-ipcountry') || '',
+    city: trusted('SUBSCRIBER_CITY_HEADER') || headers.get('cf-ipcity') || '',
     timezone,
   };
 }

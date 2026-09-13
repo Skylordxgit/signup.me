@@ -27,34 +27,34 @@ test('Android and desktop support depends on available APIs, not OS allowlists',
   }
 });
 
-test('subscriber metadata ignores untrusted IP headers and never exposes push secrets', t => {
-  for (const key of ['SUBSCRIBER_IP_HEADER', 'SUBSCRIBER_COUNTRY_HEADER', 'SUBSCRIBER_CITY_HEADER']) {
-    const original = process.env[key];
-    delete process.env[key];
-    t.after(() => { if (original === undefined) delete process.env[key]; else process.env[key] = original; });
-  }
-  const headers = new Headers({ 'user-agent': iphone, 'x-forwarded-for': '198.51.100.8', 'x-visitor-ip': '2001:db8::1', 'x-visitor-country': 'BD' });
-  const unknown = collectSubscriberDetails(headers, { timezone: 'not-a-timezone', ipAddress: 'forged' });
-  assert.equal(unknown.ipAddress, '');
-  assert.equal(unknown.timezone, '');
-  assert.equal(unknown.device, 'iPhone');
-  assert.equal(unknown.browser, 'Safari');
-  process.env.SUBSCRIBER_IP_HEADER = 'x-visitor-ip';
-  process.env.SUBSCRIBER_COUNTRY_HEADER = 'x-visitor-country';
-  const details = collectSubscriberDetails(headers, { timezone: 'Asia/Dhaka' });
-  assert.equal(details.ipAddress, '2001:db8::1');
-  assert.equal(details.country, 'BD');
-  assert.equal(details.city, '');
-  assert.equal(details.timezone, 'Asia/Dhaka');
-  headers.set('x-visitor-ip', '198.51.100.8, 10.0.0.1');
-  assert.equal(collectSubscriberDetails(headers, {}).ipAddress, '');
-  const item = { id: 1, pageId: 1, slug: 'example', userAgent: 'Android SamsungBrowser/22', createdAt: '2026-09-08', endpointHash: 'secret', subscription: { keys: { auth: 'secret' } } };
-  const publicItem = subscriberListItem(item);
-  assert.equal(publicItem.device, 'Android');
-  assert.equal(publicItem.browser, 'Samsung Internet');
-  assert.equal(publicItem.ipAddress, '');
-  assert.ok(!JSON.stringify(publicItem).includes('secret'));
-});
+  test('subscriber metadata extracts visitor IP headers and never exposes push secrets', t => {
+    for (const key of ['SUBSCRIBER_IP_HEADER', 'SUBSCRIBER_COUNTRY_HEADER', 'SUBSCRIBER_CITY_HEADER']) {
+      const original = process.env[key];
+      delete process.env[key];
+      t.after(() => { if (original === undefined) delete process.env[key]; else process.env[key] = original; });
+    }
+    const headers = new Headers({ 'user-agent': iphone, 'x-forwarded-for': '198.51.100.8', 'x-visitor-ip': '2001:db8::1', 'x-visitor-country': 'BD' });
+    const unknown = collectSubscriberDetails(headers, { timezone: 'not-a-timezone', ipAddress: 'forged' });
+    assert.equal(unknown.ipAddress, '198.51.100.8');
+    assert.equal(unknown.timezone, '');
+    assert.equal(unknown.device, 'iPhone');
+    assert.equal(unknown.browser, 'Safari');
+    process.env.SUBSCRIBER_IP_HEADER = 'x-visitor-ip';
+    process.env.SUBSCRIBER_COUNTRY_HEADER = 'x-visitor-country';
+    const details = collectSubscriberDetails(headers, { timezone: 'Asia/Dhaka' });
+    assert.equal(details.ipAddress, '2001:db8::1');
+    assert.equal(details.country, 'BD');
+    assert.equal(details.city, '');
+    assert.equal(details.timezone, 'Asia/Dhaka');
+    headers.set('x-visitor-ip', '198.51.100.8, 10.0.0.1');
+    assert.equal(collectSubscriberDetails(headers, {}).ipAddress, '198.51.100.8');
+    const item = { id: 1, pageId: 1, slug: 'example', userAgent: 'Android SamsungBrowser/22', createdAt: '2026-09-08', endpointHash: 'secret', subscription: { keys: { auth: 'secret' } } };
+    const publicItem = subscriberListItem(item);
+    assert.equal(publicItem.device, 'Android');
+    assert.equal(publicItem.browser, 'Samsung Internet');
+    assert.equal(publicItem.ipAddress, '');
+    assert.ok(!JSON.stringify(publicItem).includes('secret'));
+  });
 
 test('MySQL automatically migrates existing subscriber table and saves details', async t => {
   const original = process.env.DATABASE_URL;
