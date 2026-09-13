@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AdminDashboard } from "../components/AdminDashboard";
-import { PagesTable } from "../components/admin/DashboardViews";
+import { CampaignHistoryView, NotificationsView, PagesTable } from "../components/admin/DashboardViews";
 import { BuilderEditor } from "../components/admin/BuilderEditor";
 import { ProfileFields } from "../components/admin/BuilderEditor";
 import { NotificationPromptFields, NotificationPromptPreview } from '../components/admin/BuilderEditor';
@@ -138,3 +138,50 @@ test("the pages screen offers export for a selection and import beside Create pa
   const plain = renderToStaticMarkup(<PagesTable pages={summaries} onOpen={() => {}} />);
   assert.doesNotMatch(plain, /Export selected/);
 });
+
+test("campaign history renders KPI metrics, visual funnel cards, and tabs correctly", () => {
+  const sampleCampaign = {
+    id: 101,
+    workspaceId: 'ws-test',
+    pageId: null,
+    pageSlug: null,
+    title: 'Flash Sale 50% Off',
+    body: 'Grab your limited discount code now before it ends!',
+    url: 'https://example.com/deal',
+    audience: 'All subscribers',
+    attempted: 100,
+    sent: 100,
+    delivered: 95,
+    seen: 80,
+    clicked: 25,
+    clicks: 25,
+    failed: 3,
+    removed: 2,
+    createdAt: '2026-09-13T10:00:00.000Z',
+    updatedAt: '2026-09-13T10:30:00.000Z',
+  };
+
+  const html = renderToStaticMarkup(
+    <CampaignHistoryView
+      campaigns={[sampleCampaign]}
+      pages={[]}
+      onComposeWith={() => {}}
+      onRefresh={() => {}}
+      onGoToCompose={() => {}}
+    />
+  );
+
+  assert.match(html, /Push Campaign History/);
+  assert.match(html, /Flash Sale 50% Off/);
+  assert.match(html, /95%|\b95\.0%\b/); // Delivery rate
+  assert.match(html, /https:\/\/example\.com\/deal/);
+  assert.match(html, /admCampaignFunnelGrid/);
+  assert.match(html, /Inspect &amp; preview|Inspect & preview/);
+  assert.match(html, /Reuse in composer/);
+
+  const notifHtml = renderToStaticMarkup(<NotificationsView pages={[]} initialTab="campaigns" />);
+  assert.match(notifHtml, /Compose notification/);
+  assert.match(notifHtml, /Campaign history/);
+  assert.match(notifHtml, /Subscribers/);
+});
+

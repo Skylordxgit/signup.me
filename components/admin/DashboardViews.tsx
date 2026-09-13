@@ -2,12 +2,12 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Download, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Check, CheckCircle2, Clock3, Copy, Download, ExternalLink, Eye, FileText, Globe2, History, ImageIcon, LayoutGrid, Link2, List, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Search, Send, Sparkles, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
 import { ImageUploader } from "../ImageUploader";
-import { EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./AdminUI";
+import { Dialog, EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./AdminUI";
 import type { MediaFile, UploadCategory } from "@/lib/uploads";
 
 const number = (value: number) => value.toLocaleString();
@@ -127,7 +127,564 @@ export function MediaView() {
   </>;
 }
 
-export function NotificationsView({ pages }: { pages: PageSummary[] }) {
+export function CampaignHistoryView({
+  campaigns,
+  pages,
+  loading = false,
+  onComposeWith,
+  onRefresh,
+  onGoToCompose,
+}: {
+  campaigns: NotificationCampaign[];
+  pages: PageSummary[];
+  loading?: boolean;
+  onComposeWith?: (campaign: NotificationCampaign) => void;
+  onRefresh?: () => void;
+  onGoToCompose?: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [audienceFilter, setAudienceFilter] = useState('all');
+  const [engagementFilter, setEngagementFilter] = useState('all');
+  const [sort, setSort] = useState<'newest' | 'oldest' | 'clicks' | 'ctr' | 'delivered'>('newest');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [selectedCampaign, setSelectedCampaign] = useState<NotificationCampaign | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+
+  async function copyLink(url: string) {
+    try {
+      const full = url.startsWith('/') ? new URL(url, window.location.origin).toString() : url;
+      await navigator.clipboard.writeText(full);
+      setCopiedUrl(url);
+      setTimeout(() => setCopiedUrl(current => current === url ? null : current), 2000);
+    } catch {
+      // Ignore copy error
+    }
+  }
+
+  // Aggregate Performance Totals
+  const totalCampaigns = campaigns.length;
+  const totalAttempted = campaigns.reduce((sum, c) => sum + c.attempted, 0);
+  const totalSent = campaigns.reduce((sum, c) => sum + c.sent, 0);
+  const totalDelivered = campaigns.reduce((sum, c) => sum + c.delivered, 0);
+  const totalSeen = campaigns.reduce((sum, c) => sum + c.seen, 0);
+  const totalClicked = campaigns.reduce((sum, c) => sum + c.clicked, 0);
+  const overallDeliveryRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
+  const overallSeenRate = totalDelivered > 0 ? ((totalSeen / totalDelivered) * 100).toFixed(1) : '0.0';
+  const overallCtr = totalSeen > 0 ? ((totalClicked / totalSeen) * 100).toFixed(1) : totalDelivered > 0 ? ((totalClicked / totalDelivered) * 100).toFixed(1) : '0.0';
+
+  // Filtered & Sorted campaigns
+  const filteredCampaigns = campaigns.filter(c => {
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      const matchesText = c.title.toLowerCase().includes(q) ||
+        c.body.toLowerCase().includes(q) ||
+        c.url.toLowerCase().includes(q) ||
+        c.audience.toLowerCase().includes(q) ||
+        (c.pageSlug && c.pageSlug.toLowerCase().includes(q));
+      if (!matchesText) return false;
+    }
+
+    if (audienceFilter !== 'all') {
+      if (audienceFilter === 'all_subscribers') {
+        if (c.pageId !== null) return false;
+      } else {
+        if (String(c.pageId) !== audienceFilter) return false;
+      }
+    }
+
+    if (engagementFilter === 'clicked' && c.clicked <= 0) return false;
+    if (engagementFilter === 'high_ctr') {
+      const ctrVal = c.seen > 0 ? (c.clicked / c.seen) * 100 : c.delivered > 0 ? (c.clicked / c.delivered) * 100 : 0;
+      if (ctrVal < 10) return false;
+    }
+    if (engagementFilter === 'failed' && c.failed === 0 && c.removed === 0) return false;
+
+    return true;
+  }).sort((a, b) => {
+    if (sort === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    if (sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+    if (sort === 'clicks') return b.clicked - a.clicked;
+    if (sort === 'delivered') return b.delivered - a.delivered;
+    if (sort === 'ctr') {
+      const ctrA = a.seen > 0 ? (a.clicked / a.seen) : a.delivered > 0 ? (a.clicked / a.delivered) : 0;
+      const ctrB = b.seen > 0 ? (b.clicked / b.seen) : b.delivered > 0 ? (b.clicked / b.delivered) : 0;
+      return ctrB - ctrA;
+    }
+    return 0;
+  });
+
+  function getCampaignCtr(c: NotificationCampaign) {
+    if (c.seen > 0) return ((c.clicked / c.seen) * 100).toFixed(1);
+    if (c.delivered > 0) return ((c.clicked / c.delivered) * 100).toFixed(1);
+    return '0.0';
+  }
+
+  function getCampaignDeliveredRate(c: NotificationCampaign) {
+    if (c.sent > 0) return Math.min(100, Math.round((c.delivered / c.sent) * 100));
+    return 0;
+  }
+
+  function getCampaignSeenRate(c: NotificationCampaign) {
+    if (c.delivered > 0) return Math.min(100, Math.round((c.seen / c.delivered) * 100));
+    return 0;
+  }
+
+  return <div className="admCampaignHub">
+    <div className="admCampaignHubHeader">
+      <div>
+        <h2>Push Campaign History</h2>
+        <p className="admMuted">Track delivery rates, impression reach, and subscriber click conversions across all broadcasts.</p>
+      </div>
+      <div className="admCampaignHubActions">
+        {onRefresh && <IconButton icon={RefreshCw} label="Refresh campaign metrics" disabled={loading} onClick={onRefresh} />}
+        {onGoToCompose && <button type="button" className="admButton admPrimary" onClick={onGoToCompose}><Send size={15} />New campaign</button>}
+      </div>
+    </div>
+
+    {/* Top Aggregate KPI Cards */}
+    <div className="admCampaignKpis">
+      <article className="admCampaignKpiCard">
+        <div className="admCampaignKpiHeader">
+          <span>Total Campaigns</span>
+          <span className="admCampaignKpiIcon admTone-blue"><History size={16} /></span>
+        </div>
+        <strong className="admCampaignKpiValue">{number(totalCampaigns)}</strong>
+        <small className="admCampaignKpiSub">{number(totalSent)} sent of {number(totalAttempted)} targeted</small>
+      </article>
+
+      <article className="admCampaignKpiCard">
+        <div className="admCampaignKpiHeader">
+          <span>Delivery Rate</span>
+          <span className="admCampaignKpiIcon admTone-green"><CheckCircle2 size={16} /></span>
+        </div>
+        <strong className="admCampaignKpiValue">{overallDeliveryRate}%</strong>
+        <small className="admCampaignKpiSub">{number(totalDelivered)} delivered of {number(totalSent)}</small>
+      </article>
+
+      <article className="admCampaignKpiCard">
+        <div className="admCampaignKpiHeader">
+          <span>Seen / Impressions</span>
+          <span className="admCampaignKpiIcon admTone-violet"><Eye size={16} /></span>
+        </div>
+        <strong className="admCampaignKpiValue">{overallSeenRate}%</strong>
+        <small className="admCampaignKpiSub">{number(totalSeen)} displayed to users</small>
+      </article>
+
+      <article className="admCampaignKpiCard">
+        <div className="admCampaignKpiHeader">
+          <span>Total Clicks & CTR</span>
+          <span className="admCampaignKpiIcon admTone-rose"><MousePointer2 size={16} /></span>
+        </div>
+        <strong className="admCampaignKpiValue">{overallCtr}%</strong>
+        <small className="admCampaignKpiSub">{number(totalClicked)} total clicks generated</small>
+      </article>
+    </div>
+
+    {/* Filter, Search & Layout Toolbar */}
+    <div className="admCampaignToolbar">
+      <div className="admCampaignSearchGroup">
+        <div className="admCampaignSearch">
+          <Search size={16} />
+          <input
+            type="search"
+            placeholder="Search campaigns by title, message, URL..."
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+          />
+        </div>
+        <select
+          aria-label="Filter by audience"
+          value={audienceFilter}
+          onChange={e => setAudienceFilter(e.target.value)}
+          className="admSelect"
+        >
+          <option value="all">All audiences</option>
+          <option value="all_subscribers">All subscribers broadcast</option>
+          {pages.map(page => <option key={page.id} value={String(page.id)}>/{page.slug}</option>)}
+        </select>
+        <select
+          aria-label="Filter by performance"
+          value={engagementFilter}
+          onChange={e => setEngagementFilter(e.target.value)}
+          className="admSelect"
+        >
+          <option value="all">All performance</option>
+          <option value="clicked">With clicks</option>
+          <option value="high_ctr">High CTR (≥10%)</option>
+          <option value="failed">With errors / expired</option>
+        </select>
+      </div>
+
+      <div className="admCampaignToolbarRight">
+        <select
+          aria-label="Sort campaigns"
+          value={sort}
+          onChange={e => setSort(e.target.value as typeof sort)}
+          className="admSelect"
+        >
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="clicks">Most clicked</option>
+          <option value="ctr">Highest CTR</option>
+          <option value="delivered">Most delivered</option>
+        </select>
+
+        <div className="admCampaignViewToggle" role="group" aria-label="View mode">
+          <button
+            type="button"
+            className={viewMode === 'cards' ? 'active' : ''}
+            onClick={() => setViewMode('cards')}
+            title="Card grid view"
+            aria-label="Card grid view"
+          >
+            <LayoutGrid size={16} />
+          </button>
+          <button
+            type="button"
+            className={viewMode === 'table' ? 'active' : ''}
+            onClick={() => setViewMode('table')}
+            title="Table view"
+            aria-label="Table view"
+          >
+            <List size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {/* Content Area: Cards or Table */}
+    {loading && !campaigns.length ? (
+      <div className="admEmpty"><p>Loading campaign history...</p></div>
+    ) : !campaigns.length ? (
+      <div className="admEmpty admCampaignEmptyState">
+        <span className="admCampaignEmptyIcon"><History size={36} /></span>
+        <h3>No notification campaigns sent yet</h3>
+        <p>Send your first push update or special offer to all your subscribers.</p>
+        {onGoToCompose && (
+          <button type="button" className="admButton admPrimary" onClick={onGoToCompose}>
+            <Send size={15} />Compose your first campaign
+          </button>
+        )}
+      </div>
+    ) : !filteredCampaigns.length ? (
+      <div className="admEmpty">
+        <h3>No campaigns match your filters</h3>
+        <p>Try clearing your search query or adjusting the audience/performance filters.</p>
+        <button type="button" className="admButton" onClick={() => { setQuery(''); setAudienceFilter('all'); setEngagementFilter('all'); }}>
+          Reset filters
+        </button>
+      </div>
+    ) : viewMode === 'cards' ? (
+      <div className="admCampaignCards">
+        {filteredCampaigns.map(campaign => {
+          const ctr = getCampaignCtr(campaign);
+          const delRate = getCampaignDeliveredRate(campaign);
+          const seenRate = getCampaignSeenRate(campaign);
+          const hasIssues = campaign.failed > 0 || campaign.removed > 0;
+          const isHighCtr = parseFloat(ctr) >= 10 && campaign.clicked > 0;
+
+          return <article key={campaign.id} className="admCampaignCard">
+            <div className="admCampaignCardTop">
+              <div className="admCampaignCardTitleArea">
+                <div className="admCampaignCardBadgeRow">
+                  <span className="admCampaignAudienceBadge">
+                    {campaign.pageId ? <FileText size={12} /> : <Globe2 size={12} />}
+                    {campaign.audience}
+                  </span>
+                  {isHighCtr ? (
+                    <span className="admCampaignStatusPill highCtr"><Sparkles size={12} />High CTR ({ctr}%)</span>
+                  ) : delRate === 100 && !hasIssues ? (
+                    <span className="admCampaignStatusPill completed"><Check size={12} />100% Delivered</span>
+                  ) : hasIssues ? (
+                    <span className="admCampaignStatusPill partial">Partial ({campaign.failed + campaign.removed} issue{campaign.failed + campaign.removed === 1 ? '' : 's'})</span>
+                  ) : (
+                    <span className="admCampaignStatusPill neutral">Sent</span>
+                  )}
+                </div>
+                <h3 className="admCampaignCardTitle">{campaign.title}</h3>
+                <div className="admCampaignCardMeta">
+                  <time dateTime={campaign.createdAt} title={campaign.createdAt}>
+                    <Clock3 size={13} />
+                    {new Date(campaign.createdAt).toLocaleString()}
+                  </time>
+                  <span>·</span>
+                  <span>ID #{campaign.id}</span>
+                </div>
+              </div>
+            </div>
+
+            <p className="admCampaignCardBody">{campaign.body}</p>
+
+            <div className="admCampaignLinkRow">
+              <span className="admMuted">Destination:</span>
+              <a
+                href={campaign.url}
+                target="_blank"
+                rel="noreferrer"
+                className="admCampaignLinkPill"
+                title={`Open ${campaign.url}`}
+              >
+                <span>{campaign.url}</span>
+                <ExternalLink size={12} />
+              </a>
+              <button
+                type="button"
+                className="admTextButton"
+                onClick={() => void copyLink(campaign.url)}
+                title="Copy destination link"
+              >
+                {copiedUrl === campaign.url ? <Check size={13} /> : <Copy size={13} />}
+                {copiedUrl === campaign.url ? 'Copied' : 'Copy link'}
+              </button>
+            </div>
+
+            {/* Visual Conversion Funnel */}
+            <div className="admCampaignFunnelGrid">
+              <div className="admCampaignFunnelStep">
+                <div className="admCampaignFunnelStepLabel">
+                  <span>Sent</span>
+                  <small>{campaign.attempted > campaign.sent ? `${number(campaign.sent)}/${number(campaign.attempted)}` : '100%'}</small>
+                </div>
+                <strong className="admCampaignFunnelStepValue">{number(campaign.sent)}</strong>
+                <div className="admCampaignFunnelBar">
+                  <div className="admCampaignFunnelBarFill sent" style={{ width: '100%' }} />
+                </div>
+              </div>
+
+              <div className="admCampaignFunnelStep">
+                <div className="admCampaignFunnelStepLabel">
+                  <span>Delivered</span>
+                  <span className="admCampaignFunnelStepRate">{delRate}%</span>
+                </div>
+                <strong className="admCampaignFunnelStepValue">{number(campaign.delivered)}</strong>
+                <div className="admCampaignFunnelBar">
+                  <div className="admCampaignFunnelBarFill delivered" style={{ width: `${delRate}%` }} />
+                </div>
+              </div>
+
+              <div className="admCampaignFunnelStep">
+                <div className="admCampaignFunnelStepLabel">
+                  <span>Seen / Screen</span>
+                  <span className="admCampaignFunnelStepRate">{seenRate}%</span>
+                </div>
+                <strong className="admCampaignFunnelStepValue">{number(campaign.seen)}</strong>
+                <div className="admCampaignFunnelBar">
+                  <div className="admCampaignFunnelBarFill seen" style={{ width: `${seenRate}%` }} />
+                </div>
+              </div>
+
+              <div className="admCampaignFunnelStep">
+                <div className="admCampaignFunnelStepLabel">
+                  <span>Clicked</span>
+                  <span className="admCampaignFunnelStepRate highlight">{ctr}% CTR</span>
+                </div>
+                <strong className="admCampaignFunnelStepValue">{number(campaign.clicked)}</strong>
+                <div className="admCampaignFunnelBar">
+                  <div className="admCampaignFunnelBarFill clicked" style={{ width: `${Math.min(100, (parseFloat(ctr) || 0) * 2)}%` }} />
+                </div>
+              </div>
+            </div>
+
+            {hasIssues && (
+              <div className="admCampaignIssuesNote">
+                <span className="admCampaignIssueBadge">{number(campaign.failed)} failed</span>
+                <span className="admCampaignIssueBadge">{number(campaign.removed)} expired / inactive</span>
+              </div>
+            )}
+
+            <div className="admCampaignCardActions">
+              <button
+                type="button"
+                className="admButton"
+                onClick={() => setSelectedCampaign(campaign)}
+              >
+                <Eye size={14} />Inspect & preview
+              </button>
+              {onComposeWith && (
+                <button
+                  type="button"
+                  className="admButton"
+                  onClick={() => onComposeWith(campaign)}
+                >
+                  <Copy size={14} />Reuse in composer
+                </button>
+              )}
+            </div>
+          </article>;
+        })}
+      </div>
+    ) : (
+      <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Campaign history table">
+        <table className="admSubscriberTable admCampaignDetailedTable">
+          <thead>
+            <tr>
+              <th scope="col" style={{ width: '150px' }}>Date sent</th>
+              <th scope="col">Campaign & message</th>
+              <th scope="col" style={{ width: '130px' }}>Audience</th>
+              <th scope="col" style={{ width: '90px' }}>Sent</th>
+              <th scope="col" style={{ width: '90px' }}>Delivered</th>
+              <th scope="col" style={{ width: '80px' }}>Seen</th>
+              <th scope="col" style={{ width: '100px' }}>Clicks (CTR)</th>
+              <th scope="col" style={{ width: '100px' }}>Status</th>
+              <th scope="col" style={{ width: '110px' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredCampaigns.map(campaign => {
+              const ctr = getCampaignCtr(campaign);
+              const delRate = getCampaignDeliveredRate(campaign);
+              return <tr key={campaign.id}>
+                <td>
+                  <time dateTime={campaign.createdAt} style={{ fontSize: '12px' }}>
+                    {new Date(campaign.createdAt).toLocaleDateString()}<br />
+                    <span className="admMuted">{new Date(campaign.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </time>
+                </td>
+                <td>
+                  <strong>{campaign.title}</strong>
+                  <p className="admCampaignTableBody">{campaign.body}</p>
+                  <a href={campaign.url} target="_blank" rel="noreferrer" className="admTableLink">
+                    {campaign.url} <ExternalLink size={10} />
+                  </a>
+                </td>
+                <td><span className="admCampaignAudienceBadge">{campaign.audience}</span></td>
+                <td>
+                  <strong>{number(campaign.sent)}</strong>
+                  {campaign.attempted > campaign.sent && <small>of {number(campaign.attempted)}</small>}
+                </td>
+                <td>
+                  <strong>{number(campaign.delivered)}</strong>
+                  <small>{delRate}%</small>
+                </td>
+                <td>
+                  <strong>{number(campaign.seen)}</strong>
+                </td>
+                <td>
+                  <strong className="admHighlightClicks">{number(campaign.clicked)}</strong>
+                  <small className="admHighlightCtr">{ctr}% CTR</small>
+                </td>
+                <td>
+                  {campaign.failed > 0 || campaign.removed > 0 ? (
+                    <span className="admCampaignStatusPill partial">{number(campaign.failed + campaign.removed)} err</span>
+                  ) : (
+                    <span className="admCampaignStatusPill completed">OK</span>
+                  )}
+                </td>
+                <td>
+                  <div className="admTableActions">
+                    <button type="button" className="admTextButton" onClick={() => setSelectedCampaign(campaign)} title="View preview & details">
+                      <Eye size={14} />
+                    </button>
+                    {onComposeWith && (
+                      <button type="button" className="admTextButton" onClick={() => onComposeWith(campaign)} title="Reuse in composer">
+                        <Copy size={14} />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+
+    {/* Campaign Detail Modal */}
+    {selectedCampaign && (
+      <Dialog title={`Campaign #${selectedCampaign.id} Breakdown`} onClose={() => setSelectedCampaign(null)}>
+        <div className="admCampaignDetailModal">
+          <SectionHeading title="Push notification preview" />
+          <div className="admPushModalPreview">
+            <div className="admPushModalHeader">
+              <img src="/favicon.ico" alt="" width={22} height={22} />
+              <div>
+                <strong>signup888</strong>
+                <small> · push notification</small>
+              </div>
+              <time>now</time>
+            </div>
+            <h4 className="admPushModalTitle">{selectedCampaign.title}</h4>
+            <p className="admPushModalBody">{selectedCampaign.body}</p>
+            <div className="admPushModalUrl">
+              <ExternalLink size={13} />
+              <span>{selectedCampaign.url}</span>
+            </div>
+          </div>
+
+          <SectionHeading title="Delivery & conversion analytics" />
+          <div className="admCampaignFunnelGrid">
+            <div className="admCampaignFunnelStep">
+              <div className="admCampaignFunnelStepLabel"><span>Sent</span></div>
+              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.sent)}</strong>
+              <small className="admMuted">of {number(selectedCampaign.attempted)} attempted</small>
+            </div>
+            <div className="admCampaignFunnelStep">
+              <div className="admCampaignFunnelStepLabel"><span>Delivered</span></div>
+              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.delivered)}</strong>
+              <small className="admCampaignFunnelStepRate">{getCampaignDeliveredRate(selectedCampaign)}% rate</small>
+            </div>
+            <div className="admCampaignFunnelStep">
+              <div className="admCampaignFunnelStepLabel"><span>Seen</span></div>
+              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.seen)}</strong>
+              <small className="admCampaignFunnelStepRate">{getCampaignSeenRate(selectedCampaign)}% seen</small>
+            </div>
+            <div className="admCampaignFunnelStep">
+              <div className="admCampaignFunnelStepLabel"><span>Clicked</span></div>
+              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.clicked)}</strong>
+              <small className="admCampaignFunnelStepRate highlight">{getCampaignCtr(selectedCampaign)}% CTR</small>
+            </div>
+          </div>
+
+          <div className="admCampaignDetailMetadata">
+            <div className="admCampaignDetailMetaItem">
+              <span>Audience Target</span>
+              <strong>{selectedCampaign.audience}</strong>
+            </div>
+            <div className="admCampaignDetailMetaItem">
+              <span>Broadcast Timestamp</span>
+              <strong>{new Date(selectedCampaign.createdAt).toLocaleString()}</strong>
+            </div>
+            <div className="admCampaignDetailMetaItem">
+              <span>Failed Deliveries</span>
+              <strong>{number(selectedCampaign.failed)}</strong>
+            </div>
+            <div className="admCampaignDetailMetaItem">
+              <span>Expired / Removed</span>
+              <strong>{number(selectedCampaign.removed)}</strong>
+            </div>
+          </div>
+
+          <div className="admDialogActions">
+            <a
+              href={selectedCampaign.url}
+              target="_blank"
+              rel="noreferrer"
+              className="admButton"
+            >
+              <ExternalLink size={15} />Test destination link
+            </a>
+            {onComposeWith && (
+              <button
+                type="button"
+                className="admButton admPrimary"
+                onClick={() => {
+                  const target = selectedCampaign;
+                  setSelectedCampaign(null);
+                  onComposeWith(target);
+                }}
+              >
+                <Send size={15} />Reuse in composer
+              </button>
+            )}
+          </div>
+        </div>
+      </Dialog>
+    )}
+  </div>;
+}
+
+export function NotificationsView({ pages, initialTab = 'composer' }: { pages: PageSummary[]; initialTab?: 'composer' | 'campaigns' | 'subscribers' }) {
+  const [tab, setTab] = useState<'composer' | 'campaigns' | 'subscribers'>(initialTab);
   const [summary, setSummary] = useState<NotificationSubscriberSummary>({ total: 0, inactive: 0, byPage: [] });
   const [campaigns, setCampaigns] = useState<NotificationCampaign[]>([]);
   const [configured, setConfigured] = useState(false);
@@ -135,6 +692,7 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   const [title, setTitle] = useState('New update from signup888');
   const [body, setBody] = useState('');
   const [url, setUrl] = useState('/');
+  const [subscriberQuery, setSubscriberQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -196,72 +754,295 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
     }
   }
 
+  function handleComposeWith(campaign: NotificationCampaign) {
+    setTitle(campaign.title);
+    setBody(campaign.body);
+    setUrl(campaign.url);
+    setPageId(campaign.pageId !== null ? String(campaign.pageId) : 'all');
+    setTab('composer');
+  }
+
   const pageCounts = new Map(summary.byPage.map(item => [item.pageId, item.subscribers]));
   const recipients = pageId === 'all' ? summary.total : pageCounts.get(Number(pageId)) ?? 0;
   const selectedPage = pages.find(page => String(page.id) === pageId);
+
+  const filteredSubscribers = (summary.recent || []).filter(sub => {
+    if (!subscriberQuery.trim()) return true;
+    const q = subscriberQuery.toLowerCase();
+    return sub.slug.toLowerCase().includes(q) ||
+      (sub.device && sub.device.toLowerCase().includes(q)) ||
+      (sub.browser && sub.browser.toLowerCase().includes(q)) ||
+      (sub.ipAddress && sub.ipAddress.toLowerCase().includes(q)) ||
+      (sub.city && sub.city.toLowerCase().includes(q)) ||
+      (sub.country && sub.country.toLowerCase().includes(q));
+  });
+
   return <div className="admNotifications">
-    <SectionHeading title="Notifications"><IconButton icon={RefreshCw} label="Refresh subscribers" disabled={loading || sending} onClick={() => void refresh()} /></SectionHeading>
-    <div className="admNotificationMetrics" aria-busy={loading}>
-      <article><span className="admMetricIcon admTone-blue"><User size={19} /></span><div><span>Subscribers</span><strong>{loading ? '...' : number(summary.total)}</strong></div></article>
-      <article><span className="admMetricIcon admTone-green"><FileText size={19} /></span><div><span>Pages with subscribers</span><strong>{loading ? '...' : number(summary.byPage.filter(item => item.subscribers > 0).length)}</strong></div></article>
-      <article><span className="admMetricIcon admTone-violet"><Bell size={19} /></span><div><span>Delivery status</span><strong className="admDeliveryStatus">{loading ? 'Checking...' : configured ? 'Ready to send' : 'Setup needed'}</strong></div></article>
+    <SectionHeading title="Notifications">
+      <IconButton icon={RefreshCw} label="Refresh subscribers and campaigns" disabled={loading || sending} onClick={() => void refresh()} />
+    </SectionHeading>
+
+    {/* Sub-Navigation Tabs */}
+    <div className="admSubNav" role="tablist" aria-label="Notification sections">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={tab === 'composer'}
+        aria-current={tab === 'composer' ? 'page' : undefined}
+        onClick={() => setTab('composer')}
+      >
+        <Send size={15} />
+        <span>Compose notification</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={tab === 'campaigns'}
+        aria-current={tab === 'campaigns' ? 'page' : undefined}
+        onClick={() => setTab('campaigns')}
+      >
+        <History size={15} />
+        <span>Campaign history</span>
+        <span className="admSubNavBadge">{campaigns.length}</span>
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={tab === 'subscribers'}
+        aria-current={tab === 'subscribers' ? 'page' : undefined}
+        onClick={() => setTab('subscribers')}
+      >
+        <User size={15} />
+        <span>Subscribers</span>
+        <span className="admSubNavBadge">{summary.total}</span>
+      </button>
     </div>
-    {!loading && !configured && <details className="admNotificationSetup"><summary>Notifications need setup before you can send</summary><p>Add these keys in your hosting settings, then redeploy:</p><ul><li><code>WEB_PUSH_PUBLIC_KEY</code></li><li><code>NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY</code></li><li><code>WEB_PUSH_PRIVATE_KEY</code></li></ul><p>Both public keys must use the same value.</p></details>}
+
     {error && <p className="admError" role="alert">{error}</p>}
-    {result && <p className={result.failed && !result.sent ? 'admError' : 'admSuccess'} role="status">{number(result.sent)} accepted for delivery · {number(result.failed)} failed · {number(result.removed)} expired marked inactive</p>}
-    <div className="admNotificationGrid">
-    <form onSubmit={send} className="admNotificationComposer">
-      <SectionHeading title="New notification" />
-      <fieldset disabled={sending}>
-      <div className="admFormStack">
-        <Field label="Send to"><select value={pageId} onChange={event => setPageId(event.target.value)}><option value="all">All subscribers ({number(summary.total)})</option>{pages.map(page => <option key={page.id} value={page.id}>/{page.slug} ({number(pageCounts.get(page.id) ?? 0)})</option>)}</select></Field>
-        <Field label="Title"><input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} /></Field>
-        <Field label="Message"><textarea rows={4} maxLength={180} required value={body} onChange={event => setBody(event.target.value)} placeholder="Write a short update or offer." /></Field>
-        <span className="admMessageCount">{body.length}/180</span>
-        <Field label="Destination link"><input required inputMode="url" autoCapitalize="none" spellCheck={false} value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com/offer or /your-page" /></Field>
-        {selectedPage && <button type="button" className="admTextButton" onClick={() => setUrl('/' + selectedPage.slug)}><Link2 size={15} />Use selected page</button>}
+
+    {/* Composer View */}
+    {tab === 'composer' && (
+      <>
+        <div className="admNotificationMetrics" aria-busy={loading}>
+          <article>
+            <span className="admMetricIcon admTone-blue"><User size={19} /></span>
+            <div><span>Subscribers</span><strong>{loading ? '...' : number(summary.total)}</strong></div>
+          </article>
+          <article>
+            <span className="admMetricIcon admTone-green"><FileText size={19} /></span>
+            <div><span>Pages with subscribers</span><strong>{loading ? '...' : number(summary.byPage.filter(item => item.subscribers > 0).length)}</strong></div>
+          </article>
+          <article>
+            <span className="admMetricIcon admTone-violet"><Bell size={19} /></span>
+            <div><span>Delivery status</span><strong className="admDeliveryStatus">{loading ? 'Checking...' : configured ? 'Ready to send' : 'Setup needed'}</strong></div>
+          </article>
+        </div>
+
+        {!loading && !configured && (
+          <details className="admNotificationSetup">
+            <summary>Notifications need setup before you can send</summary>
+            <p>Add these keys in your hosting settings, then redeploy:</p>
+            <ul>
+              <li><code>WEB_PUSH_PUBLIC_KEY</code></li>
+              <li><code>NEXT_PUBLIC_WEB_PUSH_PUBLIC_KEY</code></li>
+              <li><code>WEB_PUSH_PRIVATE_KEY</code></li>
+            </ul>
+            <p>Both public keys must use the same value.</p>
+          </details>
+        )}
+
+        {result && (
+          <div className={result.failed && !result.sent ? 'admError' : 'admSuccess'} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+            <span>{number(result.sent)} accepted for delivery · {number(result.failed)} failed · {number(result.removed)} expired marked inactive</span>
+            <button type="button" className="admButton" style={{ background: 'white', fontSize: '12.5px', padding: '4px 10px' }} onClick={() => setTab('campaigns')}>
+              <History size={13} /> View in campaign history
+            </button>
+          </div>
+        )}
+
+        <div className="admNotificationGrid">
+          <form onSubmit={send} className="admNotificationComposer">
+            <SectionHeading title="New notification" />
+            <fieldset disabled={sending}>
+              <div className="admFormStack">
+                <Field label="Send to">
+                  <select value={pageId} onChange={event => setPageId(event.target.value)}>
+                    <option value="all">All subscribers ({number(summary.total)})</option>
+                    {pages.map(page => <option key={page.id} value={page.id}>/{page.slug} ({number(pageCounts.get(page.id) ?? 0)})</option>)}
+                  </select>
+                </Field>
+                <Field label="Title">
+                  <input required maxLength={80} value={title} onChange={event => setTitle(event.target.value)} />
+                </Field>
+                <Field label="Message">
+                  <textarea rows={4} maxLength={180} required value={body} onChange={event => setBody(event.target.value)} placeholder="Write a short update or offer." />
+                </Field>
+                <span className="admMessageCount">{body.length}/180</span>
+                <Field label="Destination link">
+                  <input required inputMode="url" autoCapitalize="none" spellCheck={false} value={url} onChange={event => setUrl(event.target.value)} placeholder="https://example.com/offer or /your-page" />
+                </Field>
+                {selectedPage && (
+                  <button type="button" className="admTextButton" onClick={() => setUrl('/' + selectedPage.slug)}>
+                    <Link2 size={15} />Use selected page
+                  </button>
+                )}
+              </div>
+            </fieldset>
+            <div className="admNotificationSend">
+              <span>{loading ? 'Loading audience...' : !recipients ? 'No subscribers in this audience yet' : `${number(recipients)} subscriber${recipients === 1 ? '' : 's'} selected`}</span>
+              <button type="submit" className="admButton admPrimary" disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}>
+                <Send size={16} />{sending ? 'Sending...' : 'Send notification'}
+              </button>
+            </div>
+          </form>
+
+          <aside className="admNotificationAside">
+            <section>
+              <SectionHeading title="Message preview" />
+              <div className="admPushPreview">
+                <div className="admPushSource">
+                  <img src="/favicon.ico" alt="" width={20} height={20} />
+                  <span>signup888</span>
+                  <small>now</small>
+                </div>
+                <strong>{title.trim() || 'Notification title'}</strong>
+                <p>{body.trim() || 'Your message will appear here.'}</p>
+              </div>
+            </section>
+            <section className="admNotificationAudience">
+              <SectionHeading title="Subscribers by page" />
+              {loading ? (
+                <p className="admMuted" role="status">Loading subscribers...</p>
+              ) : !summary.byPage.length ? (
+                <div className="admNotificationEmpty">
+                  <User size={24} />
+                  <strong>No subscribers yet</strong>
+                  <p>Visitors appear here after allowing notifications on your public pages.</p>
+                </div>
+              ) : (
+                <div className="admDistribution">
+                  {summary.byPage.map(item => <div key={item.pageId}>
+                    <div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div>
+                    <progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} />
+                  </div>)}
+                </div>
+              )}
+            </section>
+          </aside>
+        </div>
+      </>
+    )}
+
+    {/* Campaign History Hub */}
+    {tab === 'campaigns' && (
+      <CampaignHistoryView
+        campaigns={campaigns}
+        pages={pages}
+        loading={loading}
+        onComposeWith={handleComposeWith}
+        onRefresh={() => void refresh()}
+        onGoToCompose={() => setTab('composer')}
+      />
+    )}
+
+    {/* Subscribers Hub */}
+    {tab === 'subscribers' && (
+      <div className="admSubscriberHub">
+        <div className="admNotificationMetrics" aria-busy={loading}>
+          <article>
+            <span className="admMetricIcon admTone-blue"><User size={19} /></span>
+            <div><span>Total active subscribers</span><strong>{loading ? '...' : number(summary.total)}</strong></div>
+          </article>
+          <article>
+            <span className="admMetricIcon admTone-violet"><FileText size={19} /></span>
+            <div><span>Inactive / unsubscribed</span><strong>{loading ? '...' : number(summary.inactive)}</strong></div>
+          </article>
+          <article>
+            <span className="admMetricIcon admTone-green"><Globe2 size={19} /></span>
+            <div><span>Subscribed pages</span><strong>{loading ? '...' : number(summary.byPage.filter(i => i.subscribers > 0).length)}</strong></div>
+          </article>
+        </div>
+
+        <section className="admSubscriberSection">
+          <SectionHeading title="Audience distribution by page" />
+          {!summary.byPage.length ? (
+            <p className="admMuted">No subscribers on any page yet.</p>
+          ) : (
+            <div className="admDistributionGrid">
+              {summary.byPage.map(item => (
+                <div key={item.pageId} className="admDistributionCard">
+                  <div className="admDistributionCardHead">
+                    <span className="admAudienceSlug">/{item.slug}</span>
+                    <strong>{number(item.subscribers)} subscriber{item.subscribers === 1 ? '' : 's'}</strong>
+                  </div>
+                  <progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} />
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="admSubscriberSection">
+          <div className="admSubscriberToolbar">
+            <SectionHeading title="Subscriber details">
+              <span className="admMuted">Latest 100 subscriptions</span>
+            </SectionHeading>
+            <div className="admCampaignSearch" style={{ maxWidth: '280px' }}>
+              <Search size={15} />
+              <input
+                type="search"
+                placeholder="Filter by page, city, device, IP..."
+                value={subscriberQuery}
+                onChange={e => setSubscriberQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="admMuted">Device and browser are reported by the visitor. IP location is approximate; a time zone is not a physical location. Inactive subscribers stay saved, but cannot receive pushes unless they subscribe again.</p>
+
+          {loading ? (
+            <p role="status">Loading subscribers...</p>
+          ) : !filteredSubscribers.length ? (
+            <p className="admMuted">No subscribers found matching your criteria.</p>
+          ) : (
+            <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Subscriber details">
+              <table className="admSubscriberTable">
+                <thead>
+                  <tr>
+                    <th scope="col">Subscriber</th>
+                    <th scope="col">Page</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Device / browser</th>
+                    <th scope="col">IP address</th>
+                    <th scope="col">Approx. location</th>
+                    <th scope="col">Time zone</th>
+                    <th scope="col">Subscribed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSubscribers.map(item => <tr key={item.id}>
+                    <td>#{item.id}</td>
+                    <td><span className="admCampaignAudienceBadge">/{item.slug}</span></td>
+                    <td>
+                      {item.isActive === false ? (
+                        <span className="admCampaignStatusPill partial">Inactive</span>
+                      ) : (
+                        <span className="admCampaignStatusPill completed">Active</span>
+                      )}
+                      {item.lastFailedAt && <small>Last failed {new Date(item.lastFailedAt).toLocaleString()}</small>}
+                    </td>
+                    <td>{item.device}<small>{item.browser}</small></td>
+                    <td><code>{item.ipAddress || 'Not recorded'}</code></td>
+                    <td>{[item.city, item.country].filter(Boolean).join(', ') || 'Not recorded'}</td>
+                    <td>{item.timezone || 'Not recorded'}</td>
+                    <td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
-      </fieldset>
-      <div className="admNotificationSend"><span>{loading ? 'Loading audience...' : !recipients ? 'No subscribers in this audience yet' : `${number(recipients)} subscriber${recipients === 1 ? '' : 's'} selected`}</span><button type="submit" className="admButton admPrimary" disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}><Send size={16} />{sending ? 'Sending...' : 'Send notification'}</button></div>
-    </form>
-    <aside className="admNotificationAside">
-      <section><SectionHeading title="Message preview" /><div className="admPushPreview"><div className="admPushSource"><img src="/favicon.ico" alt="" width={20} height={20} /><span>signup888</span><small>now</small></div><strong>{title.trim() || 'Notification title'}</strong><p>{body.trim() || 'Your message will appear here.'}</p></div></section>
-      <section className="admNotificationAudience"><SectionHeading title="Subscribers by page" />{loading ? <p className="admMuted" role="status">Loading subscribers...</p> : !summary.byPage.length ? <div className="admNotificationEmpty"><User size={24} /><strong>No subscribers yet</strong><p>Visitors appear here after allowing notifications on your public pages.</p></div> : <div className="admDistribution">{summary.byPage.map(item => <div key={item.pageId}><div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div><progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} /></div>)}</div>}</section>
-    </aside>
-    </div>
-    <section className="admSubscriberSection">
-      <SectionHeading title="Campaign history"><span className="admMuted">Latest 100 sends</span></SectionHeading>
-      {!campaigns.length ? <p className="admMuted">No campaigns sent yet.</p> : <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Campaign history">
-        <table className="admSubscriberTable">
-          <thead><tr><th scope="col">Date sent</th><th scope="col">Campaign</th><th scope="col">Audience</th><th scope="col">Accepted</th><th scope="col">Delivered</th><th scope="col">Seen</th><th scope="col">Clicked</th><th scope="col">Blocked</th></tr></thead>
-          <tbody>{campaigns.map(campaign => <tr key={campaign.id}>
-            <td><time dateTime={campaign.createdAt}>{new Date(campaign.createdAt).toLocaleString()}</time></td>
-            <td><strong>{campaign.title}</strong><small>{campaign.body}</small><small>{campaign.url}</small></td>
-            <td>{campaign.audience}</td>
-            <td>{number(campaign.sent)}<small>of {number(campaign.attempted)}</small></td>
-            <td>{number(campaign.delivered)}</td>
-            <td>{number(campaign.seen)}</td>
-            <td>{number(campaign.clicked)}</td>
-            <td>{number(campaign.failed + campaign.removed)}<small>{number(campaign.failed)} failed · {number(campaign.removed)} expired</small></td>
-          </tr>)}</tbody>
-        </table>
-      </div>}
-      <p className="admMuted">Delivered means the service worker received the push. Seen means the notification was shown by the browser. Blocked combines failed sends and expired subscriptions marked inactive.</p>
-    </section>
-    <section className="admSubscriberSection">
-      <SectionHeading title="Subscriber details"><span className="admMuted">Latest 100 subscriptions</span></SectionHeading>
-      <p className="admMuted">Device and browser are reported by the visitor. IP location is approximate; a time zone is not a physical location. Inactive subscribers stay saved, but cannot receive pushes unless they subscribe again.</p>
-      {loading ? <p role="status">Loading subscribers...</p> : !summary.recent?.length ? <p className="admMuted">No subscriber details yet.</p> : <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Subscriber details">
-        <table className="admSubscriberTable">
-          <thead><tr><th scope="col">Subscriber</th><th scope="col">Page</th><th scope="col">Status</th><th scope="col">Device / browser</th><th scope="col">IP address</th><th scope="col">Approx. location</th><th scope="col">Time zone</th><th scope="col">Subscribed</th></tr></thead>
-          <tbody>{summary.recent.map(item => <tr key={item.id}>
-            <td>#{item.id}</td><td>/{item.slug}</td><td>{item.isActive === false ? 'Inactive' : 'Active'}{item.lastFailedAt && <small>Last failed {new Date(item.lastFailedAt).toLocaleString()}</small>}</td><td>{item.device}<small>{item.browser}</small></td>
-            <td>{item.ipAddress || 'Not recorded'}</td><td>{[item.city, item.country].filter(Boolean).join(', ') || 'Not recorded'}</td>
-            <td>{item.timezone || 'Not recorded'}</td><td><time dateTime={item.createdAt}>{new Date(item.createdAt).toLocaleString()}</time></td>
-          </tr>)}</tbody>
-        </table>
-      </div>}
-    </section>
+    )}
   </div>;
 }
 
