@@ -12,7 +12,9 @@
 }
 .admShell { display: grid; grid-template-columns: var(--adm-sidebar) minmax(0, 1fr); min-height: 100dvh; width: 100%; background: #f8f9fb; }
 .admShell[data-collapsed="true"] { --adm-sidebar: 76px; }
-.admShell h1:not(:where(.smartPage *)), .admShell h2:not(:where(.smartPage *)), .admShell h3:not(:where(.smartPage *)), .admDialog h2, .masterShell h1, .masterShell h2, .masterShell h3 { margin: 0; color: var(--adm-ink); letter-spacing: 0; }
+.admShell h1:not(:where(.smartPage *)), .admShell h2:not(:where(.smartPage *)), .admShell h3:not(:where(.smartPage *)), .admDialog h2 { margin: 0; color: var(--adm-ink); letter-spacing: 0; }
+.masterShell h1, .masterShell h2, .masterShell h3 { margin: 0; letter-spacing: 0; }
+.masterShell h1, .masterShell :not(.masterHero, .masterBrandPreview) > h2, .masterShell h3 { color: var(--adm-ink); }
 .admShell h2:not(:where(.smartPage *)) { font-size: 24px; font-weight: 650; line-height: 1.3; }
 .admShell h3:not(:where(.smartPage *)) { font-size: 15px; font-weight: 650; }
 .admShell p:not(:where(.smartPage *)), .masterShell p { margin: 6px 0 0; }
@@ -534,11 +536,12 @@ body:has(.admDialog[open]) { overflow: hidden; }
 .masterNotice { max-width: 1260px; margin: 0 auto 18px; }
 .masterHero { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: end; justify-content: space-between; gap: 28px; min-height: 230px; padding: clamp(28px, 4vw, 50px); border-radius: 24px; color: #fff; background: linear-gradient(125deg, #13254c, #244f9c 66%, #3976d8); box-shadow: 0 20px 50px #17356a22; }
 .masterHero::before { content: ""; position: absolute; z-index: -1; width: 330px; height: 330px; top: -180px; right: 8%; border: 70px solid #ffffff0b; border-radius: 50%; }
-.masterHero h2 { max-width: 620px; margin-top: 13px; font-size: clamp(30px, 4vw, 50px); line-height: 1.04; letter-spacing: -.045em; }
-.masterHero p { max-width: 610px; margin-top: 14px; color: #d5e1fa; line-height: 1.65; }
+.masterHero h2 { max-width: 620px; margin-top: 13px; color: #fff; font-size: clamp(30px, 4vw, 50px); line-height: 1.04; letter-spacing: -.045em; }
+.masterHero p { max-width: 610px; margin-top: 14px; color: #e3ebfc; line-height: 1.65; }
 .masterHero > button { display: inline-flex; align-items: center; gap: 9px; flex: none; padding: 12px 16px; border: 1px solid #ffffff38; border-radius: 11px; color: #fff; background: #ffffff13; backdrop-filter: blur(8px); }
 .masterHero > button:hover { background: #ffffff22; }
-.masterEyebrow { display: inline-flex; align-items: center; gap: 7px; color: #adc6ff; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .1em; }
+.masterEyebrow { display: inline-flex; align-items: center; gap: 7px; color: #3868d6; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .1em; }
+.masterHero .masterEyebrow { color: #c2d5ff; }
 .masterMetrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 15px; }
 .masterMetrics article { display: flex; align-items: center; gap: 14px; min-width: 0; padding: 20px; border: 1px solid #e3e8f2; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #26365708; }
 .masterMetricIcon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; border-radius: 13px; }
@@ -585,7 +588,7 @@ body:has(.admDialog[open]) { overflow: hidden; }
 .masterBrandPreview > span { color: #a9bce4; font-size: 10px; text-transform: uppercase; letter-spacing: .12em; }
 .masterBrandPreview > div { display: flex; align-items: center; gap: 13px; margin-top: 30px; }
 .masterBrandPreview img { width: 58px; height: 58px; object-fit: cover; border-radius: 17px; background: #fff; }
-.masterBrandPreview strong { max-width: 230px; font-size: 26px; overflow-wrap: anywhere; }
+.masterBrandPreview strong { max-width: 230px; color: #fff; font-size: 26px; overflow-wrap: anywhere; }
 .masterBrandPreview p { max-width: 330px; margin-top: 18px; color: #bfceec; line-height: 1.5; }
 .masterBrandForm { min-width: 0; }
 .masterAccessCard { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 22px; padding: clamp(24px, 4vw, 42px); border: 1px solid; border-radius: 20px; background: #fff; box-shadow: 0 12px 35px #2636570a; }
