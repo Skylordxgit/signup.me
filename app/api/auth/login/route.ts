@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { configuredAdmin, setSessionCookie, verifyPassword } from "@/lib/auth";
+import { setSessionCookie, verifyPassword } from "@/lib/auth";
 import { masterAdmin, masterCredentialVersion, provisionMaster } from '@/lib/master';
-import { addWorkspaceUser, findWorkspaceUser, isPendingInvite } from '@/lib/workspaceUsers';
-import { DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, isWorkspaceActive } from '@/lib/workspaces';
+import { findWorkspaceUser, isPendingInvite } from '@/lib/workspaceUsers';
+import { isWorkspaceActive } from '@/lib/workspaces';
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -14,7 +14,6 @@ export async function POST(request: NextRequest) {
   }
 
   const { email, password } = (await request.json()) as { email?: string; password?: string };
-  const admin = configuredAdmin();
   const master = masterAdmin();
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const usable = typeof password === 'string' && password.length <= 256;
@@ -27,8 +26,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error }, { status });
   }
 
-  // The master admin is checked first and enters the unified admin shell with
-  // master-only global controls enabled.
+  // The master admin is configured via ADMIN_EMAIL / ADMIN_PASSWORD_HASH and
+  // gains universal Master Admin access.
   if (master && normalizedEmail === master.email) {
     if (!usable || !verifyPassword(password!, master.passwordHash)) return reject();
     const account = await provisionMaster();
@@ -36,14 +35,6 @@ export async function POST(request: NextRequest) {
     attempts.delete(ip);
     await setSessionCookie({ email: normalizedEmail, scope: 'master', version: account.version, credentialVersion: masterCredentialVersion() });
     return NextResponse.json({ ok: true, scope: 'master', redirect: '/admin/master' });
-  }
-
-  // Migrate the old configured workspace owner once, then use normal database
-  // membership validation. There is no environment-only workspace session.
-  if (admin && normalizedEmail === admin.email && !(await findWorkspaceUser(normalizedEmail))) {
-    if (!usable || !verifyPassword(password!, admin.passwordHash)) return reject();
-    await ensureDefaultWorkspace(admin.email);
-    await addWorkspaceUser({ email: admin.email, passwordHash: admin.passwordHash, name: 'Workspace owner', workspaceId: DEFAULT_WORKSPACE_ID, role: 'owner' });
   }
 
   const member = await findWorkspaceUser(normalizedEmail);

@@ -3,11 +3,11 @@ import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery } from './mysql';
 
-/** Environment credentials configure the sole global account. Storage must
- * also validate it on login and on every authenticated request. */
+/** Environment credentials configure the sole global Master Admin account.
+ * Uses ADMIN_EMAIL and ADMIN_PASSWORD_HASH (with MASTER_ADMIN_* as fallback). */
 export function masterAdmin() {
-  const email = process.env.MASTER_ADMIN_EMAIL?.trim().toLowerCase();
-  const passwordHash = process.env.MASTER_ADMIN_PASSWORD_HASH?.trim();
+  const email = (process.env.ADMIN_EMAIL || process.env.MASTER_ADMIN_EMAIL)?.trim().toLowerCase();
+  const passwordHash = (process.env.ADMIN_PASSWORD_HASH || process.env.MASTER_ADMIN_PASSWORD_HASH)?.trim();
   if (!email || !passwordHash) return null;
   return { email, passwordHash };
 }
