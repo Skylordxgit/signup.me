@@ -24,6 +24,7 @@ export const defaultTheme: ThemeSettings = {
   profileAlignment: "left",
   surface: "plain",
   buttonStyle: "solid",
+  buttonAnimation: false,
   backgroundStyle: "solid",
   showShareButton: false,
 };

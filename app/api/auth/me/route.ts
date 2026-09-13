@@ -12,6 +12,7 @@ export async function GET() {
   return NextResponse.json({
     email: session.email,
     role: session.role,
+    isMaster: session.isMaster ?? false,
     workspaceId: session.workspaceId,
     workspaceName: workspace?.name || 'Main workspace',
   });

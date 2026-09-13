@@ -324,6 +324,7 @@ export function applyThemeDefinition(theme: ThemeDefinition, current?: ThemeSett
     backgroundStyle: theme.settings.surface?.startsWith("plain") ? "solid" : "gradient",
     ...(current ? {
       backgroundImage: current.backgroundImage,
+      buttonAnimation: current.buttonAnimation,
       profileLayout: current.profileLayout,
       showShareButton: current.showShareButton,
     } : {}),

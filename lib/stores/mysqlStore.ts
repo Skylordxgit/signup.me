@@ -72,10 +72,11 @@ type CampaignRow = {
   audience: string;
   attempted: number;
   sent: number;
-  removed: number;
+  delivered: number;
+  seen: number;
+  clicked: number;
   failed: number;
-  clicks: number;
-  status: 'sent' | 'failed';
+  removed: number;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -176,6 +177,7 @@ function subscriptionHash(endpoint: string) {
 }
 
 let pushTableReady: Promise<void> | null = null;
+let campaignTableReady: Promise<void> | null = null;
 
 function ensurePushTable() {
   pushTableReady ??= mysqlQuery(
@@ -208,6 +210,45 @@ function ensurePushTable() {
     }
   }).catch(error => { pushTableReady = null; throw error; });
   return pushTableReady;
+}
+
+function ensureCampaignTable() {
+  campaignTableReady ??= mysqlQuery(
+    `CREATE TABLE IF NOT EXISTS notification_campaigns (
+      id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+      workspace_id VARCHAR(80) NOT NULL,
+      page_id BIGINT UNSIGNED NULL,
+      page_slug VARCHAR(120) NULL,
+      title VARCHAR(120) NOT NULL,
+      body VARCHAR(255) NOT NULL,
+      url VARCHAR(700) NOT NULL,
+      audience VARCHAR(190) NOT NULL,
+      attempted INT UNSIGNED NOT NULL DEFAULT 0,
+      sent INT UNSIGNED NOT NULL DEFAULT 0,
+      delivered INT UNSIGNED NOT NULL DEFAULT 0,
+      seen INT UNSIGNED NOT NULL DEFAULT 0,
+      clicked INT UNSIGNED NOT NULL DEFAULT 0,
+      failed INT UNSIGNED NOT NULL DEFAULT 0,
+      removed INT UNSIGNED NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_campaign_workspace_created (workspace_id, created_at),
+      INDEX idx_campaign_page (page_id)
+    )`,
+  ).then(async () => {
+    for (const { name, sql } of [
+      { name: 'delivered', sql: 'ALTER TABLE notification_campaigns ADD COLUMN delivered INT UNSIGNED NOT NULL DEFAULT 0' },
+      { name: 'seen', sql: 'ALTER TABLE notification_campaigns ADD COLUMN seen INT UNSIGNED NOT NULL DEFAULT 0' },
+      { name: 'clicked', sql: 'ALTER TABLE notification_campaigns ADD COLUMN clicked INT UNSIGNED NOT NULL DEFAULT 0' },
+    ]) {
+      const columns = await mysqlQuery<{ Field: string }[]>(`SHOW COLUMNS FROM notification_campaigns LIKE '${name}'`);
+      if (!columns.length) {
+        try { await mysqlQuery(sql); }
+        catch (error) { if ((error as { code?: string }).code !== 'ER_DUP_FIELDNAME') throw error; }
+      }
+    }
+  }).catch(error => { campaignTableReady = null; throw error; });
+  return campaignTableReady;
 }
 
 export async function listPages(workspaceId?: string) {
@@ -719,16 +760,19 @@ function mapCampaign(row: CampaignRow): NotificationCampaign {
     audience: row.audience,
     attempted: Number(row.attempted),
     sent: Number(row.sent),
-    removed: Number(row.removed),
+    delivered: Number(row.delivered),
+    seen: Number(row.seen),
+    clicked: Number(row.clicked),
+    clicks: Number(row.clicked),
     failed: Number(row.failed),
-    clicks: Number(row.clicks),
-    status: row.status,
+    removed: Number(row.removed),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
 }
 
 export async function listNotificationCampaigns(workspaceId?: string): Promise<NotificationCampaign[]> {
+  await ensureCampaignTable();
   const rows = await mysqlQuery<CampaignRow[]>(
     `SELECT * FROM notification_campaigns
      ${workspaceId ? 'WHERE workspace_id = ?' : ''}
@@ -740,17 +784,13 @@ export async function listNotificationCampaigns(workspaceId?: string): Promise<N
 }
 
 export async function trackNotificationCampaignClick(campaignId: number) {
-  if (!Number.isInteger(campaignId) || campaignId <= 0) return false;
-  const result = await mysqlQuery<{ affectedRows: number }>(
-    'UPDATE notification_campaigns SET clicks = clicks + 1 WHERE id = ?',
-    [campaignId],
-  );
-  return Number(result.affectedRows ?? 0) > 0;
+  return Boolean(await recordNotificationCampaignEvent(campaignId, 'clicked'));
 }
 
 export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
   configureWebPush();
   await ensurePushTable();
+  await ensureCampaignTable();
   const rows = await mysqlQuery<PushRow[]>(
     `SELECT ps.*, p.slug FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
@@ -763,7 +803,7 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   const inserted = await mysqlQuery<{ insertId: number }>(
     `INSERT INTO notification_campaigns (workspace_id, page_id, page_slug, title, body, url, audience, attempted)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [input.workspaceId || DEFAULT_WORKSPACE_ID, input.pageId ?? null, pageSlug, input.title.trim(), input.body.trim(), input.url.trim() || '/', audience, subscriptions.length],
+    [input.workspaceId || DEFAULT_WORKSPACE_ID, input.pageId ?? null, pageSlug, input.title.trim().slice(0, 120), input.body.trim().slice(0, 255), (input.url.trim() || '/').slice(0, 700), audience, subscriptions.length],
   );
   const campaignId = Number(inserted.insertId);
   const { result, expired } = await sendPushBatch(subscriptions, notificationPayload({ ...input, campaignId }));
@@ -773,11 +813,20 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   }
   await mysqlQuery(
     `UPDATE notification_campaigns
-     SET attempted = ?, sent = ?, removed = ?, failed = ?, status = ?
+     SET attempted = ?, sent = ?, removed = ?, failed = ?
      WHERE id = ?`,
-    [result.attempted, result.sent, result.removed, result.failed, result.sent > 0 ? 'sent' : 'failed', campaignId],
+    [result.attempted, result.sent, result.removed, result.failed, campaignId],
   );
   const campaigns = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
 
-  return { ...result, campaign: campaigns[0] ? mapCampaign(campaigns[0]) : undefined };
+  return { ...result, campaignId, campaign: campaigns[0] ? mapCampaign(campaigns[0]) : undefined };
+}
+
+export async function recordNotificationCampaignEvent(campaignId: number, event: 'delivered' | 'seen' | 'clicked') {
+  if (!Number.isFinite(campaignId)) return null;
+  await ensureCampaignTable();
+  const column = event === 'clicked' ? 'clicked' : event === 'seen' ? 'seen' : 'delivered';
+  await mysqlQuery(`UPDATE notification_campaigns SET ${column} = ${column} + 1 WHERE id = ?`, [campaignId]);
+  const rows = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
+  return rows[0] ? mapCampaign(rows[0]) : null;
 }

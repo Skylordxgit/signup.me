@@ -28,3 +28,4 @@ export const listPushSubscribers: typeof jsonStore.listPushSubscribers = (...arg
 export const sendPushNotification: typeof jsonStore.sendPushNotification = (...args) => store().sendPushNotification(...args);
 export const listNotificationCampaigns: typeof jsonStore.listNotificationCampaigns = (...args) => store().listNotificationCampaigns(...args);
 export const trackNotificationCampaignClick: typeof jsonStore.trackNotificationCampaignClick = (...args) => store().trackNotificationCampaignClick(...args);
+export const recordNotificationCampaignEvent: typeof jsonStore.recordNotificationCampaignEvent = (...args) => store().recordNotificationCampaignEvent(...args);

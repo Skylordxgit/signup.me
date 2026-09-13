@@ -72,6 +72,7 @@ export type ThemeSettings = {
   spacing: number;
   /* Optional: pages saved before these existed fall back to their theme. */
   buttonStyle?: ButtonStyle;
+  buttonAnimation?: boolean;
   surface?: SurfaceStyle;
   backgroundStyle?: "solid" | "gradient";
   showShareButton?: boolean;
@@ -208,25 +209,6 @@ export type NotificationSubscriberSummary = {
   recent?: SubscriberListItem[];
 };
 
-export type NotificationCampaign = {
-  id: number;
-  workspaceId: string;
-  pageId: number | null;
-  pageSlug: string | null;
-  title: string;
-  body: string;
-  url: string;
-  audience: string;
-  attempted: number;
-  sent: number;
-  removed: number;
-  failed: number;
-  clicks: number;
-  status: 'sent' | 'failed';
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type NotificationSendInput = {
   title: string;
   body: string;
@@ -239,9 +221,31 @@ export type NotificationSendInput = {
 };
 
 export type NotificationSendResult = {
+  campaignId?: number;
   attempted: number;
   sent: number;
   removed: number;
   failed: number;
   campaign?: NotificationCampaign;
+};
+
+export type NotificationCampaign = {
+  id: number;
+  workspaceId: string;
+  pageId: number | null;
+  pageSlug: string | null;
+  title: string;
+  body: string;
+  url: string;
+  audience: string;
+  attempted: number;
+  sent: number;
+  delivered: number;
+  seen: number;
+  clicked: number;
+  clicks: number;
+  failed: number;
+  removed: number;
+  createdAt: string;
+  updatedAt: string;
 };

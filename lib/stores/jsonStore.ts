@@ -51,6 +51,10 @@ function nextId(items: { id: number }[]) {
   return Math.max(0, ...items.map((item) => item.id)) + 1;
 }
 
+function nextBlockId(pages: SmartPage[]) {
+  return nextId(pages.flatMap((page) => page.blocks));
+}
+
 function sortBlocks(page: SmartPage) {
   // Pages stored before workspaces existed belong to the default workspace.
   return { ...page, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID, blocks: [...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder) };
@@ -178,6 +182,7 @@ export async function duplicatePage(id: number) {
 
   const timestamp = nowIso();
   const newId = nextId(db.pages);
+  const firstBlockId = nextBlockId(db.pages);
   const duplicateSlugBase = `${page.slug}-copy`;
   let duplicateSlug = duplicateSlugBase;
   let suffix = 2;
@@ -198,7 +203,7 @@ export async function duplicatePage(id: number) {
     updatedAt: timestamp,
     blocks: page.blocks.map((block, index) => ({
       ...block,
-      id: Date.now() + index,
+      id: firstBlockId + index,
       pageId: newId,
       clicks: 0,
       createdAt: timestamp,
@@ -216,7 +221,7 @@ export async function createBlock(pageId: number, type: BlockType) {
   const page = db.pages.find((item) => item.id === pageId);
   if (!page) return null;
 
-  const block = emptyBlock(pageId, type, page.blocks.length + 1);
+  const block = { ...emptyBlock(pageId, type, page.blocks.length + 1), id: nextBlockId(db.pages) };
   page.blocks.push(block);
   page.updatedAt = nowIso();
   await writeJsonDb(db);
@@ -271,7 +276,7 @@ export async function duplicateBlock(id: number) {
 
     const duplicate: PageBlock = {
       ...block,
-      id: Date.now(),
+      id: nextBlockId(db.pages),
       title: `${block.title} Copy`,
       sortOrder: block.sortOrder + 1,
       clicks: 0,
@@ -447,23 +452,29 @@ function campaignAudience(input: NotificationSendInput, page?: SmartPage) {
   return input.pageId && page ? `/${page.slug}` : 'All subscribers';
 }
 
+function normalizeCampaign(campaign: NotificationCampaign): NotificationCampaign {
+  const clicked = Number(campaign.clicked ?? campaign.clicks ?? 0);
+  return {
+    ...campaign,
+    pageSlug: campaign.pageSlug ?? null,
+    delivered: Number(campaign.delivered ?? 0),
+    seen: Number(campaign.seen ?? 0),
+    clicked,
+    clicks: clicked,
+  };
+}
+
 export async function listNotificationCampaigns(workspaceId?: string): Promise<NotificationCampaign[]> {
   const db = await readJsonDb();
   return db.notificationCampaigns
     .filter(campaign => !workspaceId || campaign.workspaceId === workspaceId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(normalizeCampaign)
     .slice(0, 100);
 }
 
 export async function trackNotificationCampaignClick(campaignId: number) {
-  if (!Number.isInteger(campaignId) || campaignId <= 0) return false;
-  const db = await readJsonDb();
-  const campaign = db.notificationCampaigns.find(item => item.id === campaignId);
-  if (!campaign) return false;
-  campaign.clicks += 1;
-  campaign.updatedAt = nowIso();
-  await writeJsonDb(db);
-  return true;
+  return Boolean(await recordNotificationCampaignEvent(campaignId, 'clicked'));
 }
 
 export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
@@ -486,10 +497,12 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
     audience: campaignAudience(input, page),
     attempted: subscribers.length,
     sent: 0,
-    removed: 0,
-    failed: 0,
+    delivered: 0,
+    seen: 0,
+    clicked: 0,
     clicks: 0,
-    status: 'failed',
+    failed: 0,
+    removed: 0,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -504,7 +517,6 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
     stored.sent = result.sent;
     stored.removed = result.removed;
     stored.failed = result.failed;
-    stored.status = result.sent > 0 ? 'sent' : 'failed';
     stored.updatedAt = nowIso();
   }
   if (expired.length) {
@@ -513,5 +525,17 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   }
   await writeJsonDb(latest);
 
-  return { ...result, campaign: stored ?? campaign };
+  return { ...result, campaignId: campaign.id, campaign: stored ?? campaign };
+}
+
+export async function recordNotificationCampaignEvent(campaignId: number, event: 'delivered' | 'seen' | 'clicked') {
+  if (!Number.isFinite(campaignId)) return null;
+  const db = await readJsonDb();
+  const campaign = db.notificationCampaigns.find(item => item.id === campaignId);
+  if (!campaign) return null;
+  Object.assign(campaign, normalizeCampaign(campaign));
+  campaign[event] += 1;
+  campaign.updatedAt = nowIso();
+  await writeJsonDb(db);
+  return campaign;
 }

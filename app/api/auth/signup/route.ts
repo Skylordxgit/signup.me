@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { setSessionCookie } from "@/lib/auth";
 import { getBranding } from "@/lib/branding";
 import { signUp } from "@/lib/signup";
+import { getSignupSettings } from "@/lib/signupSettings";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
+
+export async function GET() {
+  return NextResponse.json(await getSignupSettings());
+}
 
 export async function POST(request: NextRequest) {
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "local";
@@ -17,8 +22,8 @@ export async function POST(request: NextRequest) {
   });
 
   try {
-    const branding = await getBranding();
-    if (!branding.signupEnabled) {
+    const [branding, signup] = await Promise.all([getBranding(), getSignupSettings()]);
+    if (!branding.signupEnabled || !signup.enabled) {
       return NextResponse.json({ error: "Signup is currently closed." }, { status: 403 });
     }
 

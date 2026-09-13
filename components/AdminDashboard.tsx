@@ -34,6 +34,7 @@ export function AdminDashboard() {
   const [branding, setBranding] = useState<ClientBranding>(fallbackBranding);
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [role, setRole] = useState<'owner' | 'admin'>('admin');
+  const [isMaster, setIsMaster] = useState(false);
   const [email, setEmail] = useState('');
   const [workspace, setWorkspace] = useState('');
   const [loading, setLoading] = useState(true);
@@ -98,13 +99,14 @@ export function AdminDashboard() {
     let cancelled = false;
     Promise.all([
       adminApi<PageSummary[]>('/api/pages'),
-      adminApi<{ email: string; role: 'owner' | 'admin'; workspaceName: string }>('/api/auth/me'),
+      adminApi<{ email: string; role: 'owner' | 'admin'; isMaster?: boolean; workspaceName: string }>('/api/auth/me'),
       fetchBranding(),
     ]).then(async ([items, account, brand]) => {
       if (cancelled) return;
       setPages(items);
       setEmail(account.email);
       setRole(account.role);
+      setIsMaster(account.isMaster ?? false);
       setWorkspace(account.workspaceName);
       setBranding(brand);
       try { setCollapsed(localStorage.getItem('smartlink_sidebar_collapsed') === 'true'); } catch { /* Use the expanded sidebar. */ }
@@ -261,7 +263,7 @@ export function AdminDashboard() {
         <form className="admHeaderSearch" role="search" onSubmit={event => { event.preventDefault(); navigate('pages'); }}><Search size={17} /><input aria-label="Search pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></form>
         <div className="admHeaderActions">
           {view === 'builder' && editor.page && <><span className={'admSaveStatus ' + (editor.status === 'Save failed' ? 'admDanger' : '')} role="status">{editor.status === 'Saving' ? <Loader2 className="admSpinner" size={15} /> : editor.status === 'Saved' ? <Check size={15} /> : <span className="admUnsavedDot" />}{editor.status}</span><a className="admButton" aria-label="Preview public page" title="Preview public page" href={'/' + editor.page.slug} target="_blank" rel="noreferrer"><ArrowUpRight size={16} /><span>Preview</span></a><button type="button" className="admButton admPrimary" aria-label="Save page" title="Save page" disabled={busy || editor.status === 'Saving'} onClick={() => void run(editor.save)}><Save size={16} /><span>Save</span></button></>}
-          <details className="admAccount" ref={accountMenu}><summary aria-label="Admin account menu" title="Admin account menu"><span className="admAvatar"><User size={18} /></span><ChevronDown size={14} /></summary><div><strong>{role === 'owner' ? 'Workspace owner' : 'Administrator'}</strong><small>{email}</small><small>{workspace}</small><button type="button" onClick={() => navigate('settings')}><Settings size={16} />Settings</button><button type="button" disabled={busy} onClick={logout}><LogOut size={16} />Log out</button></div></details>
+          <details className="admAccount" ref={accountMenu}><summary aria-label="Admin account menu" title="Admin account menu"><span className="admAvatar"><User size={18} /></span><ChevronDown size={14} /></summary><div><strong>{isMaster ? 'Master admin' : role === 'owner' ? 'Workspace owner' : 'Administrator'}</strong><small>{email}</small><small>{workspace}</small><button type="button" onClick={() => navigate('settings')}><Settings size={16} />Settings</button><button type="button" disabled={busy} onClick={logout}><LogOut size={16} />Log out</button></div></details>
         </div>
       </header>
       <main className={'admMain ' + (view === 'builder' ? 'admMainBuilder' : '')} aria-busy={busy || loading} inert={busy || undefined}>
@@ -276,7 +278,7 @@ export function AdminDashboard() {
           {view === 'themes' && <><SectionHeading title="Theme library" /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
           {view === 'notifications' && <NotificationsView pages={pages} />}
           {view === 'users' && <UsersView role={role} />}
-          {view === 'settings' && <SettingsView email={email} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
+          {view === 'settings' && <SettingsView email={email} collapsed={collapsed} isMaster={isMaster} onBrandingChanged={setBranding} onCollapse={collapse} onLogout={logout} />}
         </>}
       </main>
     </div>

@@ -2,16 +2,17 @@
 import { AuthBranding } from "@/components/AuthBranding";
 import { SignupForm } from "@/components/SignupForm";
 import { getBranding } from "@/lib/branding";
+import { getSignupSettings } from "@/lib/signupSettings";
 
 export default async function SignupPage() {
-  const branding = await getBranding();
+  const [branding, signup] = await Promise.all([getBranding(), getSignupSettings()]);
 
   return (
     <main className="authShell">
       <AuthBranding />
 
       <section className="authCard">
-        {branding.signupEnabled ? (
+        {branding.signupEnabled && signup.enabled ? (
           <SignupForm />
         ) : (
           <>

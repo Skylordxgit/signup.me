@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Download, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Send, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Check, Clock3, Copy, Download, Eye, FileText, Globe2, ImageIcon, Link2, LogOut, MousePointer2, Pencil, Plus, Power, RefreshCw, Send, Trash2, User, UserPlus } from "lucide-react";
 import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
@@ -199,10 +199,6 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   const pageCounts = new Map(summary.byPage.map(item => [item.pageId, item.subscribers]));
   const recipients = pageId === 'all' ? summary.total : pageCounts.get(Number(pageId)) ?? 0;
   const selectedPage = pages.find(page => String(page.id) === pageId);
-  const totalSent = campaigns.reduce((sum, campaign) => sum + campaign.sent, 0);
-  const totalClicks = campaigns.reduce((sum, campaign) => sum + campaign.clicks, 0);
-  const campaignCtr = totalSent ? Math.round(totalClicks / totalSent * 1000) / 10 : 0;
-
   return <div className="admNotifications">
     <SectionHeading title="Notifications"><IconButton icon={RefreshCw} label="Refresh subscribers" disabled={loading || sending} onClick={() => void refresh()} /></SectionHeading>
     <div className="admNotificationMetrics" aria-busy={loading}>
@@ -233,31 +229,24 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
       <section className="admNotificationAudience"><SectionHeading title="Subscribers by page" />{loading ? <p className="admMuted" role="status">Loading subscribers...</p> : !summary.byPage.length ? <div className="admNotificationEmpty"><User size={24} /><strong>No subscribers yet</strong><p>Visitors appear here after allowing notifications on your public pages.</p></div> : <div className="admDistribution">{summary.byPage.map(item => <div key={item.pageId}><div><span>/{item.slug}</span><strong>{number(item.subscribers)}</strong></div><progress max={Math.max(1, summary.total)} value={item.subscribers} aria-label={`/${item.slug} subscribers`} /></div>)}</div>}</section>
     </aside>
     </div>
-    <section className="admCampaignSection">
-      <SectionHeading title="Campaigns"><span className="admMuted">Recent sends</span></SectionHeading>
-      <div className="admCampaignMetrics">
-        <article><span>Campaigns</span><strong>{loading ? '...' : number(campaigns.length)}</strong></article>
-        <article><span>Notification views</span><strong>{loading ? '...' : number(totalSent)}</strong></article>
-        <article><span>Notification clicks</span><strong>{loading ? '...' : number(totalClicks)}</strong></article>
-        <article><span>Click rate</span><strong>{loading ? '...' : `${campaignCtr}%`}</strong></article>
-      </div>
-      {loading ? <p role="status">Loading campaigns...</p> : !campaigns.length ? <p className="admMuted">No campaigns sent yet.</p> : <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Campaign history">
-        <table className="admSubscriberTable admCampaignTable">
-          <thead><tr><th scope="col">Campaign</th><th scope="col">Audience</th><th scope="col">Views</th><th scope="col">Clicks</th><th scope="col">CTR</th><th scope="col">Delivery</th><th scope="col">Sent</th></tr></thead>
-          <tbody>{campaigns.map(campaign => {
-            const ctr = campaign.sent ? Math.round(campaign.clicks / campaign.sent * 1000) / 10 : 0;
-            return <tr key={campaign.id}>
-              <td><strong>{campaign.title}</strong><small>#{campaign.id} · {campaign.body}</small></td>
-              <td>{campaign.audience}<small>{campaign.url}</small></td>
-              <td>{number(campaign.sent)}</td>
-              <td>{number(campaign.clicks)}</td>
-              <td>{ctr}%</td>
-              <td>{number(campaign.sent)} sent<small>{number(campaign.failed)} failed · {number(campaign.removed)} expired</small></td>
-              <td><time dateTime={campaign.createdAt}>{new Date(campaign.createdAt).toLocaleString()}</time></td>
-            </tr>;
-          })}</tbody>
+    <section className="admSubscriberSection">
+      <SectionHeading title="Campaign history"><span className="admMuted">Latest 100 sends</span></SectionHeading>
+      {!campaigns.length ? <p className="admMuted">No campaigns sent yet.</p> : <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Campaign history">
+        <table className="admSubscriberTable">
+          <thead><tr><th scope="col">Date sent</th><th scope="col">Campaign</th><th scope="col">Audience</th><th scope="col">Accepted</th><th scope="col">Delivered</th><th scope="col">Seen</th><th scope="col">Clicked</th><th scope="col">Blocked</th></tr></thead>
+          <tbody>{campaigns.map(campaign => <tr key={campaign.id}>
+            <td><time dateTime={campaign.createdAt}>{new Date(campaign.createdAt).toLocaleString()}</time></td>
+            <td><strong>{campaign.title}</strong><small>{campaign.body}</small><small>{campaign.url}</small></td>
+            <td>{campaign.audience}</td>
+            <td>{number(campaign.sent)}<small>of {number(campaign.attempted)}</small></td>
+            <td>{number(campaign.delivered)}</td>
+            <td>{number(campaign.seen)}</td>
+            <td>{number(campaign.clicked)}</td>
+            <td>{number(campaign.failed + campaign.removed)}<small>{number(campaign.failed)} failed · {number(campaign.removed)} expired</small></td>
+          </tr>)}</tbody>
         </table>
       </div>}
+      <p className="admMuted">Delivered means the service worker received the push. Seen means the notification was shown by the browser. Blocked combines failed sends and expired subscriptions marked inactive.</p>
     </section>
     <section className="admSubscriberSection">
       <SectionHeading title="Subscriber details"><span className="admMuted">Latest 100 subscriptions</span></SectionHeading>
@@ -276,7 +265,31 @@ export function NotificationsView({ pages }: { pages: PageSummary[] }) {
   </div>;
 }
 
-export function SettingsView({ email, collapsed, onCollapse, onLogout }: { email: string; collapsed: boolean; onCollapse: (collapsed: boolean) => void; onLogout: () => void }) {
+type BrandingSettings = { name: string; siteTitle: string; logo: string; favicon: string };
+type SignupSettings = { enabled: boolean };
+
+const fallbackBranding: BrandingSettings = {
+  name: "signup888",
+  siteTitle: "signup888 - Your Link. Your World.",
+  logo: "/signup888-logo.png",
+  favicon: "/favicon.ico",
+};
+
+export function SettingsView({
+  collapsed,
+  email,
+  isMaster = false,
+  onBrandingChanged,
+  onCollapse,
+  onLogout,
+}: {
+  collapsed: boolean;
+  email: string;
+  isMaster?: boolean;
+  onBrandingChanged?: (branding: { name: string; logo: string }) => void;
+  onCollapse: (collapsed: boolean) => void;
+  onLogout: () => void;
+}) {
   const [name, setName] = useState(() => readPreferences().name || '');
   const [avatar, setAvatar] = useState(() => readPreferences().avatar || '');
   const [message, setMessage] = useState('');
@@ -284,7 +297,107 @@ export function SettingsView({ email, collapsed, onCollapse, onLogout }: { email
     event.preventDefault();
     try { const previous = JSON.parse(localStorage.getItem('smartlink_profile') || '{}'); localStorage.setItem('smartlink_profile', JSON.stringify({ ...previous, name, avatar })); setMessage('Preferences saved'); } catch { setMessage('Unable to save browser preferences.'); }
   }
-  return <div className="admSettingsGrid"><form onSubmit={save}><SectionHeading title="Account preferences" /><div className="admFormStack"><Field label="Display name"><input value={name} onChange={event => setName(event.target.value)} autoComplete="nickname" /></Field><Field label="Signed-in email"><input type="email" readOnly value={email} /></Field><ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} /><button type="submit" className="admButton admPrimary"><Check size={16} />Save preferences</button><span role="status" className="admMuted">{message}</span></div></form><section><SectionHeading title="Workspace" /><label className="admCheck"><input type="checkbox" checked={collapsed} onChange={event => onCollapse(event.target.checked)} />Compact sidebar</label><p className="admMuted">Browser preferences</p><div className="admSettingsSession"><User size={20} /><span>{email || 'Administrator'}</span><button type="button" className="admButton" onClick={onLogout}><LogOut size={16} />Log out</button></div></section></div>;
+  return <div className="admSettingsStack">
+    <div className="admSettingsGrid"><form onSubmit={save}><SectionHeading title="Account preferences" /><div className="admFormStack"><Field label="Display name"><input value={name} onChange={event => setName(event.target.value)} autoComplete="nickname" /></Field><Field label="Signed-in email"><input type="email" readOnly value={email} /></Field><ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} /><button type="submit" className="admButton admPrimary"><Check size={16} />Save preferences</button><span role="status" className="admMuted">{message}</span></div></form><section><SectionHeading title="Workspace" /><label className="admCheck"><input type="checkbox" checked={collapsed} onChange={event => onCollapse(event.target.checked)} />Compact sidebar</label><p className="admMuted">Browser preferences</p><div className="admSettingsSession"><User size={20} /><span>{email || 'Administrator'}</span><button type="button" className="admButton" onClick={onLogout}><LogOut size={16} />Log out</button></div></section></div>
+    {isMaster && <MasterSettings onBrandingChanged={onBrandingChanged} />}
+  </div>;
+}
+
+function MasterSettings({ onBrandingChanged }: { onBrandingChanged?: (branding: { name: string; logo: string }) => void }) {
+  const [branding, setBranding] = useState<BrandingSettings>(fallbackBranding);
+  const [signup, setSignup] = useState<SignupSettings>({ enabled: true });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      adminApi<BrandingSettings>('/api/master/branding'),
+      adminApi<SignupSettings>('/api/master/signup'),
+    ]).then(([brand, signupSettings]) => {
+      if (cancelled) return;
+      setBranding(brand);
+      setSignup(signupSettings);
+      onBrandingChanged?.({ name: brand.name, logo: brand.logo });
+    }).catch(cause => {
+      if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load master settings.');
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [onBrandingChanged]);
+
+  async function saveBranding(next = branding) {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const saved = await adminApi<BrandingSettings>('/api/master/branding', { method: 'PATCH', body: JSON.stringify(next) });
+      setBranding(saved);
+      onBrandingChanged?.({ name: saved.name, logo: saved.logo });
+      setMessage('Branding saved.');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not save branding.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function updateBrandingImage(key: 'logo' | 'favicon', value: string) {
+    const next = { ...branding, [key]: value || fallbackBranding[key] };
+    setBranding(next);
+    await saveBranding(next);
+  }
+
+  async function updateSignup(enabled: boolean) {
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      setSignup(await adminApi<SignupSettings>('/api/master/signup', { method: 'PATCH', body: JSON.stringify({ enabled }) }));
+      setMessage(`Signup turned ${enabled ? 'on' : 'off'}.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not update signup.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <section className="admMasterSettings" aria-busy={loading || saving}>
+    <SectionHeading title="Master controls" />
+    {error && <p className="admError" role="alert">{error}</p>}
+    {message && <p className="admSuccess" role="status">{message}</p>}
+    <div className="admSettingsGrid">
+      <section className="admBrandingPanel">
+        <div className="admSettingRow">
+          <div>
+            <span className={`admBadge admBadge-${signup.enabled ? 'published' : 'disabled'}`}><UserPlus size={13} />Signup {signup.enabled ? 'on' : 'off'}</span>
+            <h2>Public account creation</h2>
+            <p className="admMuted">Turn signup off to block the create-account page and prevent new accounts from being created.</p>
+          </div>
+          <button type="button" className="admButton admPrimary" disabled={loading || saving} onClick={() => void updateSignup(!signup.enabled)}>
+            <Power size={16} />Turn {signup.enabled ? 'off' : 'on'}
+          </button>
+        </div>
+      </section>
+      <section className="admBrandingPanel">
+        <SectionHeading title="Branding" />
+        <div className="admFormGrid">
+          <Field label="Brand name"><input maxLength={80} value={branding.name} onChange={event => setBranding({ ...branding, name: event.target.value })} /></Field>
+          <Field label="Site title"><input maxLength={140} value={branding.siteTitle} onChange={event => setBranding({ ...branding, siteTitle: event.target.value })} /></Field>
+          <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="logo" label="Master logo" round value={branding.logo} onChange={logo => void updateBrandingImage('logo', logo)} /></div>
+          <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="favicon" label="Master favicon" value={branding.favicon} onChange={favicon => void updateBrandingImage('favicon', favicon)} /></div>
+        </div>
+        <div className="admFormFooter">
+          <button type="button" className="admButton admPrimary" disabled={loading || saving} onClick={() => void saveBranding()}>{saving ? 'Saving...' : 'Save branding'}</button>
+        </div>
+      </section>
+    </div>
+  </section>;
 }
 
 function readPreferences(): { name?: string; avatar?: string } {

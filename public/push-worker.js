@@ -1,6 +1,16 @@
 self.addEventListener('install', () => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 
+function trackCampaign(campaignId, event) {
+  if (!campaignId) return Promise.resolve();
+  return fetch('/api/notifications/campaign-event', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ campaignId, event }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -10,14 +20,15 @@ self.addEventListener("push", (event) => {
   }
 
   const title = data.title || "signup888";
+  const campaignId = typeof data.campaignId === 'number' ? data.campaignId : null;
   const options = {
     body: data.body || "You have a new update.",
     icon: data.icon || "/favicon.png",
     badge: data.badge || "/favicon-32x32.png",
-    data: { url: data.url || "/", campaignId: data.campaignId },
+    data: { url: data.url || "/", campaignId },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(trackCampaign(campaignId, 'delivered').then(() => self.registration.showNotification(title, options)).then(() => trackCampaign(campaignId, 'seen')));
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -32,18 +43,18 @@ self.addEventListener("notificationclick", (event) => {
       if (!destination.username && !destination.password) url = destination.href;
     }
   } catch { /* Older or malformed notifications open the homepage. */ }
-  const campaignId = Number(event.notification.data?.campaignId);
-  const trackClick = Number.isInteger(campaignId) && campaignId > 0
+  const campaignId = event.notification.data?.campaignId;
+  const trackClick = campaignId
     ? fetch('/api/notifications/campaign-click', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ campaignId }),
+      keepalive: true,
     }).catch(() => {})
     : Promise.resolve();
-  const openDestination = clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windows) => {
+  event.waitUntil(trackClick.then(() => clients.matchAll({ type: "window", includeUncontrolled: true })).then(async (windows) => {
     const existing = windows.find(client => client.url === url);
     if (existing) return existing.focus();
     return clients.openWindow(url);
-  });
-  event.waitUntil(Promise.all([trackClick, openDestination]));
+  }));
 });

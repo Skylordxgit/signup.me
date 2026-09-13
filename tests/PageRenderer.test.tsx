@@ -106,11 +106,32 @@ test("Share is shown only when enabled, including pages without a cover", () => 
   }
 });
 
+test("button effects can be set per individual button", () => {
+  const page = fixture();
+  page.blocks = [
+    { ...page.blocks[0], id: 1, title: "Plain", settings: { buttonEffect: "none" } },
+    { ...page.blocks[1], id: 2, title: "Glow", settings: { buttonEffect: "border-glow" } },
+  ];
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(html, /Plain/);
+  assert.equal((html.match(/pageButtonEffect-/g) || []).length, 1);
+  assert.match(html, /pageButtonEffect-border-glow/);
+});
+
+test("legacy page design animation falls back to a shine effect", () => {
+  const page = fixture();
+  page.blocks = [page.blocks[0]];
+  assert.doesNotMatch(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonEffect-/);
+  page.theme = { ...page.theme, buttonAnimation: true };
+  assert.match(renderToStaticMarkup(<PageRenderer page={page} />), /pageButtonEffect-shine/);
+});
+
 test("changing themes preserves the uploaded cover and profile choices", () => {
-  const theme = { ...fixture().theme, profileLayout: "avatar" as const, profileAlignment: "right" as const, showShareButton: true };
+  const theme = { ...fixture().theme, buttonAnimation: true, profileLayout: "avatar" as const, profileAlignment: "right" as const, showShareButton: true };
   for (const definition of themeLibrary) {
     const result = applyThemeDefinition(definition, theme);
     assert.equal(result.backgroundImage, theme.backgroundImage);
+    assert.equal(result.buttonAnimation, true);
     assert.equal(result.profileLayout, "avatar");
     assert.equal(result.profileAlignment, "right");
     assert.equal(result.showShareButton, true);
