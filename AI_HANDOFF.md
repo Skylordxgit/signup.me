@@ -192,31 +192,19 @@ Rules that matter:
   `IconButton`, `Field`, `Dialog`, `StatusBadge`, `EmptyState`, `LoadingState`,
   `Skeleton`, `SectionHeading`, `PageHeader`, `SectionCard`. Compose these
   rather than writing raw `<button className="admButton">` markup.
-- The phone frame is scoped to `.admPreviewPane` inside the builder. It must
-  not appear on any other admin screen; the audit asserts this.
+- The phone frame is scoped to `.admPreviewPane` inside the builder with a fixed 9:16 aspect ratio (`width: 100%; max-width: 380px; aspect-ratio: 9 / 16;`), realistic dark titanium chassis bezel, centered Dynamic Island, and internal smooth scrolling viewport (`.phoneScreen`). It maintains the exact same dimensions, radius, and ratio across all builder tabs, content lengths, and responsive breakpoints.
+- The admin phone preview and public mobile pages use the identical shared renderer (`PageRenderer.tsx`) without drift; the hardware phone frame only wraps the admin preview.
 - Inline `style={{...}}` is not used for layout in admin screens.
 
-### Admin UI audit
+### Admin UI and Browser Tests
 
-`tests/admin-ui-audit.mjs` drives a real browser over every admin screen at
-1920/1440/1280/1024/768/390 plus the master center, asserting no horizontal
-overflow, no element outside the viewport, no sidebar/content overlap, modals
-contained on mobile, phone frame only in the builder, minimum touch targets,
-and no console errors. It is not part of `npm test` because it needs a browser.
+`tests/admin-ui-audit.mjs` and `tests/admin-browser.mjs` drive real browser instances over every admin screen and the public mobile page, asserting no horizontal overflow, 9:16 phone ratio stability, no element outside the viewport, no sidebar/content overlap, modals contained on mobile, and zero console errors:
 
 ```bash
 npm run build
-npm install --no-save playwright-core
-$env:PLAYWRIGHT_PACKAGE="playwright-core"; $env:PLAYWRIGHT_CHANNEL="chrome"
+node tests/admin-browser.mjs
 node tests/admin-ui-audit.mjs
 ```
-
-Note: `tests/admin-browser.mjs` currently fails at login on `main` for a
-reason unrelated to UI. It signs in with `ADMIN_EMAIL`, which the current auth
-model resolves as a master session and redirects to `/admin/master`, so its
-`waitForURL('/admin?slug=...')` times out. This was verified to fail identically
-before and after the UI work. `admin-ui-audit.mjs` signs up a normal workspace
-account instead and does not hit that path.
 
 ## How To Work
 

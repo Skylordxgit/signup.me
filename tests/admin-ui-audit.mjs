@@ -20,7 +20,12 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE || 'playwright');
+function loadPlaywright() {
+  const pkg = process.env.PLAYWRIGHT_PACKAGE;
+  if (pkg) return require(pkg);
+  try { return require('playwright'); } catch { return require('playwright-core'); }
+}
+const { chromium } = loadPlaywright();
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = path.join(root, '.next', 'admin-ui-audit');
 await mkdir(output, { recursive: true });
@@ -59,6 +64,15 @@ const failures = [];
 let checks = 0;
 let browser;
 
+async function launchBrowser() {
+  const channel = process.env.PLAYWRIGHT_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined);
+  try {
+    return await chromium.launch({ headless: true, ...(channel ? { channel } : {}) });
+  } catch {
+    return await chromium.launch({ headless: true });
+  }
+}
+
 try {
   let ready = false;
   for (let attempt = 0; attempt < 60; attempt++) {
@@ -67,7 +81,7 @@ try {
   }
   assert.ok(ready, 'server did not start:\n' + serverOutput);
 
-  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
+  browser = await launchBrowser();
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const errors = [];

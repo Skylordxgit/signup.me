@@ -7,7 +7,12 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE || 'playwright');
+function loadPlaywright() {
+  const pkg = process.env.PLAYWRIGHT_PACKAGE;
+  if (pkg) return require(pkg);
+  try { return require('playwright'); } catch { return require('playwright-core'); }
+}
+const { chromium } = loadPlaywright();
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = path.join(root, '.next', 'admin-qa');
 await mkdir(output, { recursive: true });
@@ -23,16 +28,25 @@ let serverOutput = '';
 server.stdout.on('data', chunk => { serverOutput += chunk; });
 server.stderr.on('data', chunk => { serverOutput += chunk; });
 let browser;
+async function launchBrowser() {
+  const channel = process.env.PLAYWRIGHT_CHANNEL || (process.platform === 'win32' ? 'msedge' : undefined);
+  try {
+    return await chromium.launch({ headless: true, ...(channel ? { channel } : {}) });
+  } catch {
+    return await chromium.launch({ headless: true });
+  }
+}
+
 try {
   let ready = false;
-  for (let attempt = 0; attempt < 40; attempt++) {
-    try { const response = await fetch(origin + '/admin/login'); if (response.ok) { ready = true; break; } } catch { /* Wait for the isolated server. */ }
+  for (let attempt = 0; attempt < 60; attempt++) {
+    try { const response = await fetch(origin + '/admin/login'); if (response.ok) { ready = true; break; } } catch { /* waiting */ }
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   assert.ok(ready, serverOutput);
   const signup = await fetch(origin + '/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'qa@example.com', password: 'test-password' }) });
   assert.ok(signup.ok, 'failed to seed test account: ' + await signup.text());
-  browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
+  browser = await launchBrowser();
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();
   const errors = [];

@@ -198,26 +198,75 @@
 .admEditorBody { padding: var(--sp-5); }
 
 .admPreviewPane {
-  position: sticky; top: calc(var(--adm-header-h) + 56px);
-  display: grid; justify-items: center; gap: var(--sp-3);
+  position: sticky; top: calc(var(--adm-header-h) + 24px);
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-3);
   width: var(--adm-preview-w); max-width: 100%; min-width: 0;
 }
 .admPreviewPane > header { display: flex; align-items: center; gap: var(--sp-2); width: 100%; color: var(--c-muted); font-size: var(--text-sm); font-weight: 550; }
 .admPreviewPane > header > span:last-child { margin-left: auto; color: var(--c-faint); }
 .admLiveDot { width: 7px; height: 7px; border-radius: 50%; background: #2f9e7f; }
 .admPreviewSlug { max-width: 100%; color: var(--c-faint); font-size: var(--text-sm); overflow-wrap: anywhere; text-align: center; }
-/* The one phone frame in the admin: fixed 9:16, scrolls internally. */
-.admPreviewPane .phoneStage { display: block; width: 100%; min-height: 0; height: auto; margin: 0; padding: 0; background: transparent; }
+
+/* The one fixed phone frame in the admin: 9:16 aspect ratio, scrolls internally */
+.admPreviewPane .phoneStage { display: flex; justify-content: center; width: 100%; min-height: 0; height: auto; margin: 0; padding: 0; background: transparent; }
 .admPreviewPane .phoneDevice {
-  position: relative; display: block;
+  position: relative; display: flex; flex-direction: column;
   width: 100%; max-width: var(--adm-preview-w); height: auto;
   min-height: 0; max-height: none; aspect-ratio: 9 / 16;
   padding: 0; overflow: hidden;
-  border: 8px solid #20252d; border-radius: 30px; background: #fff;
-  box-shadow: var(--shadow-md);
+  border: 9px solid #1c2029; border-radius: 40px; background: #0f172a;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 24px 48px -12px rgba(15, 23, 42, 0.35),
+    0 8px 18px -4px rgba(15, 23, 42, 0.2);
+  box-sizing: border-box; flex-shrink: 0;
 }
-.admPreviewPane .phoneScreen { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; overflow: auto; border-radius: 22px; }
-.admPreviewPane .phoneScreen > * { flex: 1; width: 100%; }
+
+/* Dynamic island pill */
+.admPreviewPane .phoneDevice::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 82px;
+  height: 18px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Bottom home bar indicator */
+.admPreviewPane .phoneDevice::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 96px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.admPreviewPane .phoneScreen {
+  display: flex; flex-direction: column;
+  width: 100%; height: 100%; flex: 1 1 0%; min-height: 0;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 31px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 145, 155, 0.35) transparent;
+}
+.admPreviewPane .phoneScreen::-webkit-scrollbar { width: 5px; }
+.admPreviewPane .phoneScreen::-webkit-scrollbar-track { background: transparent; }
+.admPreviewPane .phoneScreen::-webkit-scrollbar-thumb { background: rgba(140, 145, 155, 0.35); border-radius: 999px; }
+.admPreviewPane .phoneScreen > * { flex: 1 1 0%; width: 100%; min-width: 0; }
 
 /* Block editor */
 .admBlockList { display: grid; gap: var(--sp-2); }
@@ -317,8 +366,7 @@
 /* Small desktop / large tablet */
 @media (max-width: 1280px) {
   .admHomeGrid { grid-template-columns: minmax(0, 1fr) 260px; }
-  .admBuilder { --adm-preview-w: 340px; gap: var(--sp-5); }
-  .admPreviewPane { width: 340px; }
+  .admBuilder { gap: var(--sp-5); }
   .admEditorBody { padding: var(--sp-4); }
   .admThreeColumns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admHeaderSearch { flex-basis: 220px; }
@@ -335,7 +383,7 @@
   .admMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admHomeGrid { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); }
   .admBuilder { grid-template-columns: minmax(0, 1fr); }
-  .admPreviewPane { position: static; width: 100%; max-width: 390px; margin-inline: auto; }
+  .admPreviewPane { position: static; width: 100%; max-width: var(--adm-preview-w); margin-inline: auto; }
   .admMediaUpload { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
 }
 

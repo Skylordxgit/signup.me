@@ -374,12 +374,13 @@ textarea {
 }
 
 .phoneStage {
-  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px 14px;
-  background: #eceef4;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .phoneDevice {
@@ -387,48 +388,90 @@ textarea {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  /* Capped by the design width and by what the window can show, so the 9:16
-     ratio holds on any screen and the frame never depends on content. */
-  width: min(100%, var(--phone-w), calc((100dvh - 40px) * 9 / 16));
+  width: 100%;
+  max-width: var(--adm-preview-w, 380px);
   aspect-ratio: 9 / 16;
-  border-radius: var(--phone-radius);
-  background: linear-gradient(180deg, #f6f6f8 0%, #ffffff 45%);
-  box-shadow: 0 20px 54px rgba(17, 24, 39, 0.12);
+  height: auto;
+  border: 9px solid #1c2029;
+  border-radius: 40px;
+  background: #0f172a;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 24px 48px -12px rgba(15, 23, 42, 0.35),
+    0 8px 18px -4px rgba(15, 23, 42, 0.2);
+  box-sizing: border-box;
+  flex-shrink: 0;
 }
 
-@media (max-width: 520px) {
-  /* On a real handset the device is the frame: fill it. */
-  .phoneDevice {
-    width: 100%;
-    height: 100dvh;
-    aspect-ratio: auto;
-  }
+/* Dynamic island pill */
+.phoneDevice::before {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 82px;
+  height: 18px;
+  background: #000000;
+  border-radius: 20px;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Bottom home bar indicator */
+.phoneDevice::after {
+  content: "";
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 96px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  z-index: 20;
+  pointer-events: none;
 }
 
 /* The scrolling viewport inside the frame. min-height:0 lets it shrink so the
    frame keeps its height instead of being stretched by tall content. */
 .phoneScreen {
-  flex: 1;
-  min-height: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  height: 100%;
+  flex: 1 1 0%;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 31px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(140, 145, 155, 0.35) transparent;
 }
 
-/* Nothing inside the phone may be wider than the phone. Sections still wrap
-   and truncate on their own; this is the backstop that keeps a single long
-   word from widening the whole frame. */
+.phoneScreen::-webkit-scrollbar {
+  width: 5px;
+}
+
+.phoneScreen::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.phoneScreen::-webkit-scrollbar-thumb {
+  background: rgba(140, 145, 155, 0.35);
+  border-radius: 999px;
+}
+
+/* Nothing inside the phone may be wider than the phone. */
 .phoneScreen > * {
   min-width: 0;
   max-width: 100%;
+  width: 100%;
 }
-
-@media (max-width: 520px) {
-  .phoneStage {
-    padding: 0;
-  }}
 
 .upgradeBar {
   display: grid;
@@ -3156,46 +3199,58 @@ button:hover:not(:disabled) {
 .smartPage {
   flex: 1;
   min-height: 100%;
+  width: 100%;
   display: flex;
   justify-content: center;
   color: var(--text);
   font-family: var(--page-font);
   letter-spacing: 0;
   background: var(--page-background, var(--bg));
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
-/* Shared responsive column: 512px of content on desktop, fluid on a phone. */
+/* Shared responsive column: max 528px on desktop, fluid on phone */
 .pageColumn {
   width: 100%;
   max-width: 528px;
-  padding: 8px;
+  padding: 12px 14px 28px;
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Provide clean padding inside the admin phone preview frame */
+.phoneScreen .pageColumn {
+  padding: 24px 14px 24px;
 }
 
 .smartCard {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing);
+  gap: var(--spacing, 12px);
   min-width: 0;
-  padding: 0 0 32px;
+  width: 100%;
+  padding: 0 0 24px;
   border: 0;
   backdrop-filter: blur(calc(var(--glass) * 1px));
+  box-sizing: border-box;
 }
 
-/* Hero band at the very top of the page. object-fit-style cover behaviour via
-   background-size so the image fills the band without distortion. */
+/* Hero band at the very top of the page */
 .pageCover {
   position: relative;
   width: 100%;
-  aspect-ratio: 512 / 210;
+  aspect-ratio: 16 / 7;
   flex: none;
-  border-radius: var(--button-radius);
+  border-radius: calc(var(--button-radius, 14px) * 0.85);
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .pageCoverEdit {
@@ -3205,25 +3260,30 @@ button:hover:not(:disabled) {
   border: 0;
   padding: 0;
   background: transparent;
+  cursor: pointer;
 }
 
 .pageProfile {
   position: relative;
-  display: grid;
-  margin: 0 0 8px;
-  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 4px;
+  padding: 0 4px;
   flex: none;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+/* Cover + Avatar overlap */
 .smartCard[data-cover="true"][data-avatar="true"] .pageProfile {
-  margin-top: calc(-18px - var(--spacing));
+  margin-top: calc(-38px - (var(--spacing, 12px) / 2));
 }
 
-/* Identity wrapper. A <div> publicly, a <button> in the builder - same class,
-   so both produce the same box and the layout cannot differ. */
+/* Identity wrapper */
 .pageIdentity {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   width: 100%;
   margin: 0;
   padding: 0;
@@ -3231,30 +3291,45 @@ button:hover:not(:disabled) {
   background: transparent;
   color: inherit;
   font: inherit;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .pageIdentityText {
   min-width: 0;
   max-width: 100%;
+  width: 100%;
 }
 
-[data-layout="hero"][data-avatar="true"]:not([data-align="center"]) .pageIdentity {
-  grid-template-columns: 80px minmax(0, 1fr);
-  align-items: center;
-  gap: 10px;
+/* Hero layout with avatar side-by-side on left / right */
+[data-layout="hero"][data-avatar="true"][data-align="left"] .pageIdentity {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: flex-end;
+  gap: 14px;
+  text-align: left;
 }
 
-[data-layout="hero"][data-avatar="true"][data-cover="true"]:not([data-align="center"]) .pageIdentityText {
-  padding-top: 18px;
+[data-layout="hero"][data-avatar="true"][data-cover="true"][data-align="left"] .pageIdentityText {
+  padding-bottom: 2px;
 }
 
 [data-layout="hero"][data-avatar="true"][data-align="right"] .pageIdentity {
-  grid-template-columns: minmax(0, 1fr) 80px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  align-items: flex-end;
+  gap: 14px;
+  text-align: right;
+}
+
+[data-layout="hero"][data-avatar="true"][data-cover="true"][data-align="right"] .pageIdentityText {
+  padding-bottom: 2px;
 }
 
 [data-layout="hero"][data-align="right"] .pageAvatar {
   grid-column: 2;
   grid-row: 1;
+  justify-self: end;
 }
 
 [data-layout="hero"][data-align="right"] .pageIdentityText {
@@ -3262,20 +3337,40 @@ button:hover:not(:disabled) {
   grid-row: 1;
 }
 
-/* One switch drives the entire identity block — avatar, title, subtitle — plus
-   the social row, so alignment is never applied to the text alone. */
+/* Alignments across all layouts */
 [data-align="center"] .pageIdentity {
-  justify-items: center;
+  align-items: center;
+  text-align: center;
+}
+
+[data-align="center"] .pageIdentityText {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
 }
 
 [data-align="left"] .pageIdentity {
-  justify-items: start;
+  align-items: flex-start;
+  text-align: left;
+}
+
+[data-align="left"] .pageIdentityText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   text-align: left;
 }
 
 [data-align="right"] .pageIdentity {
-  justify-items: end;
+  align-items: flex-end;
+  text-align: right;
+}
+
+[data-align="right"] .pageIdentityText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   text-align: right;
 }
 
@@ -3291,8 +3386,6 @@ button:hover:not(:disabled) {
   justify-content: flex-end;
 }
 
-/* The bio is width-capped for readability; keep that cap anchored to the
-   chosen side instead of always centring it. */
 [data-align="center"] .pageBio {
   margin-inline: auto;
 }
@@ -3306,48 +3399,57 @@ button:hover:not(:disabled) {
 }
 
 .pageAvatar {
+  position: relative;
+  z-index: 2;
   display: grid;
   place-items: center;
-  width: 80px;
-  height: 80px;
+  width: 76px;
+  height: 76px;
+  min-width: 76px;
+  min-height: 76px;
   object-fit: cover;
   background: rgba(255, 255, 255, 0.18);
-  border: 3px solid var(--bg);
+  border: 3px solid var(--page-background, var(--bg));
   border-radius: 50%;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+  flex-shrink: 0;
 }
 
 .pageAvatarFallback {
   background: color-mix(in srgb, var(--button-bg, #ffffff), transparent 22%);
   color: var(--button-text, #111827);
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 800;
 }
 
 .pageTitle {
   margin: 0;
   color: var(--heading);
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.18;
-  letter-spacing: 0;
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  word-break: break-word;
   overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .pageBio {
-  margin: 0;
+  margin: 4px 0 0;
   color: var(--text);
   font-size: 14px;
   font-weight: 400;
-  line-height: 1.4;
+  line-height: 1.45;
+  word-break: break-word;
   overflow-wrap: anywhere;
-  text-wrap: pretty;
+  white-space: pre-line;
+  max-width: 100%;
 }
 
-/* Glass circle over the cover's top-right. Sits above .pageCoverEdit and well
-   clear of the avatar, which overlaps the cover's bottom edge. */
+/* Glass circle over the cover's top-right */
 .pageShare {
   position: absolute;
-  z-index: 2;
+  z-index: 5;
   top: 12px;
   right: 12px;
   display: grid;
@@ -3355,11 +3457,23 @@ button:hover:not(:disabled) {
   width: 38px;
   height: 38px;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.32);
+  background: rgba(15, 23, 42, 0.36);
   color: #ffffff;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.pageShare:hover {
+  transform: scale(1.06);
+  background: rgba(15, 23, 42, 0.5);
+}
+
+.pageShare:active {
+  transform: scale(0.96);
 }
 
 .pageShare svg {
@@ -3370,13 +3484,18 @@ button:hover:not(:disabled) {
 .pageActions {
   display: flex;
   justify-content: flex-end;
+  width: 100%;
+  padding-inline: 4px;
 }
 
 .pageActions .pageShare {
   position: static;
+  background: var(--button-bg-glass, rgba(15, 23, 42, 0.08));
+  border-color: var(--button-border, rgba(0, 0, 0, 0.12));
+  color: var(--text, #1b2330);
 }
 
-/* Label is for assistive tech only; the control is an icon button. */
+/* Label is for assistive tech only */
 .pageShare span {
   position: absolute;
   width: 1px;
@@ -3387,33 +3506,35 @@ button:hover:not(:disabled) {
 }
 
 .pageBlocks {
-  display: grid;
-  gap: var(--spacing);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing, 12px);
   padding: 0;
+  width: 100%;
+  min-width: 0;
 }
 
-/* Layout only. Background, border and shadow come from the .buttonStyle-*
-   class so a theme can restyle buttons without fighting this rule.
-
-   The label is centred on the button itself, not on the space left over beside
-   the icon, so it reads as a title bar with a badge rather than a list row. */
 .pageButton {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 51px;
-  padding: 11px 16px;
-  border-radius: var(--button-radius);
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 18px;
+  border-radius: var(--button-radius, 16px);
   color: var(--button-text);
   text-decoration: none;
+  box-sizing: border-box;
   transition:
     transform 180ms ease,
-    box-shadow 180ms ease;
+    box-shadow 180ms ease,
+    filter 180ms ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* With an icon present, reserve the same width on both sides so the title
-   stays centred and long text can never run underneath the badge. */
+.pageButton.hasIcon,
 .pageButton:has(.pageButtonIcon:not(:empty)) {
   padding-inline: 48px;
 }
@@ -3427,6 +3548,7 @@ button:hover:not(:disabled) {
   place-items: center;
   width: 22px;
   height: 22px;
+  flex-shrink: 0;
 }
 
 .pageButtonIcon svg {
@@ -3439,30 +3561,37 @@ button:hover:not(:disabled) {
 }
 
 .pageButtonLabel {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   min-width: 0;
   text-align: center;
 }
 
-.pageButtonLabel strong,
-.pageButtonLabel small {
+.pageButtonLabel strong {
   display: block;
+  max-width: 100%;
   min-width: 0;
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.25;
+  word-break: break-word;
   overflow-wrap: anywhere;
 }
 
-.pageButtonLabel strong {
-  font-size: 15px;
-  font-weight: 800;
-  line-height: 1.25;
-}
-
 .pageButtonLabel small {
-  margin-top: 2px;
-  opacity: 0.72;
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  margin-top: 3px;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.35;
+  opacity: 0.8;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .pageButtonLabel,
@@ -3620,43 +3749,58 @@ button:hover:not(:disabled) {
 .pageHeading {
   margin: 6px 0 0;
   color: var(--heading);
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1.25;
-  text-align: center;
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
+
+[data-align="center"] .pageHeading { text-align: center; }
+[data-align="left"] .pageHeading { text-align: left; }
+[data-align="right"] .pageHeading { text-align: right; }
 
 .pageText {
   margin: 0;
+  color: var(--text);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 450;
   line-height: 1.5;
-  text-align: center;
   overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-line;
 }
+
+[data-align="center"] .pageText { text-align: center; }
+[data-align="left"] .pageText { text-align: left; }
+[data-align="right"] .pageText { text-align: right; }
 
 .pageDivider {
   width: 100%;
   height: 1px;
   margin: 6px 0;
   border: 0;
-  background: color-mix(in srgb, var(--text), transparent 72%);
+  background: color-mix(in srgb, var(--text), transparent 75%);
 }
 
 .pageImage {
   display: block;
   width: 100%;
-  border-radius: var(--button-radius);
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--button-radius, 14px);
   object-fit: cover;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
 .pageImageFallback {
   display: grid;
   place-items: center;
-  min-height: 150px;
+  min-height: 140px;
   background: rgba(255, 255, 255, 0.14);
   color: color-mix(in srgb, var(--text), transparent 40%);
+  border-radius: var(--button-radius, 14px);
 }
 
 .pageImageFallback svg {
@@ -3666,9 +3810,10 @@ button:hover:not(:disabled) {
 
 .pageVideo {
   display: grid;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;
-  margin-top: 6px;
+  width: 100%;
+  margin-top: 4px;
   color: var(--text);
 }
 
@@ -3678,8 +3823,9 @@ button:hover:not(:disabled) {
   width: 100%;
   aspect-ratio: 16 / 9;
   border: 0;
-  border-radius: var(--button-radius);
+  border-radius: var(--button-radius, 14px);
   background: rgba(15, 23, 42, 0.28);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
 }
 
 .pageVideo iframe,
@@ -3695,31 +3841,38 @@ button:hover:not(:disabled) {
 }
 
 .pageVideo strong {
-  font-size: 14px;
-  font-weight: 800;
+  font-size: 13.5px;
+  font-weight: 700;
   text-align: center;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .pageSocials {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
   padding: 0;
+  width: 100%;
 }
 
 .pageSocialIcon {
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   border: 1px solid var(--button-border);
   border-radius: 50%;
   background: var(--button-bg-glass);
   color: var(--button-text);
   text-decoration: none;
   backdrop-filter: blur(calc(var(--glass) * 1px));
-  transition: transform 180ms ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  flex-shrink: 0;
 }
 
 .pageSocialIcon svg {

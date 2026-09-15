@@ -146,3 +146,24 @@ test("saved background color and font reach the shared renderer", () => {
   const gradient = themeCssVariables({ ...theme, backgroundStyle: "gradient", gradientFrom: "#ff0000", gradientTo: "#000000" }) as Record<string, string>;
   assert.equal(gradient["--page-background"], "linear-gradient(135deg, #ff0000, #000000)");
 });
+
+test("profile alignments (left, center, right) set data-align accurately", () => {
+  for (const align of ["left", "center", "right"] as const) {
+    const page = fixture();
+    page.theme.profileAlignment = align;
+    const html = renderToStaticMarkup(<PageRenderer page={page} />);
+    assert.match(html, new RegExp(`data-align="${align}"`));
+  }
+});
+
+test("buttons without icon omit the hasIcon class while icon buttons include it", () => {
+  const page = fixture();
+  page.blocks = [
+    { ...page.blocks[0], id: 1, icon: "none", title: "No icon link" },
+    { ...page.blocks[0], id: 2, icon: "link", title: "With icon link" },
+  ];
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(html, /pageButton buttonStyle-\w+ hasIcon/);
+  assert.match(html, /pageButton buttonStyle-\w+(?!\s*hasIcon)/);
+});
+

@@ -1,13 +1,11 @@
 "use client";
 
 /**
- * The single phone frame used by every builder section.
+ * The single fixed phone frame component used by the admin page builder.
  *
- * Width, height, radius and position come from CSS variables so no section can
- * define its own size: switching between Content, Style, Theme, Profile and
- * Preview must never resize, rescale or move the frame. Sections put their own
- * scrolling content inside `.phoneScreen`; overlay sheets are positioned
- * against `.phoneDevice` so they stay inside the frame.
+ * Fixed 9:16 aspect ratio, border radius, padding, and centered positioning
+ * are maintained identically across all builder tabs and content states.
+ * Scrolling is strictly internal via .phoneScreen, preventing device resizing.
  */
 export function PhoneFrame({
   children,
@@ -27,3 +25,4 @@ export function PhoneFrame({
     </div>
   );
 }
+

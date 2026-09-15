@@ -312,9 +312,12 @@ export function PageBlockView({
     color: readableTextColor(buttonColor),
   } as CSSProperties : undefined;
 
+  const icon = resolveBlockIcon(block.icon, block.type);
+  const hasIcon = Boolean(icon);
+
   return (
     <a
-      className={`pageButton buttonStyle-${buttonStyle}${buttonEffect ? ` pageButtonEffect pageButtonEffect-${buttonEffect}` : ""}`}
+      className={`pageButton buttonStyle-${buttonStyle}${buttonEffect ? ` pageButtonEffect pageButtonEffect-${buttonEffect}` : ""}${hasIcon ? " hasIcon" : ""}`}
       href={buildSmartUrl(block)}
       style={colorOverride}
       target={preview ? undefined : "_blank"}
@@ -322,7 +325,7 @@ export function PageBlockView({
       onClick={preview ? (event) => event.preventDefault() : () => onTrack?.(block)}
       tabIndex={preview ? -1 : 0}
     >
-      <span className="pageButtonIcon">{resolveBlockIcon(block.icon, block.type)}</span>
+      <span className="pageButtonIcon">{icon}</span>
       <span className="pageButtonLabel">
         <strong>{block.title || "Untitled link"}</strong>
         {block.subtitle && <small>{block.subtitle}</small>}
