@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, Plus, Trash2, User, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, LayoutList, Plus, Trash2, User, X } from "lucide-react";
 import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "@/lib/types";
 import { blockTypes, slugify, slugifyDraft } from "@/lib/utils";
 import { applyThemeDefinition, resolveAlignment, resolveButtonStyle, resolveProfileLayout, themeLibrary } from "@/lib/themes";
 import { ImageUploader } from "../ImageUploader";
 import { PageRenderer, resolveBlockIcon } from "../PageRenderer";
 import { PhoneFrame } from "../PhoneFrame";
-import { Dialog, EmptyState, Field, IconButton, SectionHeading } from "./AdminUI";
+import { Button, Dialog, EmptyState, Field, IconButton, SectionHeading } from "./AdminUI";
 import { notificationPromptDefaults, resolveNotificationPrompt, type NotificationPromptCopyKey } from '@/lib/notificationPrompt';
 
 export type BuilderTab = "profile" | "content" | "design" | "seo" | "integrations" | "notifications";
@@ -118,8 +118,8 @@ export function BuilderEditor(props: Props) {
       <div className="admEditorBody">
         {tab === 'profile' && <ProfileFields page={page} onEdit={onEdit} />}
         {tab === 'content' && <>
-          <SectionHeading title="Page content"><button type="button" className="admButton admPrimary" disabled={busy} onClick={() => setPicker(true)}><Plus size={16} />Add block</button></SectionHeading>
-          {!page.blocks.length && <EmptyState title="No content blocks yet"><button type="button" className="admButton" onClick={() => setPicker(true)}><Plus size={16} />Add first block</button><button type="button" className="admTextButton" onClick={() => onTab('profile')}><User size={16} />Edit profile</button></EmptyState>}
+          <SectionHeading title="Page content"><Button variant="primary" icon={Plus} disabled={busy} onClick={() => setPicker(true)}>Add block</Button></SectionHeading>
+          {!page.blocks.length && <EmptyState icon={LayoutList} title="No content blocks yet" description="Add links, text, images or videos to build out this page."><Button variant="primary" icon={Plus} onClick={() => setPicker(true)}>Add first block</Button><Button icon={User} onClick={() => onTab('profile')}>Edit profile</Button></EmptyState>}
           <div className="admBlockList">{[...page.blocks].sort((a, b) => a.sortOrder - b.sortOrder).map((block, index) => <BlockFields key={block.id} block={block} selected={selectedBlock === block.id} onSelect={() => setSelectedBlock(selectedBlock === block.id ? null : block.id)} first={index === 0} last={index === page.blocks.length - 1} busy={busy} onEdit={patch => props.onBlock(block.id, patch)} onDelete={() => props.onDelete(block)} onDuplicate={() => props.onDuplicate(block)} onMove={direction => props.onMove(block.id, direction)} />)}</div>
         </>}
         {tab === 'design' && <>
@@ -156,7 +156,7 @@ export function BuilderEditor(props: Props) {
       <span className="admPreviewSlug">/{page.slug}</span>
       {tab === 'notifications' && <NotificationPromptPreview page={page} />}
     </aside>
-    {picker && <Dialog title="Add content" onClose={() => setPicker(false)}><div className="admBlockPicker">{blockTypes.map(type => <button type="button" key={type.value} onClick={() => { props.onAdd(type.value); setPicker(false); }}><span>{resolveBlockIcon('', type.value)}</span>{type.label}<Plus size={15} /></button>)}</div></Dialog>}
+    {picker && <Dialog title="Add content" onClose={() => setPicker(false)}><div className="admBlockPicker">{blockTypes.map(type => <button type="button" key={type.value} onClick={() => { props.onAdd(type.value); setPicker(false); }}><span>{resolveBlockIcon('', type.value)}</span>{type.label}<Plus size={15} aria-hidden="true" /></button>)}</div></Dialog>}
   </div>;
 }
 
@@ -194,7 +194,7 @@ function BlockFields({ block, selected, first, last, busy, onSelect, onEdit, onD
       {video && <Field label="Video URL"><input type="url" value={block.videoUrl || block.url} onChange={event => onEdit({ videoUrl: event.target.value, url: event.target.value })} /></Field>}
       {block.type === 'youtube' && <p className="admFieldHint">Age-restricted YouTube videos cannot play inside public pages. In YouTube Studio, remove the age restriction and keep embedding enabled, or use a direct MP4/WebM URL.</p>}
       {block.type === 'image' && <ImageUploader category="block" label="Image" value={block.imageUrl || block.url} onChange={imageUrl => onEdit({ imageUrl })} />}
-      {link && <><div className="admFormGrid"><Field label="Icon"><button type="button" className="admButton" onClick={() => setIconsOpen(true)}>{resolveBlockIcon(block.icon, block.type)}Choose icon</button></Field><Field label="Button color"><div className="admActionRow"><input aria-label="Custom button color" type="color" value={typeof block.settings.buttonColor === 'string' ? block.settings.buttonColor : '#000000'} onChange={event => onEdit({ settings: { ...block.settings, buttonColor: event.target.value } })} /><IconButton icon={X} label="Use theme button color" onClick={() => onEdit({ settings: { ...block.settings, buttonColor: '' } })} /></div></Field><Field label="Button effect"><select value={typeof block.settings.buttonEffect === 'string' ? block.settings.buttonEffect : 'none'} onChange={event => onEdit({ settings: { ...block.settings, buttonEffect: event.target.value } })}>{buttonEffects.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field></div></>}
+      {link && <><div className="admFormGrid"><Field label="Icon"><button type="button" className="admButton admBlock" onClick={() => setIconsOpen(true)}>{resolveBlockIcon(block.icon, block.type)}Choose icon</button></Field><Field label="Button color"><div className="admActionRow"><input aria-label="Custom button color" type="color" value={typeof block.settings.buttonColor === 'string' ? block.settings.buttonColor : '#000000'} onChange={event => onEdit({ settings: { ...block.settings, buttonColor: event.target.value } })} /><IconButton icon={X} label="Use theme button color" onClick={() => onEdit({ settings: { ...block.settings, buttonColor: '' } })} /></div></Field><Field label="Button effect"><select value={typeof block.settings.buttonEffect === 'string' ? block.settings.buttonEffect : 'none'} onChange={event => onEdit({ settings: { ...block.settings, buttonEffect: event.target.value } })}>{buttonEffects.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field></div></>}
     </div>}
     {iconsOpen && <Dialog title="Choose icon" onClose={() => setIconsOpen(false)}><div className="admFormStack"><div className="admIconPicker">{['none', 'link', 'globe', 'message', 'mail', 'phone', 'send', 'share', 'map-pin', 'shopping-bag', 'star', 'heart', 'music', 'video', 'image', 'help', 'sparkles', 'instagram', 'facebook', 'whatsapp', 'telegram', 'youtube'].map(icon => <button type="button" key={icon} title={icon} aria-label={icon} aria-pressed={block.icon === icon} onClick={() => { onEdit({ icon }); setIconsOpen(false); }}>{icon === 'none' ? <X size={18} /> : resolveBlockIcon(icon, block.type)}</button>)}</div><Field label="Emoji"><input value={block.icon.startsWith('emoji:') ? block.icon.slice(6) : ''} onChange={event => onEdit({ icon: `emoji:${event.target.value}` })} /></Field><ImageUploader category="icon" label="Custom icon" value={block.icon.startsWith('/uploads/') || block.icon.startsWith('https://') ? block.icon : ''} onChange={icon => { onEdit({ icon }); setIconsOpen(false); }} /></div></Dialog>}
   </article>;

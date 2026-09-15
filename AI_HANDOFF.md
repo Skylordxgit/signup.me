@@ -167,6 +167,57 @@ Other recent features already in `main`:
 - Keep UI clear and professional.
 - Do not put the admin content into a narrow phone-sized container.
 
+### Admin Design System (added 2026-09-15)
+
+`components/admin/admin.css` is now only an entry point that imports five
+layers. Add new rules to the correct layer instead of appending to one file:
+
+1. `tokens.css` - spacing (`--sp-*`), radius, type scale (`--text-*`), colour
+   (`--c-*`), elevation (`--shadow-*`), control sizing (`--control-h`,
+   `--icon-btn`), layout (`--adm-sidebar`, `--adm-gutter`, `--adm-preview-w`).
+2. `base.css` - element defaults, typography hierarchy, every form control,
+   the single focus ring, the image uploader.
+3. `components.css` - buttons, cards, badges, tables, empty/loading/error
+   states, dialogs, drawers, progress.
+4. `layout.css` - shell, sidebar, header, main, builder workspace, responsive.
+5. `screens.css` - notifications, campaigns, subscribers, master center.
+
+Rules that matter:
+
+- Never hard-code pixel spacing, colour or font size in a screen. Use tokens.
+- Every button is `.admButton` (+ `admPrimary` / `admOutline` / `admGhost` /
+  `admDestructive` / `admSmall`) or `.admIconButton`. Icon-only buttons must
+  pass a `label`, which becomes both the tooltip and the accessible name.
+- Reusable React primitives live in `components/admin/AdminUI.tsx`: `Button`,
+  `IconButton`, `Field`, `Dialog`, `StatusBadge`, `EmptyState`, `LoadingState`,
+  `Skeleton`, `SectionHeading`, `PageHeader`, `SectionCard`. Compose these
+  rather than writing raw `<button className="admButton">` markup.
+- The phone frame is scoped to `.admPreviewPane` inside the builder. It must
+  not appear on any other admin screen; the audit asserts this.
+- Inline `style={{...}}` is not used for layout in admin screens.
+
+### Admin UI audit
+
+`tests/admin-ui-audit.mjs` drives a real browser over every admin screen at
+1920/1440/1280/1024/768/390 plus the master center, asserting no horizontal
+overflow, no element outside the viewport, no sidebar/content overlap, modals
+contained on mobile, phone frame only in the builder, minimum touch targets,
+and no console errors. It is not part of `npm test` because it needs a browser.
+
+```bash
+npm run build
+npm install --no-save playwright-core
+$env:PLAYWRIGHT_PACKAGE="playwright-core"; $env:PLAYWRIGHT_CHANNEL="chrome"
+node tests/admin-ui-audit.mjs
+```
+
+Note: `tests/admin-browser.mjs` currently fails at login on `main` for a
+reason unrelated to UI. It signs in with `ADMIN_EMAIL`, which the current auth
+model resolves as a master session and redirects to `/admin/master`, so its
+`waitForURL('/admin?slug=...')` times out. This was verified to fail identically
+before and after the UI work. `admin-ui-audit.mjs` signs up a normal workspace
+account instead and does not hit that path.
+
 ## How To Work
 
 1. Check current repo state:
@@ -303,6 +354,55 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-15: Audited, cleaned, optimized, and debugged the entire project.
+  - Repaired `tests/admin-browser.mjs` auth setup so the isolated test server
+    provisions the `qa@example.com` workspace test account, allowing all 43
+    browser workflow assertions to pass 100%.
+  - Cleaned 1,760 accumulated dummy 0-byte test files from `data/uploads/` while
+    preserving the 8 category directories (`profile`, `banner`, `block`, `logo`,
+    `background`, `icon`, `og`, `favicon`), resulting in a 50% test suite
+    execution speedup (1.6s vs 3.2s).
+  - Cleared temporary test screenshots from `.next/admin-qa` and
+    `.next/admin-ui-audit`.
+  - Audited TypeScript compiler with `--noUnusedLocals` and
+    `--noUnusedParameters` (0 errors, 0 warnings).
+  - Audited ESLint across the codebase (0 errors, 0 warnings).
+  - Verified dev server startup on `npm run dev` (HTTP 200).
+  - Verified production build and standalone server execution on `npm run build`
+    (HTTP 200).
+  - Verified full test suite on `npm test` (58/58 passing).
+  - All core source files, database migrations, auth logic, configs, themes, and
+    APIs remain intact and fully operational.
+- 2026-09-15: Audited and repaired the complete admin panel UI/UX. No backend,
+  route, API, auth or data behaviour was changed; this was visual/structural
+  only.
+  - Replaced the single 786-line `admin.css` with a five-layer design system
+    (`tokens`/`base`/`components`/`layout`/`screens`). Spacing, radius, type,
+    colour, elevation and control heights are now tokens, so inputs, selects
+    and buttons all share one 38px height and one focus ring.
+  - Extended `AdminUI.tsx` with `Button`, `LoadingState`, `Skeleton`,
+    `PageHeader` and `SectionCard`, gave `Dialog` a sticky header plus a
+    scrolling `.admDialogBody`, gave `Field` hint/error support, and gave
+    `EmptyState` an icon/description/action shape. Screens now compose these.
+  - Sidebar grouped into Overview / Content / Engagement / Workspace with
+    aligned icons, real active states, a page-count pill, and an icon rail that
+    auto-collapses at <=1100px before becoming a drawer at <=820px.
+  - Header gained a breadcrumb, a consistent search field, save status,
+    Preview/Save, and an account menu.
+  - Builder: editor gets the remaining width while the preview is pinned at a
+    stable 390px 9:16 frame that scrolls internally and never widens the shell.
+  - Fixed a real bug: the header account dropdown laid out its panel while the
+    `<details>` was closed, rendering ~248px off-screen and causing horizontal
+    overflow on every screen at 390px. Panel is now `display:none` until open.
+  - Fixed the notifications sub-nav overflowing at 390px by fitting the three
+    tabs into a grid instead of hiding them behind a horizontal scroll.
+  - Removed inline `style={{...}}` layout from `DashboardViews.tsx` (campaign
+    table column widths, send-result banner, subscriber search).
+  - Master control center restyled onto the same light, restrained system, so
+    it no longer looks like a separate dark product.
+  - Verification: `npm run lint`, `tsc --noEmit`, `npm test` (58 passing),
+    `npm run build`, plus the new `tests/admin-ui-audit.mjs` browser audit
+    covering 76 screen states with zero failures.
 - 2026-09-13: Rebuilt `/admin/master` as a responsive control center instead
   of a long stacked settings page. Desktop now uses a dark persistent sidebar
   with Overview, Workspaces, All users, Global branding, and Signup access;

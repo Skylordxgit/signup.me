@@ -2,12 +2,12 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Check, CheckCircle2, Clock3, Copy, Download, ExternalLink, Eye, FileText, Globe2, History, ImageIcon, LayoutGrid, Link2, List, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Search, Send, Sparkles, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Check, CheckCircle2, Clock3, Copy, Download, ExternalLink, Eye, FileText, FolderOpen, Globe2, History, ImageIcon, Inbox, LayoutGrid, Link2, List, Loader2, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Search, Send, Sparkles, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
 import { ImageUploader } from "../ImageUploader";
-import { Dialog, EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./AdminUI";
+import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, PageHeader, SectionCard, SectionHeading, StatusBadge } from "./AdminUI";
 import type { MediaFile, UploadCategory } from "@/lib/uploads";
 
 const number = (value: number) => value.toLocaleString();
@@ -21,7 +21,7 @@ export function Metrics({ pages }: { pages: PageSummary[] }) {
   return <div className="admMetrics">{values.map(metric => <article className="admMetric" key={metric.label}><div><span>{metric.label}</span><strong>{number(metric.value)}</strong></div><span className={`admMetricIcon admTone-${metric.tone}`}><metric.icon size={21} /></span></article>)}</div>;
 }
 
-export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, onExport, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; onExport?: (ids: number[]) => Promise<string>; busy?: boolean }) {
+export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, onExport, onCreate, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; onExport?: (ids: number[]) => Promise<string>; onCreate?: () => void; busy?: boolean }) {
   const [selected, setSelected] = useState<number[]>([]);
   const [message, setMessage] = useState('');
   const selectedIds = pages.filter(page => selected.includes(page.id)).map(page => page.id);
@@ -44,8 +44,8 @@ export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus,
     setSelected(current => current.filter(id => !updated.includes(id)));
     setMessage(`${updated.length} page${updated.length === 1 ? '' : 's'} ${status === 'draft' ? 'moved to draft' : 'unpublished'}.`);
   }
-  return !pages.length ? <EmptyState title="No pages found" /> : <>
-    {onBulkStatus && <div className="admBulkActions"><span>{selectedIds.length} selected</span><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('draft')}><FileText size={16} />Move to draft</button><button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('disabled')}><Eye size={16} />Unpublish</button>{onExport && <button type="button" className="admButton" disabled={busy || !selectedIds.length} onClick={() => void exportSelected()}><Download size={16} />Export selected</button>}{selectedIds.length > 0 && <button type="button" className="admTextButton" disabled={busy} onClick={() => setSelected([])}>Clear selection</button>}</div>}
+  return !pages.length ? <EmptyState icon={FileText} title="No pages yet" description={onCreate ? 'Create your first page to start collecting views and clicks.' : 'Pages you create will appear here.'}>{onCreate && <Button variant="primary" icon={Plus} onClick={onCreate}>Create page</Button>}</EmptyState> : <>
+    {onBulkStatus && <div className="admBulkActions"><span>{selectedIds.length} selected</span><Button size="sm" icon={FileText} disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('draft')}>Move to draft</Button><Button size="sm" icon={Eye} disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('disabled')}>Unpublish</Button>{onExport && <Button size="sm" icon={Download} disabled={busy || !selectedIds.length} onClick={() => void exportSelected()}>Export selected</Button>}{selectedIds.length > 0 && <button type="button" className="admTextButton" disabled={busy} onClick={() => setSelected([])}>Clear selection</button>}</div>}
     {message && <p className="admMuted" role="status">{message}</p>}
     <div className={`admPageTable ${onBulkStatus ? 'admPageTableManage' : ''}`} role="table" aria-label="Pages">
     <div className="admPageTableHead" role="row"><span role="columnheader" className="admPageSelect">{onBulkStatus && <input type="checkbox" aria-label="Select all visible pages" disabled={busy} checked={allSelected} ref={node => { if (node) node.indeterminate = selectedIds.length > 0 && !allSelected; }} onChange={() => setSelected(allSelected ? [] : pages.map(page => page.id))} />}Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader"><span className="admSrOnly">Actions</span></span></div>
@@ -61,10 +61,18 @@ export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus,
 export function DashboardHome({ pages, analytics, onOpen, onNavigate }: { pages: PageSummary[]; analytics: AnalyticsReport | null; onOpen: (id: number) => void; onNavigate: (view: string) => void }) {
   const recent = [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
   return <>
-    <div className="admPageHeading"><div><h2>Workspace overview</h2><p>Your pages, traffic, and latest updates.</p></div><button type="button" className="admButton admPrimary" onClick={() => onNavigate('create')}><Plus size={17} />Create page</button></div>
+    <PageHeader title="Workspace overview" description="Your pages, traffic, and latest updates.">
+      <Button variant="primary" icon={Plus} onClick={() => onNavigate('create')}>Create page</Button>
+    </PageHeader>
     <Metrics pages={pages} />
-    <div className="admHomeGrid"><section><SectionHeading title="Traffic overview"><span className="admMuted">Last 30 days</span></SectionHeading><TrafficChart report={analytics} /></section><section className="admQuickActions"><SectionHeading title="Quick actions" />{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'Send notification', icon: Bell, view: 'notifications' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={18} /><span>{action.label}</span><ArrowUpRight size={15} /></button>)}</section></div>
-    <div className="admHomeGrid"><section><SectionHeading title="Recent pages"><button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} /></button></SectionHeading><PagesTable pages={recent} onOpen={onOpen} /></section><section><SectionHeading title="Recent activity" />{!recent.length ? <EmptyState title="No activity yet" /> : <ul className="admActivity">{recent.map(page => <li key={page.id}><span><Clock3 size={17} /></span><div><button type="button" onClick={() => onOpen(page.id)}>{page.name}</button><small>Page updated</small><time dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div></li>)}</ul>}</section></div>
+    <div className="admHomeGrid">
+      <SectionCard title="Traffic overview" actions={<span className="admMuted">Last 30 days</span>}><TrafficChart report={analytics} /></SectionCard>
+      <SectionCard title="Quick actions"><div className="admQuickActions">{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'Send notification', icon: Bell, view: 'notifications' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={17} aria-hidden="true" /><span>{action.label}</span><ArrowUpRight size={15} aria-hidden="true" /></button>)}</div></SectionCard>
+    </div>
+    <div className="admHomeGrid">
+      <SectionCard title="Recent pages" actions={<button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} aria-hidden="true" /></button>}><PagesTable pages={recent} onOpen={onOpen} onCreate={() => onNavigate('create')} /></SectionCard>
+      <SectionCard title="Recent activity">{!recent.length ? <EmptyState icon={Clock3} title="No activity yet" description="Page edits will show up here." /> : <ul className="admActivity">{recent.map(page => <li key={page.id}><span><Clock3 size={16} aria-hidden="true" /></span><div><button type="button" onClick={() => onOpen(page.id)}>{page.name}</button><small>Page updated</small><time dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div></li>)}</ul>}</SectionCard>
+    </div>
   </>;
 }
 
@@ -82,16 +90,16 @@ export function TrafficChart({ report }: { report: AnalyticsReport | null }) {
 }
 
 export function AnalyticsView({ report }: { report: AnalyticsReport | null }) {
-  if (!report) return <EmptyState title="Loading analytics..." />;
+  if (!report) return <LoadingState label="Loading analytics..." />;
   return <><div className="admMetrics">{[['Views', report.views], ['Unique visitors', report.uniqueVisitors], ['Clicks', report.clicks], ['Click-through rate', `${report.ctr}%`]].map(([label, value]) => <article className="admMetric" key={label}><div><span>{label}</span><strong>{typeof value === 'number' ? number(value) : value}</strong></div></article>)}</div>
-    <section><SectionHeading title="Traffic"><span className="admMuted">Last 30 days</span></SectionHeading><TrafficChart report={report} /></section>
+    <SectionCard title="Traffic" actions={<span className="admMuted">Last 30 days</span>}><TrafficChart report={report} /></SectionCard>
     <div className="admThreeColumns"><Distribution title="Devices" items={report.devices.map(item => ({ label: item.device, count: item.count }))} /><Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} /><Distribution title="Top links" items={report.topBlocks.map(item => ({ label: item.title, count: item.clicks }))} /></div>
   </>;
 }
 
 function Distribution({ title, items }: { title: string; items: { label: string; count: number }[] }) {
   const peak = Math.max(1, ...items.map(item => item.count));
-  return <section><SectionHeading title={title} />{!items.length ? <EmptyState title="No data yet" /> : <div className="admDistribution">{items.map((item, index) => <div key={`${item.label}-${index}`}><div><span>{item.label}</span><strong>{number(item.count)}</strong></div><progress max={peak} value={item.count} aria-label={item.label} /></div>)}</div>}</section>;
+  return <SectionCard title={title}>{!items.length ? <EmptyState title="No data yet" /> : <div className="admDistribution">{items.map((item, index) => <div key={`${item.label}-${index}`}><div><span>{item.label}</span><strong>{number(item.count)}</strong></div><progress max={peak} value={item.count} aria-label={item.label} /></div>)}</div>}</SectionCard>;
 }
 
 export function MediaView() {
@@ -120,10 +128,14 @@ export function MediaView() {
     catch { setError('Could not copy the link. Open the image to copy its address.'); }
   }
   const filtered = media.filter(file => filter === 'all' || file.category === filter);
-  return <><SectionHeading title="Media library"><IconButton icon={RefreshCw} label="Refresh media" disabled={loading} onClick={() => void refresh()} /></SectionHeading>
+  return <>
+    <PageHeader title="Media" description="Every image uploaded in this workspace.">
+      <IconButton icon={RefreshCw} label="Refresh media" disabled={loading} onClick={() => void refresh()} />
+    </PageHeader>
     <div className="admMediaUpload"><Field label="Upload category"><select value={category} onChange={event => setCategory(event.target.value as UploadCategory)}>{['profile', 'banner', 'block', 'logo', 'background', 'icon', 'og', 'favicon'].map(value => <option key={value}>{value}</option>)}</select></Field><ImageUploader category={category} label="Upload image" value={uploaded} onChange={path => { setUploaded(path); void refresh(); }} /></div>
-    <div className="admToolbar"><span className="admMuted">{media.length} images</span><select aria-label="Filter media" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All media</option>{['profile', 'banner', 'block', 'logo', 'background', 'icon', 'og', 'favicon'].map(value => <option key={value}>{value}</option>)}</select></div>
-    {error && <p className="admError" role="alert">{error}</p>}{loading ? <EmptyState title="Loading media..." /> : !filtered.length ? <EmptyState title="No images in this category" /> : <div className="admMediaGrid">{filtered.map(file => <article className="admMediaItem" key={file.path}><a href={file.path} target="_blank" rel="noreferrer" aria-label={`Open ${file.name}`}><img src={file.path} alt={file.name} loading="lazy" /></a><div><span><strong title={file.name}>{file.name}</strong><small>{file.category} · {Math.max(1, Math.round(file.bytes / 1024))} KB</small></span><IconButton icon={copied === file.path ? Check : Copy} label={copied === file.path ? 'Copied' : 'Copy image link'} onClick={() => void copy(file.path)} /></div></article>)}</div>}
+    <div className="admToolbar"><span className="admMuted">{media.length} {media.length === 1 ? 'image' : 'images'}</span><select aria-label="Filter media" value={filter} onChange={event => setFilter(event.target.value)}><option value="all">All media</option>{['profile', 'banner', 'block', 'logo', 'background', 'icon', 'og', 'favicon'].map(value => <option key={value}>{value}</option>)}</select></div>
+    {error && <p className="admError" role="alert">{error}</p>}
+    {loading ? <LoadingState label="Loading media..." /> : !filtered.length ? <EmptyState icon={FolderOpen} title="No images in this category" description="Upload an image above, or choose a different category." /> : <div className="admMediaGrid">{filtered.map(file => <article className="admMediaItem" key={file.path}><a href={file.path} target="_blank" rel="noreferrer" aria-label={`Open ${file.name}`}><img src={file.path} alt={file.name} loading="lazy" /></a><div><span><strong title={file.name}>{file.name}</strong><small>{file.category} · {Math.max(1, Math.round(file.bytes / 1024))} KB</small></span><IconButton icon={copied === file.path ? Check : Copy} label={copied === file.path ? 'Copied' : 'Copy image link'} onClick={() => void copy(file.path)} /></div></article>)}</div>}
   </>;
 }
 
@@ -237,7 +249,7 @@ export function CampaignHistoryView({
       </div>
       <div className="admCampaignHubActions">
         {onRefresh && <IconButton icon={RefreshCw} label="Refresh campaign metrics" disabled={loading} onClick={onRefresh} />}
-        {onGoToCompose && <button type="button" className="admButton admPrimary" onClick={onGoToCompose}><Send size={15} />New campaign</button>}
+        {onGoToCompose && <Button variant="primary" icon={Send} onClick={onGoToCompose}>New campaign</Button>}
       </div>
     </div>
 
@@ -296,7 +308,6 @@ export function CampaignHistoryView({
           aria-label="Filter by audience"
           value={audienceFilter}
           onChange={e => setAudienceFilter(e.target.value)}
-          className="admSelect"
         >
           <option value="all">All audiences</option>
           <option value="all_subscribers">All subscribers broadcast</option>
@@ -306,7 +317,6 @@ export function CampaignHistoryView({
           aria-label="Filter by performance"
           value={engagementFilter}
           onChange={e => setEngagementFilter(e.target.value)}
-          className="admSelect"
         >
           <option value="all">All performance</option>
           <option value="clicked">With clicks</option>
@@ -320,7 +330,6 @@ export function CampaignHistoryView({
           aria-label="Sort campaigns"
           value={sort}
           onChange={e => setSort(e.target.value as typeof sort)}
-          className="admSelect"
         >
           <option value="newest">Newest first</option>
           <option value="oldest">Oldest first</option>
@@ -354,26 +363,15 @@ export function CampaignHistoryView({
 
     {/* Content Area: Cards or Table */}
     {loading && !campaigns.length ? (
-      <div className="admEmpty"><p>Loading campaign history...</p></div>
+      <LoadingState label="Loading campaign history..." />
     ) : !campaigns.length ? (
-      <div className="admEmpty admCampaignEmptyState">
-        <span className="admCampaignEmptyIcon"><History size={36} /></span>
-        <h3>No notification campaigns sent yet</h3>
-        <p>Send your first push update or special offer to all your subscribers.</p>
-        {onGoToCompose && (
-          <button type="button" className="admButton admPrimary" onClick={onGoToCompose}>
-            <Send size={15} />Compose your first campaign
-          </button>
-        )}
-      </div>
+      <EmptyState icon={History} title="No notification campaigns sent yet" description="Send your first push update or special offer to your subscribers.">
+        {onGoToCompose && <Button variant="primary" icon={Send} onClick={onGoToCompose}>Compose your first campaign</Button>}
+      </EmptyState>
     ) : !filteredCampaigns.length ? (
-      <div className="admEmpty">
-        <h3>No campaigns match your filters</h3>
-        <p>Try clearing your search query or adjusting the audience/performance filters.</p>
-        <button type="button" className="admButton" onClick={() => { setQuery(''); setAudienceFilter('all'); setEngagementFilter('all'); }}>
-          Reset filters
-        </button>
-      </div>
+      <EmptyState icon={Search} title="No campaigns match your filters" description="Try clearing the search query or adjusting the audience and performance filters.">
+        <Button onClick={() => { setQuery(''); setAudienceFilter('all'); setEngagementFilter('all'); }}>Reset filters</Button>
+      </EmptyState>
     ) : viewMode === 'cards' ? (
       <div className="admCampaignCards">
         {filteredCampaigns.map(campaign => {
@@ -493,22 +491,8 @@ export function CampaignHistoryView({
             )}
 
             <div className="admCampaignCardActions">
-              <button
-                type="button"
-                className="admButton"
-                onClick={() => setSelectedCampaign(campaign)}
-              >
-                <Eye size={14} />Inspect & preview
-              </button>
-              {onComposeWith && (
-                <button
-                  type="button"
-                  className="admButton"
-                  onClick={() => onComposeWith(campaign)}
-                >
-                  <Copy size={14} />Reuse in composer
-                </button>
-              )}
+              <Button size="sm" icon={Eye} onClick={() => setSelectedCampaign(campaign)}>Inspect &amp; preview</Button>
+              {onComposeWith && <Button size="sm" icon={Copy} onClick={() => onComposeWith(campaign)}>Reuse in composer</Button>}
             </div>
           </article>;
         })}
@@ -518,15 +502,15 @@ export function CampaignHistoryView({
         <table className="admSubscriberTable admCampaignDetailedTable">
           <thead>
             <tr>
-              <th scope="col" style={{ width: '150px' }}>Date sent</th>
-              <th scope="col">Campaign & message</th>
-              <th scope="col" style={{ width: '130px' }}>Audience</th>
-              <th scope="col" style={{ width: '90px' }}>Sent</th>
-              <th scope="col" style={{ width: '90px' }}>Delivered</th>
-              <th scope="col" style={{ width: '80px' }}>Seen</th>
-              <th scope="col" style={{ width: '100px' }}>Clicks (CTR)</th>
-              <th scope="col" style={{ width: '100px' }}>Status</th>
-              <th scope="col" style={{ width: '110px' }}>Actions</th>
+              <th scope="col">Date sent</th>
+              <th scope="col">Campaign &amp; message</th>
+              <th scope="col">Audience</th>
+              <th scope="col">Sent</th>
+              <th scope="col">Delivered</th>
+              <th scope="col">Seen</th>
+              <th scope="col">Clicks (CTR)</th>
+              <th scope="col">Status</th>
+              <th scope="col"><span className="admSrOnly">Actions</span></th>
             </tr>
           </thead>
           <tbody>
@@ -535,9 +519,9 @@ export function CampaignHistoryView({
               const delRate = getCampaignDeliveredRate(campaign);
               return <tr key={campaign.id}>
                 <td>
-                  <time dateTime={campaign.createdAt} style={{ fontSize: '12px' }}>
-                    {new Date(campaign.createdAt).toLocaleDateString()}<br />
-                    <span className="admMuted">{new Date(campaign.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <time dateTime={campaign.createdAt}>
+                    {new Date(campaign.createdAt).toLocaleDateString()}
+                    <small>{new Date(campaign.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
                   </time>
                 </td>
                 <td>
@@ -572,14 +556,8 @@ export function CampaignHistoryView({
                 </td>
                 <td>
                   <div className="admTableActions">
-                    <button type="button" className="admTextButton" onClick={() => setSelectedCampaign(campaign)} title="View preview & details">
-                      <Eye size={14} />
-                    </button>
-                    {onComposeWith && (
-                      <button type="button" className="admTextButton" onClick={() => onComposeWith(campaign)} title="Reuse in composer">
-                        <Copy size={14} />
-                      </button>
-                    )}
+                    <IconButton icon={Eye} label={`Inspect ${campaign.title}`} onClick={() => setSelectedCampaign(campaign)} />
+                    {onComposeWith && <IconButton icon={Copy} label={`Reuse ${campaign.title} in composer`} onClick={() => onComposeWith(campaign)} />}
                   </div>
                 </td>
               </tr>;
@@ -655,26 +633,21 @@ export function CampaignHistoryView({
           </div>
 
           <div className="admDialogActions">
-            <a
-              href={selectedCampaign.url}
-              target="_blank"
-              rel="noreferrer"
-              className="admButton"
-            >
-              <ExternalLink size={15} />Test destination link
+            <a href={selectedCampaign.url} target="_blank" rel="noreferrer" className="admButton">
+              <ExternalLink size={16} aria-hidden="true" />Test destination link
             </a>
             {onComposeWith && (
-              <button
-                type="button"
-                className="admButton admPrimary"
+              <Button
+                variant="primary"
+                icon={Send}
                 onClick={() => {
                   const target = selectedCampaign;
                   setSelectedCampaign(null);
                   onComposeWith(target);
                 }}
               >
-                <Send size={15} />Reuse in composer
-              </button>
+                Reuse in composer
+              </Button>
             )}
           </div>
         </div>
@@ -778,41 +751,23 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
   });
 
   return <div className="admNotifications">
-    <SectionHeading title="Notifications">
+    <PageHeader title="Notifications" description="Compose push updates, review delivery, and inspect your audience.">
       <IconButton icon={RefreshCw} label="Refresh subscribers and campaigns" disabled={loading || sending} onClick={() => void refresh()} />
-    </SectionHeading>
+    </PageHeader>
 
     {/* Sub-Navigation Tabs */}
     <div className="admSubNav" role="tablist" aria-label="Notification sections">
-      <button
-        type="button"
-        role="tab"
-        aria-selected={tab === 'composer'}
-        aria-current={tab === 'composer' ? 'page' : undefined}
-        onClick={() => setTab('composer')}
-      >
-        <Send size={15} />
+      <button type="button" role="tab" aria-selected={tab === 'composer'} onClick={() => setTab('composer')}>
+        <Send size={15} aria-hidden="true" />
         <span>Compose notification</span>
       </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={tab === 'campaigns'}
-        aria-current={tab === 'campaigns' ? 'page' : undefined}
-        onClick={() => setTab('campaigns')}
-      >
-        <History size={15} />
+      <button type="button" role="tab" aria-selected={tab === 'campaigns'} onClick={() => setTab('campaigns')}>
+        <History size={15} aria-hidden="true" />
         <span>Campaign history</span>
         <span className="admSubNavBadge">{campaigns.length}</span>
       </button>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={tab === 'subscribers'}
-        aria-current={tab === 'subscribers' ? 'page' : undefined}
-        onClick={() => setTab('subscribers')}
-      >
-        <User size={15} />
+      <button type="button" role="tab" aria-selected={tab === 'subscribers'} onClick={() => setTab('subscribers')}>
+        <User size={15} aria-hidden="true" />
         <span>Subscribers</span>
         <span className="admSubNavBadge">{summary.total}</span>
       </button>
@@ -852,11 +807,9 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
         )}
 
         {result && (
-          <div className={result.failed && !result.sent ? 'admError' : 'admSuccess'} role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+          <div className={`admSendResult ${result.failed && !result.sent ? 'admError' : 'admSuccess'}`} role="status">
             <span>{number(result.sent)} accepted for delivery · {number(result.failed)} failed · {number(result.removed)} expired marked inactive</span>
-            <button type="button" className="admButton" style={{ background: 'white', fontSize: '12.5px', padding: '4px 10px' }} onClick={() => setTab('campaigns')}>
-              <History size={13} /> View in campaign history
-            </button>
+            <Button size="sm" icon={History} onClick={() => setTab('campaigns')}>View in campaign history</Button>
           </div>
         )}
 
@@ -891,7 +844,7 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
             <div className="admNotificationSend">
               <span>{loading ? 'Loading audience...' : !recipients ? 'No subscribers in this audience yet' : `${number(recipients)} subscriber${recipients === 1 ? '' : 's'} selected`}</span>
               <button type="submit" className="admButton admPrimary" disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}>
-                <Send size={16} />{sending ? 'Sending...' : 'Send notification'}
+                {sending ? <Loader2 className="admSpinner" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}{sending ? 'Sending...' : 'Send notification'}
               </button>
             </div>
           </form>
@@ -912,10 +865,10 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
             <section className="admNotificationAudience">
               <SectionHeading title="Subscribers by page" />
               {loading ? (
-                <p className="admMuted" role="status">Loading subscribers...</p>
+                <LoadingState label="Loading subscribers..." />
               ) : !summary.byPage.length ? (
                 <div className="admNotificationEmpty">
-                  <User size={24} />
+                  <User size={22} aria-hidden="true" />
                   <strong>No subscribers yet</strong>
                   <p>Visitors appear here after allowing notifications on your public pages.</p>
                 </div>
@@ -966,7 +919,7 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
         <section className="admSubscriberSection">
           <SectionHeading title="Audience distribution by page" />
           {!summary.byPage.length ? (
-            <p className="admMuted">No subscribers on any page yet.</p>
+            <EmptyState icon={User} title="No subscribers yet" description="Visitors appear here after allowing notifications on your public pages." />
           ) : (
             <div className="admDistributionGrid">
               {summary.byPage.map(item => (
@@ -987,8 +940,8 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
             <SectionHeading title="Subscriber details">
               <span className="admMuted">Latest 100 subscriptions</span>
             </SectionHeading>
-            <div className="admCampaignSearch" style={{ maxWidth: '280px' }}>
-              <Search size={15} />
+            <div className="admCampaignSearch">
+              <Search size={15} aria-hidden="true" />
               <input
                 type="search"
                 placeholder="Filter by page, city, device, IP..."
@@ -1000,9 +953,9 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
           <p className="admMuted">Device and browser are reported by the visitor. IP location is approximate; a time zone is not a physical location. Inactive subscribers stay saved, but cannot receive pushes unless they subscribe again.</p>
 
           {loading ? (
-            <p role="status">Loading subscribers...</p>
+            <LoadingState label="Loading subscribers..." />
           ) : !filteredSubscribers.length ? (
-            <p className="admMuted">No subscribers found matching your criteria.</p>
+            <EmptyState icon={Inbox} title="No subscribers found" description="No subscriber matches your current filter." />
           ) : (
             <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Subscriber details">
               <table className="admSubscriberTable">
@@ -1074,7 +1027,33 @@ export function SettingsView({
     try { await adminApi('/api/admin/preferences', { method: 'PATCH', body: JSON.stringify({ name, avatar }) }); setMessage('Preferences saved'); } catch { setMessage('Unable to save preferences.'); }
   }
   return <div className="admSettingsStack">
-    <div className="admSettingsGrid"><form onSubmit={save}><SectionHeading title="Account preferences" /><div className="admFormStack"><Field label="Display name"><input value={name} onChange={event => setName(event.target.value)} autoComplete="nickname" /></Field><Field label="Signed-in email"><input type="email" readOnly value={email} /></Field><ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} /><button type="submit" className="admButton admPrimary"><Check size={16} />Save preferences</button><span role="status" className="admMuted">{message}</span></div></form><section><SectionHeading title="Workspace" /><label className="admCheck"><input type="checkbox" checked={collapsed} onChange={event => onCollapse(event.target.checked)} />Compact sidebar</label><p className="admMuted">Browser preferences</p><div className="admSettingsSession"><User size={20} /><span>{email || 'Administrator'}</span><button type="button" className="admButton" onClick={onLogout}><LogOut size={16} />Log out</button></div></section></div>
+    <PageHeader title="Settings" description="Your account details and workspace preferences." />
+    <div className="admSettingsGrid">
+      <SectionCard title="Account preferences" description="How your name and photo appear in this workspace.">
+        <form onSubmit={save}>
+          <div className="admFormStack">
+            <Field label="Display name"><input value={name} onChange={event => setName(event.target.value)} autoComplete="nickname" /></Field>
+            <Field label="Signed-in email" hint="Contact an admin to change the address on your account."><input type="email" readOnly value={email} /></Field>
+            <ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} />
+            <div className="admActionRow">
+              <button type="submit" className="admButton admPrimary"><Check size={16} aria-hidden="true" />Save preferences</button>
+              <span role="status" className="admMuted">{message}</span>
+            </div>
+          </div>
+        </form>
+      </SectionCard>
+      <SectionCard title="Workspace" description="Preferences stored in this browser.">
+        <label className="admSwitchRow">
+          <span><strong>Compact sidebar</strong><small>Collapse the navigation to icons only.</small></span>
+          <input type="checkbox" checked={collapsed} onChange={event => onCollapse(event.target.checked)} />
+        </label>
+        <div className="admSettingsSession">
+          <User size={18} aria-hidden="true" />
+          <span>{email || 'Administrator'}</span>
+          <Button icon={LogOut} onClick={onLogout}>Log out</Button>
+        </div>
+      </SectionCard>
+    </div>
     {isMaster && <MasterSettings onBrandingChanged={onBrandingChanged} />}
   </div>;
 }
@@ -1157,20 +1136,17 @@ function MasterSettings({ onBrandingChanged }: { onBrandingChanged?: (branding: 
     {error && <p className="admError" role="alert">{error}</p>}
     {message && <p className="admSuccess" role="status">{message}</p>}
     <div className="admSettingsGrid">
-      <section className="admBrandingPanel">
+      <SectionCard>
         <div className="admSettingRow">
           <div>
-            <span className={`admBadge admBadge-${signup.enabled ? 'published' : 'disabled'}`}><UserPlus size={13} />Signup {signup.enabled ? 'on' : 'off'}</span>
+            <span className={`admBadge admBadge-${signup.enabled ? 'published' : 'disabled'}`}><UserPlus size={12} aria-hidden="true" />Signup {signup.enabled ? 'on' : 'off'}</span>
             <h2>Public account creation</h2>
             <p className="admMuted">Turn signup off to block the create-account page and prevent new accounts from being created.</p>
           </div>
-          <button type="button" className="admButton admPrimary" disabled={loading || saving} onClick={() => void updateSignup(!signup.enabled)}>
-            <Power size={16} />Turn {signup.enabled ? 'off' : 'on'}
-          </button>
+          <Button variant="primary" icon={Power} loading={saving} disabled={loading} onClick={() => void updateSignup(!signup.enabled)}>Turn {signup.enabled ? 'off' : 'on'}</Button>
         </div>
-      </section>
-      <section className="admBrandingPanel">
-        <SectionHeading title="Branding" />
+      </SectionCard>
+      <SectionCard title="Branding" description="Identity shown across authentication and admin screens.">
         <div className="admFormGrid">
           <Field label="Brand name"><input maxLength={80} value={branding.name} onChange={event => setBranding({ ...branding, name: event.target.value })} /></Field>
           <Field label="Site title"><input maxLength={140} value={branding.siteTitle} onChange={event => setBranding({ ...branding, siteTitle: event.target.value })} /></Field>
@@ -1178,9 +1154,9 @@ function MasterSettings({ onBrandingChanged }: { onBrandingChanged?: (branding: 
           <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="favicon" label="Master favicon" value={branding.favicon} onChange={favicon => void updateBrandingImage('favicon', favicon)} /></div>
         </div>
         <div className="admFormFooter">
-          <button type="button" className="admButton admPrimary" disabled={loading || saving} onClick={() => void saveBranding()}>{saving ? 'Saving...' : 'Save branding'}</button>
+          <Button variant="primary" icon={Check} loading={saving} disabled={loading} onClick={() => void saveBranding()}>Save branding</Button>
         </div>
-      </section>
+      </SectionCard>
     </div>
   </section>;
 }

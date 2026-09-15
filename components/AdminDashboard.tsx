@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, BarChart3, Bell, Check, ChevronDown, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Upload, User, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BarChart3, Bell, Check, ChevronDown, ChevronRight, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Trash2, Upload, User, Users, X } from "lucide-react";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage, ThemeSettings } from "@/lib/types";
 import { adminApi, combineAnalytics } from "@/lib/admin";
 import { canAccess, type WorkspacePermission, type WorkspaceRole } from '@/lib/permissions';
@@ -12,7 +12,7 @@ import { defaultTheme } from "@/lib/defaults";
 import { ImageUploader } from "./ImageUploader";
 import { BuilderEditor, ThemeGallery, type BuilderTab } from "./admin/BuilderEditor";
 import { AnalyticsView, DashboardHome, MediaView, NotificationsView, PagesTable, SettingsView } from "./admin/DashboardViews";
-import { Dialog, EmptyState, Field, IconButton, SectionHeading, StatusBadge } from "./admin/AdminUI";
+import { Button, Dialog, Field, IconButton, LoadingState, PageHeader, StatusBadge } from "./admin/AdminUI";
 import { UsersView } from "./admin/UsersView";
 import { fallbackBranding, fetchBranding, type ClientBranding } from "./AuthBranding";
 import { usePageEditor } from "./admin/usePageEditor";
@@ -20,16 +20,17 @@ import "./admin/admin.css";
 
 type View = 'dashboard' | 'pages' | 'create' | 'analytics' | 'media' | 'themes' | 'notifications' | 'settings' | 'users' | 'builder';
 const navigation = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'pages', label: 'Pages', icon: FileText },
-  { id: 'create', label: 'Create Page', icon: Plus },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'media', label: 'Media', icon: ImageIcon },
-  { id: 'themes', label: 'Themes', icon: Palette },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'users', label: 'Team', icon: User },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
+  { id: 'pages', label: 'Pages', icon: FileText, group: 'Content' },
+  { id: 'create', label: 'Create Page', icon: Plus, group: 'Content' },
+  { id: 'media', label: 'Media', icon: ImageIcon, group: 'Content' },
+  { id: 'themes', label: 'Themes', icon: Palette, group: 'Content' },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3, group: 'Engagement' },
+  { id: 'notifications', label: 'Notifications', icon: Bell, group: 'Engagement' },
+  { id: 'users', label: 'Team', icon: Users, group: 'Workspace' },
+  { id: 'settings', label: 'Settings', icon: Settings, group: 'Workspace' },
 ] as const;
+const navigationGroups = ['Overview', 'Content', 'Engagement', 'Workspace'] as const;
 
 export function AdminDashboard() {
   const [view, setView] = useState<View>('dashboard');
@@ -259,10 +260,24 @@ export function AdminDashboard() {
   const heading = view === 'builder' ? 'Page builder' : navigation.find(item => item.id === view)?.label || 'Dashboard';
 
   function sidebar(drawer = false) {
+    const visible = navigation.filter(item => allowedView(item.id));
+    const isActive = (id: string) => view === id || (view === 'builder' && id === 'pages');
     return <>
-      <div className="admBrand"><Image className="admBrandLogo" src={branding.logo} alt="" width={34} height={34} priority unoptimized /><strong>{branding.name}</strong>{drawer && <IconButton icon={X} label="Close navigation" onClick={() => setDrawerOpen(false)} />}</div>
-      <nav aria-label={drawer ? 'Mobile admin navigation' : 'Admin navigation'}>{navigation.filter(item => allowedView(item.id)).map(item => <button type="button" key={item.id} className={view === item.id || view === 'builder' && item.id === 'pages' ? 'admNavActive' : ''} aria-current={view === item.id || view === 'builder' && item.id === 'pages' ? 'page' : undefined} title={item.label} aria-label={item.label} disabled={busy} onClick={() => navigate(item.id)}><item.icon size={19} /><span>{item.label}</span>{item.id === 'pages' && <small>{pages.length}</small>}</button>)}</nav>
-      <div className="admSidebarBottom"><button type="button" title="Log out" disabled={busy} onClick={logout}><LogOut size={19} /><span>Logout</span></button>{!drawer && <button type="button" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => collapse(!collapsed)}>{collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}<span>Collapse sidebar</span></button>}</div>
+      <div className="admBrand"><Image className="admBrandLogo" src={branding.logo} alt="" width={30} height={30} priority unoptimized /><strong>{branding.name}</strong>{drawer && <IconButton icon={X} label="Close navigation" onClick={() => setDrawerOpen(false)} />}</div>
+      <nav aria-label={drawer ? 'Mobile admin navigation' : 'Admin navigation'}>
+        {navigationGroups.map(group => {
+          const items = visible.filter(item => item.group === group);
+          if (!items.length) return null;
+          return <div className="admNavGroup" key={group}>
+            <p className="admNavLabel">{group}</p>
+            {items.map(item => <button type="button" key={item.id} className={isActive(item.id) ? 'admNavActive' : ''} aria-current={isActive(item.id) ? 'page' : undefined} title={item.label} aria-label={item.label} disabled={busy} onClick={() => navigate(item.id)}><item.icon size={18} aria-hidden="true" /><span>{item.label}</span>{item.id === 'pages' && <small>{pages.length}</small>}</button>)}
+          </div>;
+        })}
+      </nav>
+      <div className="admSidebarBottom">
+        <button type="button" title="Log out" aria-label="Log out" disabled={busy} onClick={logout}><LogOut size={18} aria-hidden="true" /><span>Logout</span></button>
+        {!drawer && <button type="button" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => collapse(!collapsed)}>{collapsed ? <PanelLeftOpen size={18} aria-hidden="true" /> : <PanelLeftClose size={18} aria-hidden="true" />}<span>Collapse sidebar</span></button>}
+      </div>
     </>;
   }
 
@@ -270,23 +285,47 @@ export function AdminDashboard() {
     <aside className="admSidebar">{sidebar()}</aside>
     <div className="admWorkspace">
       <header className="admTopbar">
-        <div className="admTopbarTitle"><IconButton icon={Menu} label="Open navigation" className="admMenuButton" onClick={() => setDrawerOpen(true)} /><div><span>{workspace || 'Workspace'}</span><h1>{heading}</h1></div></div>
-        <form className="admHeaderSearch" role="search" onSubmit={event => { event.preventDefault(); navigate('pages'); }}><Search size={17} /><input aria-label="Search pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></form>
-        <div className="admHeaderActions">{isMaster && <Link className="admButton" href="/admin/master"><ArrowLeft size={16} />All workspaces</Link>}
-          {view === 'builder' && editor.page && <><span className={'admSaveStatus ' + (editor.status === 'Save failed' ? 'admDanger' : '')} role="status">{editor.status === 'Saving' ? <Loader2 className="admSpinner" size={15} /> : editor.status === 'Saved' ? <Check size={15} /> : <span className="admUnsavedDot" />}{editor.status}</span><a className="admButton" aria-label="Preview public page" title="Preview public page" href={'/' + editor.page.slug} target="_blank" rel="noreferrer"><ArrowUpRight size={16} /><span>Preview</span></a><button type="button" className="admButton admPrimary" aria-label="Save page" title="Save page" disabled={busy || editor.status === 'Saving'} onClick={() => void run(editor.save)}><Save size={16} /><span>Save</span></button></>}
-          <details className="admAccount" ref={accountMenu}><summary aria-label="Admin account menu" title="Admin account menu"><span className="admAvatar"><User size={18} /></span><ChevronDown size={14} /></summary><div><strong>{isMaster ? 'Master admin' : role === 'member' ? 'Workspace member' : 'Workspace admin'}</strong><small>{email}</small><small>{workspace}</small><button type="button" onClick={() => navigate('settings')}><Settings size={16} />Settings</button><button type="button" disabled={busy} onClick={logout}><LogOut size={16} />Log out</button></div></details>
+        <div className="admTopbarTitle">
+          <IconButton icon={Menu} label="Open navigation" className="admMenuButton" onClick={() => setDrawerOpen(true)} />
+          <div>
+            <p className="admBreadcrumb">{workspace || 'Workspace'}<ChevronRight size={12} aria-hidden="true" />{heading}</p>
+            <h1>{heading}</h1>
+          </div>
+        </div>
+        <form className="admHeaderSearch admSearchField" role="search" onSubmit={event => { event.preventDefault(); navigate('pages'); }}><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></form>
+        <div className="admHeaderActions">
+          {isMaster && <Link className="admButton" href="/admin/master"><ArrowLeft size={16} aria-hidden="true" /><span>All workspaces</span></Link>}
+          {view === 'builder' && editor.page && <>
+            <span className={'admSaveStatus ' + (editor.status === 'Save failed' ? 'admDanger' : '')} role="status">{editor.status === 'Saving' ? <Loader2 className="admSpinner" size={15} aria-hidden="true" /> : editor.status === 'Saved' ? <Check size={15} aria-hidden="true" /> : <span className="admUnsavedDot" aria-hidden="true" />}{editor.status}</span>
+            <a className="admButton" aria-label="Preview public page" title="Preview public page" href={'/' + editor.page.slug} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden="true" /><span>Preview</span></a>
+            <button type="button" className="admButton admPrimary" aria-label="Save page" title="Save page" disabled={busy || editor.status === 'Saving'} onClick={() => void run(editor.save)}><Save size={16} aria-hidden="true" /><span>Save</span></button>
+          </>}
+          <span className="admHeaderDivider" aria-hidden="true" />
+          <details className="admAccount" ref={accountMenu}><summary aria-label="Admin account menu" title="Admin account menu"><span className="admAvatar"><User size={16} aria-hidden="true" /></span><ChevronDown size={14} aria-hidden="true" /></summary><div><strong>{isMaster ? 'Master admin' : role === 'member' ? 'Workspace member' : 'Workspace admin'}</strong><small>{email}</small><small>{workspace}</small><button type="button" onClick={() => navigate('settings')}><Settings size={16} aria-hidden="true" />Settings</button><button type="button" disabled={busy} onClick={logout}><LogOut size={16} aria-hidden="true" />Log out</button></div></details>
         </div>
       </header>
       <main className={'admMain ' + (view === 'builder' ? 'admMainBuilder' : '')} aria-busy={busy || loading} inert={busy || undefined}>
         {(error || editor.error) && <div className="admError" role="alert"><span>{error || editor.error}</span><IconButton icon={X} label="Dismiss error" onClick={() => { setError(''); editor.clearError(); }} /></div>}
-        {loading ? <EmptyState title="Loading workspace..." /> : <>
+        {loading ? <LoadingState label="Loading workspace..." /> : <>
           {view === 'dashboard' && <DashboardHome pages={pages} analytics={report} onOpen={openPage} onNavigate={navigate} />}
-{view === 'pages' && <><div className="admPageHeading"><div><h2>Pages</h2><p>{pages.length} pages in your workspace</p></div><div className="admActionRow"><button type="button" className="admButton" disabled={busy} onClick={() => { setImportNotice(''); setImportOpen(true); }}><Upload size={17} />Import pages</button><button type="button" className="admButton admPrimary" onClick={() => navigate('create')}><Plus size={17} />Create page</button></div></div>{importNotice && <p className="admSuccess" role="status">{importNotice}</p>}<div className="admToolbar"><div className="admFilterTabs" role="group" aria-label="Page status">{['all', 'published', 'draft', 'disabled'].map(status => <button type="button" key={status} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status === 'all' ? 'All pages' : status}</button>)}</div><div className="admFilters"><select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort pages"><option value="updated">Recently updated</option><option value="name">Name</option><option value="views">Most views</option></select><IconButton icon={RefreshCw} label="Refresh pages" disabled={busy} onClick={() => void run(refresh)} /></div></div><div className="admMobileSearch"><Search size={17} /><input aria-label="Filter pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></div><PagesTable onBulkStatus={bulkPageStatus} onExport={exportPages} pages={filtered} onOpen={openPage} onDuplicate={duplicatePage} onDelete={setDeleteTarget} busy={busy} /></>}
+          {view === 'pages' && <>
+            <PageHeader title="Pages" description={`${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in your workspace`}>
+              <Button icon={Upload} disabled={busy} onClick={() => { setImportNotice(''); setImportOpen(true); }}>Import pages</Button>
+              <Button variant="primary" icon={Plus} onClick={() => navigate('create')}>Create page</Button>
+            </PageHeader>
+            {importNotice && <p className="admSuccess" role="status">{importNotice}</p>}
+            <div className="admToolbar">
+              <div className="admFilterTabs" role="group" aria-label="Page status">{['all', 'published', 'draft', 'disabled'].map(status => <button type="button" key={status} aria-pressed={statusFilter === status} onClick={() => setStatusFilter(status)}>{status === 'all' ? 'All pages' : status}</button>)}</div>
+              <div className="admFilters"><select value={sort} onChange={event => setSort(event.target.value)} aria-label="Sort pages"><option value="updated">Recently updated</option><option value="name">Name</option><option value="views">Most views</option></select><IconButton icon={RefreshCw} label="Refresh pages" disabled={busy} onClick={() => void run(refresh)} /></div>
+            </div>
+            <div className="admMobileSearch admSearchField"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Filter pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></div>
+            <PagesTable onBulkStatus={bulkPageStatus} onExport={exportPages} pages={filtered} onOpen={openPage} onDuplicate={duplicatePage} onDelete={setDeleteTarget} busy={busy} onCreate={() => navigate('create')} />
+          </>}
           {view === 'create' && <CreatePage key={createSlug || 'blank'} initialSlug={createSlug} busy={busy} onCreate={input => { void run(async () => { const page = await adminApi<SmartPage>('/api/pages', { method: 'POST', body: JSON.stringify(input) }); editor.adopt(page); setCreateSlug(''); window.history.replaceState({}, '', '/admin'); await refresh(); setBuilderTab('profile'); setView('builder'); }); }} />}
           {view === 'builder' && editor.page && <><div className="admBuilderHeading"><div><IconButton icon={ArrowLeft} label="Back to pages" onClick={() => navigate('pages')} /><span><h2>{editor.page.name}</h2><small>/{editor.page.slug}</small></span></div><div className="admActionRow"><StatusBadge status={editor.page.status} /><select aria-label="Publishing status" value={editor.page.status} onChange={event => editor.edit({ status: event.target.value as SmartPage['status'] })}><option value="published">Published</option><option value="draft">Draft</option><option value="disabled">Disabled</option></select></div></div><BuilderEditor key={editor.page.id} page={editor.page} tab={builderTab} onTab={setBuilderTab} onEdit={editor.edit} onBlock={editor.editBlock} onAdd={addBlock} onMove={moveBlock} onDelete={setDeleteBlockTarget} onDuplicate={block => void run(async () => mutateBlocks(() => adminApi('/api/blocks/' + block.id, { method: 'POST', body: JSON.stringify({ action: 'duplicate' }) })))} busy={busy} /></>}
-          {view === 'analytics' && <><SectionHeading title="Page analytics"><select aria-label="Analytics page" value={reportPageId} onChange={event => { setReportPageId(event.target.value); setReport(null); }}><option value="all">All pages</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></SectionHeading><AnalyticsView report={report} /></>}
+          {view === 'analytics' && <><PageHeader title="Analytics" description="Views, clicks and traffic sources across the last 30 days."><select aria-label="Analytics page" value={reportPageId} onChange={event => { setReportPageId(event.target.value); setReport(null); }}><option value="all">All pages</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></PageHeader><AnalyticsView report={report} /></>}
           {view === 'media' && <MediaView />}
-          {view === 'themes' && <><SectionHeading title="Theme library" /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
+          {view === 'themes' && <><PageHeader title="Themes" description="Pick a look, then apply it to one of your pages." /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
           {view === 'notifications' && <NotificationsView pages={pages} />}
           {view === 'users' && <UsersView role={role} permissions={permissions} isMaster={isMaster} />}
           {view === 'settings' && <SettingsView email={email} isMaster={isMaster} onBrandingChanged={brand => setBranding(current => ({ ...current, ...brand }))} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
@@ -303,8 +342,14 @@ export function AdminDashboard() {
         setView('pages');
       }}
     />}
-    {deleteTarget && <Dialog title="Delete page" onClose={() => setDeleteTarget(null)}><p>Delete &quot;{deleteTarget.name}&quot; and its content?</p><div className="admDialogActions"><button type="button" className="admButton" onClick={() => setDeleteTarget(null)}>Cancel</button><button type="button" className="admButton admDestructive" disabled={busy} onClick={() => void run(async () => { await editor.save(); await adminApi('/api/pages/' + deleteTarget.id, { method: 'DELETE' }); setDeleteTarget(null); await refresh(); })}>Delete page</button></div></Dialog>}
-    {deleteBlockTarget && <Dialog title="Delete block" onClose={() => setDeleteBlockTarget(null)}><p>Delete &quot;{deleteBlockTarget.title || deleteBlockTarget.type}&quot;?</p><div className="admDialogActions"><button type="button" className="admButton" onClick={() => setDeleteBlockTarget(null)}>Cancel</button><button type="button" className="admButton admDestructive" disabled={busy} onClick={() => void run(async () => { await mutateBlocks(() => adminApi('/api/blocks/' + deleteBlockTarget.id, { method: 'DELETE' })); setDeleteBlockTarget(null); })}>Delete block</button></div></Dialog>}
+    {deleteTarget && <Dialog title="Delete page" onClose={() => setDeleteTarget(null)}>
+      <p>Delete <strong>{deleteTarget.name}</strong> and all of its content? This cannot be undone.</p>
+      <div className="admDialogActions"><Button onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" icon={Trash2} disabled={busy} onClick={() => void run(async () => { await editor.save(); await adminApi('/api/pages/' + deleteTarget.id, { method: 'DELETE' }); setDeleteTarget(null); await refresh(); })}>Delete page</Button></div>
+    </Dialog>}
+    {deleteBlockTarget && <Dialog title="Delete block" onClose={() => setDeleteBlockTarget(null)}>
+      <p>Delete <strong>{deleteBlockTarget.title || deleteBlockTarget.type}</strong>? This cannot be undone.</p>
+      <div className="admDialogActions"><Button onClick={() => setDeleteBlockTarget(null)}>Cancel</Button><Button variant="danger" icon={Trash2} disabled={busy} onClick={() => void run(async () => { await mutateBlocks(() => adminApi('/api/blocks/' + deleteBlockTarget.id, { method: 'DELETE' })); setDeleteBlockTarget(null); })}>Delete block</Button></div>
+    </Dialog>}
   </div>;
 }
 
@@ -316,7 +361,22 @@ function CreatePage({ busy, initialSlug = '', onCreate }: { busy: boolean; initi
   const [bio, setBio] = useState('');
   const [profileImage, setProfileImage] = useState('');
   const [uploading, setUploading] = useState(false);
-  return <><div className="admPageHeading"><div><h2>Create a page</h2><p>{initialSlug ? <>Start building at <strong>/{initialSlug}</strong>.</> : 'A new home for your profile and links.'}</p></div></div><form className="admCreateForm" onSubmit={event => { event.preventDefault(); onCreate({ name, slug: slugify(slug), title: title || name, bio, profileImage }); }}><div className="admFormGrid"><Field label="Page name"><input required value={name} onChange={event => { setName(event.target.value); if (!customSlug) setSlug(slugifyDraft(event.target.value)); }} /></Field><Field label="URL slug"><input required pattern="[a-z][a-z0-9]*(?:-[a-z0-9]+)*" title="Start with a letter; use lowercase letters, numbers, and single hyphens." value={slug} onChange={event => { setCustomSlug(true); setSlug(slugifyDraft(event.target.value)); }} onBlur={() => setSlug(slugify(slug))} /></Field><div className="admSpanFull"><Field label="Profile title"><input value={title} onChange={event => setTitle(event.target.value)} placeholder={name} /></Field></div><div className="admSpanFull"><Field label="Bio"><textarea rows={4} value={bio} onChange={event => setBio(event.target.value)} /></Field></div><div className="admSpanFull"><ImageUploader category="profile" label="Profile photo" round value={profileImage} onChange={setProfileImage} onBusyChange={setUploading} /></div></div><div className="admFormFooter"><button type="submit" className="admButton admPrimary" disabled={busy || uploading || !name.trim() || !slug}>{busy ? <Loader2 className="admSpinner" size={17} /> : <Plus size={17} />}Create page</button><span className="admMuted">/{slug || 'your-page'}</span></div></form></>;
+  return <>
+    <PageHeader title="Create a page" description={initialSlug ? <>Start building at <strong>/{initialSlug}</strong>.</> : 'A new home for your profile and links.'} />
+    <form className="admCreateForm admCard" onSubmit={event => { event.preventDefault(); onCreate({ name, slug: slugify(slug), title: title || name, bio, profileImage }); }}>
+      <div className="admFormGrid">
+        <Field label="Page name"><input required value={name} onChange={event => { setName(event.target.value); if (!customSlug) setSlug(slugifyDraft(event.target.value)); }} /></Field>
+        <Field label="URL slug" hint="Lowercase letters, numbers and single hyphens."><input required pattern="[a-z][a-z0-9]*(?:-[a-z0-9]+)*" title="Start with a letter; use lowercase letters, numbers, and single hyphens." value={slug} onChange={event => { setCustomSlug(true); setSlug(slugifyDraft(event.target.value)); }} onBlur={() => setSlug(slugify(slug))} /></Field>
+        <div className="admSpanFull"><Field label="Profile title"><input value={title} onChange={event => setTitle(event.target.value)} placeholder={name} /></Field></div>
+        <div className="admSpanFull"><Field label="Bio"><textarea rows={4} value={bio} onChange={event => setBio(event.target.value)} /></Field></div>
+        <div className="admSpanFull"><ImageUploader category="profile" label="Profile photo" round value={profileImage} onChange={setProfileImage} onBusyChange={setUploading} /></div>
+      </div>
+      <div className="admFormFooter">
+        <button type="submit" className="admButton admPrimary" disabled={busy || uploading || !name.trim() || !slug}>{busy ? <Loader2 className="admSpinner" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}Create page</button>
+        <span className="admMuted">/{slug || 'your-page'}</span>
+      </div>
+    </form>
+  </>;
 }
 
 type ImportedPageSummary = { id: number; name: string; slug: string; originalSlug: string; status: string; renamed: boolean };
@@ -363,8 +423,8 @@ function ImportPagesDialog({ onClose, onImported }: { onClose: () => void; onImp
           <summary>{result.warnings.length} item{result.warnings.length === 1 ? '' : 's'} skipped</summary>
           <ul className="admImportList">{result.warnings.map((warning, index) => <li key={index}><small>{warning}</small></li>)}</ul>
         </details>}
-        <button type="button" className="admButton admPrimary" onClick={() => void onImported(summary)}>Done</button>
       </div>
+      <div className="admDialogActions"><Button variant="primary" icon={Check} onClick={() => void onImported(summary)}>Done</Button></div>
     </Dialog>;
   }
 
@@ -376,10 +436,13 @@ function ImportPagesDialog({ onClose, onImported }: { onClose: () => void; onImp
           <input type="file" accept="application/json,.json" required onChange={event => { setFile(event.target.files?.[0] ?? null); setError(''); }} />
         </Field>
         <label className="admCheck"><input type="checkbox" checked={keepStatus} onChange={event => setKeepStatus(event.target.checked)} />Keep the original published status</label>
-        {!keepStatus && <p className="admMuted">Imported pages arrive as drafts so you can review them before they go live.</p>}
+        {!keepStatus && <p className="admHelper">Imported pages arrive as drafts so you can review them before they go live.</p>}
         {error && <p className="admError" role="alert">{error}</p>}
-        <button type="submit" className="admButton admPrimary" disabled={!file || busy}>{busy ? <><Loader2 className="admSpinner" size={16} />Importing...</> : <><Upload size={16} />Import pages</>}</button>
       </div></fieldset>
+      <div className="admDialogActions">
+        <button type="button" className="admButton" disabled={busy} onClick={onClose}>Cancel</button>
+        <button type="submit" className="admButton admPrimary" disabled={!file || busy}>{busy ? <><Loader2 className="admSpinner" size={16} aria-hidden="true" />Importing...</> : <><Upload size={16} aria-hidden="true" />Import pages</>}</button>
+      </div>
     </form>
   </Dialog>;
 }

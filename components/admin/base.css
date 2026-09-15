@@ -1,0 +1,169 @@
+/* Base element styling, typography hierarchy and shared controls.
+   Every admin screen inherits these; no screen redefines them locally. */
+
+/* ---------- Typography hierarchy ---------- */
+.admShell :where(h1, h2, h3, h4):not(:where(.smartPage *)),
+.admDialog :where(h1, h2, h3, h4),
+.masterShell :where(h1, h2, h3, h4):not(:where(.smartPage *)) {
+  margin: 0;
+  color: var(--c-ink);
+  letter-spacing: -0.01em;
+  text-wrap: pretty;
+}
+/* Page title */
+.admShell h1:not(:where(.smartPage *)) { font-size: var(--text-lg); font-weight: 650; line-height: 1.35; }
+/* Section title */
+.admShell h2:not(:where(.smartPage *)), .masterShell h2:not(:where(.masterHero, .masterBrandPreview) *) { font-size: var(--text-xl); font-weight: 650; line-height: 1.35; }
+/* Card title */
+.admShell h3:not(:where(.smartPage *)), .masterShell h3 { font-size: var(--text-md); font-weight: 650; line-height: 1.4; }
+.admShell h4:not(:where(.smartPage *)) { font-size: var(--text-base); font-weight: 650; }
+.admShell p:not(:where(.smartPage *)), .masterShell p { margin: var(--sp-1) 0 0; }
+
+/* Body / helper / muted text */
+.admMuted { color: var(--c-muted); font-size: var(--text-base); }
+.admHelper { margin-top: var(--sp-1); color: var(--c-faint); font-size: var(--text-sm); line-height: 1.5; }
+.admSrOnly { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; white-space: nowrap; clip-path: inset(50%); }
+
+/* ---------- Focus: one visible, consistent ring ---------- */
+.admShell :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
+.admDialog :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
+.masterShell :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- Form controls: one height, one type size ---------- */
+.admShell :where(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+.admDialog :where(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
+.masterShell :where(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--control-h);
+  padding: var(--sp-2) var(--control-px);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  font-size: var(--text-md);
+  line-height: 1.45;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.admShell :where(input, select, textarea):focus,
+.admDialog :where(input, select, textarea):focus,
+.masterShell :where(input, select, textarea):focus { border-color: var(--c-accent); }
+.admShell :where(input, textarea)::placeholder, .admDialog :where(input, textarea)::placeholder { color: var(--c-faint); }
+.admShell :where(input, select, textarea):disabled,
+.admDialog :where(input, select, textarea):disabled { background: var(--c-surface-sunken); color: var(--c-muted); cursor: not-allowed; }
+.admShell input[readonly], .admDialog input[readonly] { background: var(--c-surface-sunken); color: var(--c-text); }
+.admShell :where(input, select, textarea)[aria-invalid="true"],
+.admDialog :where(input, select, textarea)[aria-invalid="true"] { border-color: var(--c-danger); }
+.admShell textarea, .admDialog textarea { resize: vertical; min-height: 84px; }
+.admShell select, .admDialog select, .masterShell select {
+  appearance: none;
+  padding-right: var(--sp-8);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7686' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--sp-3) center;
+  cursor: pointer;
+}
+.admShell input[type="checkbox"], .admDialog input[type="checkbox"],
+.admShell input[type="radio"], .admDialog input[type="radio"] {
+  width: 16px; height: 16px; min-height: 16px; flex: none; margin: 0; padding: 0;
+  accent-color: var(--c-accent); cursor: pointer;
+}
+.admShell input[type="range"], .admDialog input[type="range"] { width: 100%; padding: 0; min-height: 22px; accent-color: var(--c-accent); cursor: pointer; }
+.admShell input[type="color"], .admDialog input[type="color"] {
+  width: 40px; height: var(--control-h); min-height: var(--control-h); flex: none; padding: 3px;
+  border: 1px solid var(--c-line-strong); border-radius: var(--radius-md); background: var(--c-surface); cursor: pointer;
+}
+.admShell input[type="file"], .admDialog input[type="file"] {
+  width: 100%; padding: var(--sp-2); border: 1px dashed var(--c-line-strong);
+  border-radius: var(--radius-md); background: var(--c-surface-sunken); font-size: var(--text-base); cursor: pointer;
+}
+.admShell button, .admDialog button, .masterShell button { font: inherit; }
+.admShell :where(button, a), .admDialog :where(button, a), .masterShell :where(button, a) { -webkit-tap-highlight-color: transparent; }
+.admShell button:disabled, .admDialog button:disabled, .masterShell button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* Field: label + control + optional hint */
+.admField { display: grid; align-content: start; gap: var(--sp-2); min-width: 0; }
+.admField > :where(label, span:first-child) { color: var(--c-text); font-size: var(--text-base); font-weight: 550; line-height: 1.4; }
+.admFieldHint { margin: 0; color: var(--c-warning); background: var(--c-warning-soft); border: 1px solid #f0dcae; border-radius: var(--radius-md); padding: var(--sp-3); font-size: var(--text-base); line-height: 1.5; }
+.admFieldError { color: var(--c-danger); font-size: var(--text-base); }
+
+/* Checkbox / radio rows get a real touch target */
+.admCheck { display: flex; align-items: center; gap: var(--sp-3); min-height: 32px; color: var(--c-text); font-size: var(--text-md); cursor: pointer; }
+.admCheck:has(input:disabled) { color: var(--c-faint); cursor: not-allowed; }
+fieldset.admTeamFields, .admShell fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.admShell legend { padding: 0 0 var(--sp-2); color: var(--c-text); font-size: var(--text-base); font-weight: 600; }
+
+/* Form layout primitives */
+.admFormStack { display: grid; gap: var(--sp-5); align-content: start; }
+.admFormGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5); }
+.admSpanFull { grid-column: 1 / -1; min-width: 0; }
+.admFormSection { padding-top: var(--sp-6); margin-top: var(--sp-6); border-top: 1px solid var(--c-line); }
+.admFormSection > h3 { margin-bottom: var(--sp-4); }
+.admFormFooter { display: flex; flex-wrap: wrap; gap: var(--sp-4); align-items: center; margin-top: var(--sp-6); padding-top: var(--sp-5); border-top: 1px solid var(--c-line); }
+.admColor { display: flex; align-items: center; gap: var(--sp-3); }
+.admColor code { font-size: var(--text-sm); color: var(--c-muted); font-variant-numeric: tabular-nums; }
+
+/* Toggle switch */
+.admSwitchRow { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-4); border: 1px solid var(--c-line); border-radius: var(--radius-lg); background: var(--c-surface); cursor: pointer; }
+.admSwitchRow > span { min-width: 0; }
+.admSwitchRow strong, .admSwitchRow small { display: block; }
+.admSwitchRow strong { font-size: var(--text-md); font-weight: 600; margin-bottom: 2px; }
+.admSwitchRow small { color: var(--c-muted); font-size: var(--text-base); line-height: 1.5; }
+.admShell .admSwitchRow input[type="checkbox"], .masterShell .admSwitchRow input[type="checkbox"], .admDialog .admSwitchRow input[type="checkbox"] {
+  position: relative; flex: 0 0 44px; width: 44px; height: 26px; min-height: 26px; margin: 0; padding: 0;
+  appearance: none; border: 1px solid var(--c-line-strong); border-radius: var(--radius-pill);
+  background: #dbe2ec; transition: background .16s ease, border-color .16s ease; cursor: pointer;
+}
+.admShell .admSwitchRow input[type="checkbox"]::before, .masterShell .admSwitchRow input[type="checkbox"]::before, .admDialog .admSwitchRow input[type="checkbox"]::before {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; box-shadow: var(--shadow-sm); transition: transform .16s ease;
+}
+.admShell .admSwitchRow input[type="checkbox"]:checked, .masterShell .admSwitchRow input[type="checkbox"]:checked, .admDialog .admSwitchRow input[type="checkbox"]:checked { border-color: var(--c-accent); background: var(--c-accent); }
+.admShell .admSwitchRow input[type="checkbox"]:checked::before, .masterShell .admSwitchRow input[type="checkbox"]:checked::before, .admDialog .admSwitchRow input[type="checkbox"]:checked::before { transform: translateX(18px); }
+
+/* Segmented control */
+.admSegmented { display: inline-flex; gap: 2px; padding: 3px; background: var(--c-surface-sunken); border: 1px solid var(--c-line); border-radius: var(--radius-md); width: fit-content; }
+.admSegmented button { display: grid; place-items: center; width: 40px; height: 30px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--c-muted); }
+.admSegmented button:hover { color: var(--c-ink); background: #e7ebf1; }
+.admSegmented button[aria-pressed="true"] { background: var(--c-surface); color: var(--c-accent); box-shadow: var(--shadow-sm); }
+
+/* Image uploader, restyled to match admin controls */
+.admShell .uploaderField, .admDialog .uploaderField { display: grid; gap: var(--sp-2); min-width: 0; }
+.admShell .uploaderLabel, .admDialog .uploaderLabel { color: var(--c-text); font-size: var(--text-base); font-weight: 550; }
+.admShell .uploader, .admDialog .uploader {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3);
+  position: relative; padding: var(--sp-3); border: 1px dashed var(--c-line-strong);
+  border-radius: var(--radius-lg); background: var(--c-surface-sunken);
+}
+.admShell .uploaderDragging, .admDialog .uploaderDragging { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.admShell .uploaderPreview, .admDialog .uploaderPreview { width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--c-surface); border: 1px solid var(--c-line); }
+.admShell .uploaderPreviewRound, .admDialog .uploaderPreviewRound { border-radius: 50%; }
+.admShell .uploaderButton, .admDialog .uploaderButton {
+  display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h-sm); padding: 0 var(--sp-3);
+  border: 1px solid var(--c-line-strong); border-radius: var(--radius-md); background: var(--c-surface);
+  color: var(--c-text); font-size: var(--text-base); font-weight: 550; white-space: nowrap; cursor: pointer;
+}
+.admShell .uploaderButton:hover, .admDialog .uploaderButton:hover { background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-accent-ink); }
+.admShell .uploaderButton svg, .admDialog .uploaderButton svg { width: 15px; height: 15px; }
+.admShell .uploaderBody, .admDialog .uploaderBody { display: grid; gap: var(--sp-2); min-width: 0; }
+.admShell .uploaderBody small, .admDialog .uploaderBody small { color: var(--c-muted); font-size: var(--text-sm); line-height: 1.45; }
+.admShell .uploaderRemove, .admDialog .uploaderRemove {
+  display: grid; place-items: center; width: var(--icon-btn); height: var(--icon-btn); flex: none;
+  padding: 0; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; color: var(--c-muted);
+}
+.admShell .uploaderRemove:hover, .admDialog .uploaderRemove:hover { color: var(--c-danger); background: var(--c-danger-soft); }
+.admShell .uploaderRemove svg, .admDialog .uploaderRemove svg { width: 16px; height: 16px; }
+.admShell .uploaderInput, .admDialog .uploaderInput { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; border: 0; opacity: 0; }
+.admShell .uploaderError, .admDialog .uploaderError { color: var(--c-danger); font-size: var(--text-base); }
+.admShell .uploaderSpinner, .admDialog .uploaderSpinner { animation: admSpin 1s linear infinite; }
+
+/* Motion */
+.admSpinner { animation: admSpin 1s linear infinite; }
+@keyframes admSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .admShell *, .admDialog *, .masterShell * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+}

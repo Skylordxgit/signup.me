@@ -22,7 +22,7 @@ import type { PublicWorkspaceUser } from "@/lib/workspaceUsers";
 import { adminApi } from "@/lib/admin";
 import { defaultBranding, type BrandingSettings } from "@/lib/brandingConstants";
 import { ImageUploader } from "./ImageUploader";
-import { Dialog, EmptyState, Field, IconButton, SectionHeading } from "./admin/AdminUI";
+import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, SectionHeading } from "./admin/AdminUI";
 import "./admin/admin.css";
 
 type MasterWorkspace = {
@@ -219,13 +219,13 @@ export function MasterDashboard({ email }: { email: string }) {
       <header className="masterTopbar">
         <button type="button" className="masterMenuButton" aria-label="Open menu" onClick={() => setMenuOpen(true)}><Menu size={20} /></button>
         <div><span>Master Admin / {selected.label}</span><h1>{selected.label}</h1></div>
-        <button type="button" className="admButton" disabled={busy || loading} onClick={() => void refresh()}><RefreshCw className={busy ? "admSpinner" : ""} size={16} />Refresh</button>
+        <Button icon={RefreshCw} loading={busy} disabled={loading} onClick={() => void refresh()}>Refresh</Button>
       </header>
 
       <main className="masterMain" aria-busy={busy || loading}>
         {error && <div className="admError masterNotice" role="alert"><span>{error}</span><IconButton icon={X} label="Dismiss error" onClick={() => setError("")} /></div>}
         {message && <p className="admSuccess masterNotice" role="status">{message}</p>}
-        {loading ? <EmptyState title="Loading your control center..." /> : <>
+        {loading ? <LoadingState label="Loading your control center..." /> : <>
           {view === "overview" && <div className="masterView">
             <section className="masterHero">
               <div><span className="masterEyebrow"><ShieldCheck size={14} />Global platform access</span><h2>Everything important, at a glance.</h2><p>Monitor workspaces, accounts, pages and notification reach from one secure control center.</p></div>
@@ -277,7 +277,7 @@ export function MasterDashboard({ email }: { email: string }) {
                   <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="logo" label="Platform logo" round value={branding.logo} onChange={logo => void updateBrandingImage("logo", logo)} /></div>
                   <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="favicon" label="Browser favicon" value={branding.favicon} onChange={favicon => void updateBrandingImage("favicon", favicon)} /></div>
                 </div>
-                <div className="admFormFooter"><button type="button" className="admButton admPrimary" disabled={savingBranding} onClick={() => void saveBranding()}>{savingBranding ? "Saving..." : "Save global branding"}</button></div>
+                <div className="admFormFooter"><Button variant="primary" loading={savingBranding} onClick={() => void saveBranding()}>Save global branding</Button></div>
               </div>
             </section>
           </div>}
@@ -287,7 +287,7 @@ export function MasterDashboard({ email }: { email: string }) {
             <section className={`masterAccessCard ${signup.enabled ? "masterAccessOn" : "masterAccessOff"}`}>
               <span className="masterAccessIcon"><UserPlus size={26} /></span>
               <div><span className="masterEyebrow">Current status</span><h2>Public signup is {signup.enabled ? "open" : "closed"}</h2><p>{signup.enabled ? "New users can register and receive a clean, isolated workspace." : "New registrations are blocked. Existing users can still sign in normally."}</p></div>
-              <button type="button" className="admButton admPrimary" disabled={busy} onClick={() => void updateSignup(!signup.enabled)}><Power size={16} />Turn signup {signup.enabled ? "off" : "on"}</button>
+              <Button variant="primary" icon={Power} disabled={busy} onClick={() => void updateSignup(!signup.enabled)}>Turn signup {signup.enabled ? "off" : "on"}</Button>
             </section>
           </div>}
         </>}
@@ -331,7 +331,7 @@ function WorkspaceList({
     <span className={`admBadge admBadge-${workspace.status === "active" ? "published" : "disabled"}`}>{workspace.status}</span>
     <div className="masterWorkspaceStats"><span><small>Pages</small><strong>{workspace.pages}</strong></span><span><small>Admins</small><strong>{workspace.admins}</strong></span><span><small>Subscribers</small><strong>{workspace.subscribers}</strong></span></div>
     <div className="masterWorkspaceActions">
-      <button type="button" className="admButton" disabled={busy} onClick={() => onOpen(workspace)}>Open <ArrowUpRight size={15} /></button>
+      <Button size="sm" disabled={busy} onClick={() => onOpen(workspace)}>Open <ArrowUpRight size={15} aria-hidden="true" /></Button>
       {onToggle && <IconButton icon={Power} label={`${workspace.status === "active" ? "Disable" : "Enable"} ${workspace.name}`} disabled={busy} onClick={() => onToggle(workspace)} />}
     </div>
   </article>)}</div>;

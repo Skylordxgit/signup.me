@@ -17,7 +17,7 @@ const origin = `http://127.0.0.1:${port}`;
 const serverModule = new URL('../node_modules/vinext/dist/server/prod-server.js', import.meta.url).href;
 const server = spawn(process.execPath, ['--input-type=module', '-e', `import { startProdServer } from ${JSON.stringify(serverModule)}; await startProdServer({ port: ${port}, host: '127.0.0.1', outDir: ${JSON.stringify(path.join(root, 'dist'))} });`], {
   cwd: dataRoot, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
-  env: { ...process.env, NODE_ENV: 'production', ADMIN_EMAIL: 'qa@example.com', ADMIN_PASSWORD_HASH: `qa:${scryptSync('test-password', 'qa', 64).toString('hex')}`, SESSION_SECRET: 'local-ui-test-session', COOKIE_SECURE: 'false', DATABASE_URL: '', DB_HOST: '', DB_NAME: '', DB_USER: '', DB_PASSWORD: '', UPLOAD_DIR: path.join(dataRoot, 'uploads') },
+  env: { ...process.env, NODE_ENV: 'production', MASTER_ADMIN_EMAIL: 'master@example.com', MASTER_ADMIN_PASSWORD_HASH: `qa:${scryptSync('master-password', 'qa', 64).toString('hex')}`, ADMIN_EMAIL: '', ADMIN_PASSWORD_HASH: '', SESSION_SECRET: 'local-ui-test-session', COOKIE_SECURE: 'false', DATABASE_URL: '', DB_HOST: '', DB_NAME: '', DB_USER: '', DB_PASSWORD: '', UPLOAD_DIR: path.join(dataRoot, 'uploads') },
 });
 let serverOutput = '';
 server.stdout.on('data', chunk => { serverOutput += chunk; });
@@ -30,6 +30,8 @@ try {
     await new Promise(resolve => setTimeout(resolve, 250));
   }
   assert.ok(ready, serverOutput);
+  const signup = await fetch(origin + '/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: 'qa@example.com', password: 'test-password' }) });
+  assert.ok(signup.ok, 'failed to seed test account: ' + await signup.text());
   browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();

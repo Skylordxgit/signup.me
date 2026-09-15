@@ -1,0 +1,97 @@
+/* Admin design tokens. One source of truth for spacing, type, colour, radius,
+   elevation and control sizing across every admin surface. */
+.admShell, .admDialog, .masterShell, .masterDrawer {
+  /* Spacing scale (4px base). Use these instead of ad-hoc pixel values. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* Radius scale. Restrained: admin surfaces are not pill-shaped. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+
+  /* Type scale. */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+
+  /* Neutral ramp. */
+  --c-bg: #f7f8fa;
+  --c-surface: #ffffff;
+  --c-surface-sunken: #f4f6f9;
+  --c-line: #e3e7ed;
+  --c-line-strong: #cfd6e0;
+  --c-ink: #1b2330;
+  --c-ink-soft: #46516333;
+  --c-text: #3a4658;
+  --c-muted: #6b7686;
+  --c-faint: #8c96a5;
+
+  /* Accent + status. */
+  --c-accent: #2463eb;
+  --c-accent-hover: #1a52cf;
+  --c-accent-soft: #eef3ff;
+  --c-accent-ink: #1d4fb8;
+  --c-success: #1c7a54;
+  --c-success-soft: #e9f6ef;
+  --c-warning: #8a5a00;
+  --c-warning-soft: #fff6e2;
+  --c-danger: #c3324a;
+  --c-danger-hover: #a72740;
+  --c-danger-soft: #fdeef1;
+
+  /* Elevation. Two levels only, both subtle. */
+  --shadow-sm: 0 1px 2px rgba(20, 33, 53, 0.06);
+  --shadow-md: 0 4px 14px rgba(20, 33, 53, 0.08);
+  --shadow-lg: 0 18px 48px rgba(17, 35, 60, 0.18);
+
+  /* Control sizing: every input, select and button matches. */
+  --control-h: 38px;
+  --control-h-sm: 32px;
+  --control-px: 12px;
+  --icon-btn: 34px;
+
+  /* Layout. */
+  --adm-sidebar: 248px;
+  --adm-header-h: 60px;
+  --adm-gutter: var(--sp-6);
+  --adm-preview-w: 390px;
+
+  /* Focus ring used by every interactive element. */
+  --focus-ring: 0 0 0 3px rgba(36, 99, 235, 0.32);
+
+  /* Legacy aliases kept so existing rules resolve to the new palette. */
+  --adm-ink: var(--c-ink);
+  --adm-muted: var(--c-muted);
+  --adm-line: var(--c-line);
+  --adm-blue: var(--c-accent);
+
+  color: var(--c-ink);
+  font-family: Inter, "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  font-size: var(--text-md);
+  line-height: 1.5;
+  letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (max-width: 1280px) {
+  .admShell { --adm-sidebar: 232px; --adm-gutter: var(--sp-5); }
+}
+
+@media (max-width: 900px) {
+  .admShell { --adm-gutter: var(--sp-4); }
+}
