@@ -77,11 +77,19 @@ connection; see `docs/workspace-team.md` and `docs/schema.sql`.
 ## Build And Start
 
 ```bash
+npm install
 npm run build
 npm run start
 ```
 
 `npm run start` reads the `PORT` environment variable (falling back to 3000), which matches how Hostinger's Node.js hosting assigns a port to your app — no extra configuration needed.
+
+Hostinger must install dependencies before starting `server.cjs`. The production
+build toolchain is intentionally listed under `dependencies`, and `postinstall`
+creates `dist/standalone/server.js` automatically. If Hostinger exposes separate
+commands, use `npm install` as the install command, `npm run build` as the build
+command, and `server.cjs` as the application startup file. Do not upload
+`node_modules`; Hostinger recreates it from `package-lock.json`.
 
 ## Uploaded Images
 
