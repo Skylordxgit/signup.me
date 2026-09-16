@@ -14,6 +14,7 @@ export const blockTypes: { value: BlockType; label: string }[] = [
   { value: "heading", label: "Heading" },
   { value: "text", label: "Text" },
   { value: "divider", label: "Divider" },
+  { value: "spacer", label: "Space / Spacer" },
   { value: "image", label: "Image" },
   { value: "video", label: "Video" },
   { value: "socials", label: "Social Icon Row" },
@@ -167,25 +168,28 @@ export function emptyBlock(pageId: number, type: BlockType, sortOrder: number): 
   const timestamp = nowIso();
   const isVideo = type === "video";
   const isSocial = type === "socials";
+  const isSpacer = type === "spacer";
   return {
     id: Date.now(),
     pageId,
     type,
-    title: isVideo
-      ? "Signup walkthrough"
-      : isSocial
-        ? "Facebook"
-      : type === "whatsapp"
-        ? "WhatsApp"
-        : blockTypes.find((item) => item.value === type)?.label ?? "Link",
+    title: isSpacer
+      ? "Space (24px)"
+      : isVideo
+        ? "Signup walkthrough"
+        : isSocial
+          ? "Facebook"
+        : type === "whatsapp"
+          ? "WhatsApp"
+          : blockTypes.find((item) => item.value === type)?.label ?? "Link",
     subtitle: isVideo ? "Watch the guide directly on this page" : type === "whatsapp" ? "Chat with our team" : "",
     url: isVideo ? "https://www.youtube.com/watch?v=dQw4w9WgXcQ" : "",
-    icon: isSocial ? "facebook" : type,
+    icon: isSocial ? "facebook" : isSpacer ? "spacer" : type,
     phone: "",
     message: "",
     imageUrl: "",
     videoUrl: isVideo ? "https://www.youtube.com/watch?v=dQw4w9WgXcQ" : "",
-    settings: {},
+    settings: isSpacer ? { height: 24 } : {},
     sortOrder,
     isActive: true,
     clicks: 0,

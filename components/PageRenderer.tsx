@@ -13,6 +13,7 @@ import {
   Mail,
   MapPin,
   MessageCircle,
+  MoveVertical,
   Music2,
   Phone,
   Play,
@@ -290,6 +291,23 @@ export function PageBlockView({
   if (block.type === "heading") return <h2 className="pageHeading">{block.title}</h2>;
   if (block.type === "text") return <p className="pageText">{block.subtitle || block.title}</p>;
   if (block.type === "divider") return <hr className="pageDivider" />;
+  if (block.type === "spacer") {
+    const rawHeight = typeof block.settings?.height === "number" ? block.settings.height : Number(block.settings?.height) || 24;
+    const height = Math.max(4, Math.min(240, rawHeight));
+    return (
+      <div
+        className="pageSpacer"
+        style={{ height: `${height}px`, minHeight: `${height}px` }}
+        aria-hidden="true"
+      >
+        {preview && (
+          <span className="pageSpacerGuide">
+            <span>{height}px space</span>
+          </span>
+        )}
+      </div>
+    );
+  }
 
   if (block.type === "image") {
     return <BlockImage alt={block.title} src={block.imageUrl || block.url} />;
@@ -399,11 +417,14 @@ const blockTypeIcons: Partial<Record<PageBlock["type"], LucideIcon>> = {
   phone: Phone,
   website: Globe2,
   link: Link2,
+  spacer: MoveVertical,
   socials: Share2,
 };
 
 const curatedIcons: Record<string, LucideIcon> = {
   link: Link2,
+  spacer: MoveVertical,
+  space: MoveVertical,
   globe: Globe2,
   message: MessageCircle,
   mail: Mail,

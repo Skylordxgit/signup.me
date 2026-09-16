@@ -3792,6 +3792,51 @@ button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text), transparent 75%);
 }
 
+.pageSpacer {
+  width: 100%;
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.pageBlockRow .pageSpacer {
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.pageBlockRow:hover .pageSpacer,
+.pageBlockRowSelected .pageSpacer {
+  outline: 1.5px dashed color-mix(in srgb, var(--text, #3b82f6), transparent 50%);
+  background: color-mix(in srgb, var(--text, #3b82f6), transparent 92%);
+}
+
+.pageSpacerGuide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.pageBlockRow:hover .pageSpacerGuide,
+.pageBlockRowSelected .pageSpacerGuide {
+  opacity: 1;
+}
+
+.pageSpacerGuide span {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--button-bg, #ffffff), transparent 15%);
+  color: var(--button-text, #111827);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  letter-spacing: 0.02em;
+}
+
 .pageImage {
   display: block;
   width: 100%;

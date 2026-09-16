@@ -97,6 +97,24 @@ test("saved logo image becomes the public round profile mark", () => {
   assert.doesNotMatch(html, /src="\/uploads\/profile.webp"/);
 });
 
+test("spacer blocks render configurable vertical empty space between elements", () => {
+  const page = fixture();
+  page.blocks = [
+    { ...page.blocks[0], id: 1, type: "link", title: "Top Link" },
+    { ...page.blocks[0], id: 2, type: "spacer", title: "Space (48px)", settings: { height: 48 } },
+    { ...page.blocks[0], id: 3, type: "link", title: "Bottom Link" },
+  ];
+  const publicHtml = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(publicHtml, /class="pageSpacer"/);
+  assert.match(publicHtml, /height:48px/);
+  assert.doesNotMatch(publicHtml, /pageSpacerGuide/);
+
+  const previewHtml = renderToStaticMarkup(<PageRenderer page={page} preview />);
+  assert.match(previewHtml, /class="pageSpacer"/);
+  assert.match(previewHtml, /class="pageSpacerGuide"/);
+  assert.match(previewHtml, /48px space/);
+});
+
 test("Share is shown only when enabled, including pages without a cover", () => {
   for (const backgroundImage of ["", "/uploads/banner.webp"]) {
     const page = fixture();

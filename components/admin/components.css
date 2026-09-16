@@ -229,3 +229,37 @@ body:has(.admDialog[open]) { overflow: hidden; }
 .admShell progress::-webkit-progress-bar { background: #e7ebf1; border-radius: var(--radius-pill); }
 .admShell progress::-webkit-progress-value { background: var(--c-accent); border-radius: var(--radius-pill); }
 .admShell progress::-moz-progress-bar { background: var(--c-accent); border-radius: var(--radius-pill); }
+
+/* ---------- Spacer controls ---------- */
+.admSpacerControls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  width: 100%;
+}
+
+.admSpacerStepper {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+}
+
+.admSpacerStepper input[type="range"] {
+  flex: 1;
+  min-width: 80px;
+}
+
+.admSpacerPresets {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+.admSpacerPresets label {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--c-muted);
+}
+

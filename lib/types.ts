@@ -12,6 +12,7 @@ export type BlockType =
   | "heading"
   | "text"
   | "divider"
+  | "spacer"
   | "image"
   | "video"
   | "socials";

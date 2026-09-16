@@ -182,11 +182,53 @@ function BlockFields({ block, selected, first, last, busy, onSelect, onEdit, onD
 }) {
   const [iconsOpen, setIconsOpen] = useState(false);
   const video = block.type === 'video' || block.type === 'youtube';
-  const link = !['heading', 'text', 'divider', 'image', 'video', 'youtube'].includes(block.type);
+  const isSpacer = block.type === 'spacer';
+  const link = !['heading', 'text', 'divider', 'spacer', 'image', 'video', 'youtube'].includes(block.type);
+  const spacerHeight = typeof block.settings?.height === 'number' ? block.settings.height : Number(block.settings?.height) || 24;
+  const setSpacerHeight = (next: number) => {
+    const clamped = Math.max(4, Math.min(240, next));
+    onEdit({
+      title: `Space (${clamped}px)`,
+      settings: { ...block.settings, height: clamped },
+    });
+  };
+
   return <article className={`admBlock ${!block.isActive ? 'admBlockHidden' : ''}`}>
     <header><button type="button" className="admBlockSummary" onClick={onSelect} aria-expanded={selected}><span>{resolveBlockIcon(block.icon, block.type)}</span><span><strong>{block.title || blockTypes.find(type => type.value === block.type)?.label}</strong><small>{block.type}</small></span></button><div className="admActionRow"><IconButton icon={block.isActive ? Eye : EyeOff} label={block.isActive ? 'Hide block' : 'Show block'} onClick={() => onEdit({ isActive: !block.isActive })} /><IconButton icon={ArrowUp} label="Move block up" disabled={first || busy} onClick={() => onMove(-1)} /><IconButton icon={ArrowDown} label="Move block down" disabled={last || busy} onClick={() => onMove(1)} /><IconButton icon={Copy} label="Duplicate block" disabled={busy} onClick={onDuplicate} /><IconButton icon={Trash2} label="Delete block" disabled={busy} onClick={onDelete} /></div></header>
     {selected && <div className="admBlockFields">
-      {block.type !== 'divider' && <Field label={video ? 'Caption' : 'Title'}><input value={block.title} onChange={event => onEdit({ title: event.target.value })} /></Field>}
+      {isSpacer && <div className="admSpacerControls">
+        <Field label={`Space height (${spacerHeight}px)`}>
+          <div className="admSpacerStepper">
+            <button type="button" className="admButton" onClick={() => setSpacerHeight(spacerHeight - 8)} disabled={spacerHeight <= 4} title="Decrease space by 8px">-8px</button>
+            <button type="button" className="admButton" onClick={() => setSpacerHeight(spacerHeight - 4)} disabled={spacerHeight <= 4} title="Decrease space by 4px">-4px</button>
+            <input
+              type="range"
+              min={4}
+              max={160}
+              step={2}
+              value={spacerHeight}
+              onChange={event => setSpacerHeight(Number(event.target.value))}
+              aria-label="Space height"
+            />
+            <button type="button" className="admButton" onClick={() => setSpacerHeight(spacerHeight + 4)} disabled={spacerHeight >= 240} title="Increase space by 4px">+4px</button>
+            <button type="button" className="admButton" onClick={() => setSpacerHeight(spacerHeight + 8)} disabled={spacerHeight >= 240} title="Increase space by 8px">+8px</button>
+          </div>
+        </Field>
+        <div className="admSpacerPresets">
+          <label>Presets:</label>
+          {[12, 24, 36, 48, 64, 96, 128].map(px => (
+            <button
+              type="button"
+              key={px}
+              className={`admBadge ${spacerHeight === px ? 'admBadge-published' : ''}`}
+              onClick={() => setSpacerHeight(px)}
+            >
+              {px}px
+            </button>
+          ))}
+        </div>
+      </div>}
+      {block.type !== 'divider' && !isSpacer && <Field label={video ? 'Caption' : 'Title'}><input value={block.title} onChange={event => onEdit({ title: event.target.value })} /></Field>}
       {block.type === 'text' ? <Field label="Text"><textarea rows={4} value={block.subtitle} onChange={event => onEdit({ subtitle: event.target.value })} /></Field> : link && <Field label="Subtitle"><input value={block.subtitle} onChange={event => onEdit({ subtitle: event.target.value })} /></Field>}
       {link && !['phone', 'whatsapp'].includes(block.type) && <Field label={block.type === 'email' ? 'Email' : 'URL or username'}><input value={block.url} onChange={event => onEdit({ url: event.target.value })} /></Field>}
       {['phone', 'whatsapp'].includes(block.type) && <Field label="Phone number"><input type="tel" value={block.phone} onChange={event => onEdit({ phone: event.target.value })} /></Field>}
