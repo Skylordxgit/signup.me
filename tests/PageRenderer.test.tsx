@@ -200,3 +200,42 @@ test("text and heading blocks support custom text alignment (left, center, right
   assert.match(html, /class="pageText pageText-left"/);
 });
 
+test("manual profile position controls apply independent offsets and size to image, title, and bio", () => {
+  const page = fixture();
+  page.theme = {
+    ...page.theme,
+    avatarX: 10,
+    avatarY: -15,
+    avatarSize: 92,
+    titleX: -5,
+    titleY: 8,
+    bioX: 12,
+    bioY: 6,
+  };
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  // Check CSS variables on the root container
+  assert.match(html, /--avatar-x:10px/);
+  assert.match(html, /--avatar-y:-15px/);
+  assert.match(html, /--avatar-size:92px/);
+  assert.match(html, /--title-x:-5px/);
+  assert.match(html, /--title-y:8px/);
+  assert.match(html, /--bio-x:12px/);
+  assert.match(html, /--bio-y:6px/);
+
+  // Check inline styles on profile elements
+  assert.match(html, /translate\(10px, -15px\)/);
+  assert.match(html, /width:92px/);
+  assert.match(html, /translate\(-5px, 8px\)/);
+  assert.match(html, /translate\(12px, 6px\)/);
+
+  // Verify positions survive theme switching
+  const swapped = applyThemeDefinition(themeLibrary[0], page.theme);
+  assert.equal(swapped.avatarX, 10);
+  assert.equal(swapped.avatarY, -15);
+  assert.equal(swapped.avatarSize, 92);
+  assert.equal(swapped.titleX, -5);
+  assert.equal(swapped.titleY, 8);
+  assert.equal(swapped.bioX, 12);
+  assert.equal(swapped.bioY, 6);
+});
+

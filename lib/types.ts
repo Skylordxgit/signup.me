@@ -95,6 +95,14 @@ export type ThemeSettings = {
   /* Profile layout. Kept in the theme blob so it needs no schema change, and
      deliberately carried across when a new theme preset is applied. */
   profileAlignment?: ProfileAlignment;
+  /* Profile manual fine-tuning position & scale controls */
+  avatarX?: number;
+  avatarY?: number;
+  avatarSize?: number;
+  titleX?: number;
+  titleY?: number;
+  bioX?: number;
+  bioY?: number;
 };
 
 export type SeoSettings = {

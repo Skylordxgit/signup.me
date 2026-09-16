@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, LayoutList, Plus, Trash2, User, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, LayoutList, Plus, RotateCcw, Trash2, User, X } from "lucide-react";
 import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "@/lib/types";
 import { blockTypes, slugify, slugifyDraft } from "@/lib/utils";
 import { applyThemeDefinition, resolveAlignment, resolveButtonStyle, resolveProfileLayout, themeLibrary } from "@/lib/themes";
@@ -165,18 +165,191 @@ export function BuilderEditor(props: Props) {
 
 export function ProfileFields({ page, onEdit }: { page: SmartPage; onEdit: (patch: Partial<SmartPage>) => void }) {
   const theme = (patch: Partial<ThemeSettings>) => onEdit({ theme: { ...page.theme, ...patch } });
-  return <><SectionHeading title="Profile" /><div className="admFormGrid">
-    <Field label="Page name"><input value={page.name} onChange={event => onEdit({ name: event.target.value })} required /></Field>
-    <Field label="URL slug"><input value={page.slug} onChange={event => onEdit({ slug: slugifyDraft(event.target.value) })} onBlur={() => { const next = slugify(page.slug); if (next !== page.slug) onEdit({ slug: next }); }} required /></Field>
-    <div className="admSpanFull"><Field label="Profile title"><input value={page.title} onChange={event => onEdit({ title: event.target.value })} /></Field></div>
-    <div className="admSpanFull"><Field label="Bio"><textarea rows={3} value={page.bio} onChange={event => onEdit({ bio: event.target.value })} /></Field></div>
-    <div className="admSpanFull"><ImageUploader category="logo" label="Logo" round value={page.logoImage || page.profileImage} onChange={logoImage => onEdit({ logoImage })} /></div>
-    <div className="admSpanFull"><ImageUploader category="profile" label="Profile photo" round value={page.profileImage} onChange={profileImage => onEdit({ profileImage })} /></div>
-    <div className="admSpanFull"><ImageUploader category="banner" label="Cover image" value={page.theme.backgroundImage} onChange={backgroundImage => theme({ backgroundImage })} /></div>
-    <Field label="Profile layout"><select value={resolveProfileLayout(page.theme)} onChange={event => theme({ profileLayout: event.target.value as ThemeSettings['profileLayout'] })}><option value="hero">Banner and profile</option><option value="centered">Stacked profile</option><option value="avatar">Profile without banner</option><option value="none">Text only</option></select></Field>
-    <Field label="Alignment"><span className="admSegmented" role="group" aria-label="Profile alignment">{([["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]] as const).map(([value, Icon]) => <button type="button" key={value} title={`Align ${value}`} aria-label={`Align ${value}`} aria-pressed={resolveAlignment(page.theme) === value} onClick={() => theme({ profileAlignment: value })}><Icon size={18} /></button>)}</span></Field>
-    <label className="admCheck"><input type="checkbox" checked={page.theme.showShareButton ?? false} onChange={event => theme({ showShareButton: event.target.checked })} />Show Share button</label>
-  </div></>;
+  const t = page.theme;
+  const avatarX = t.avatarX || 0;
+  const avatarY = t.avatarY || 0;
+  const avatarSize = t.avatarSize || 76;
+  const titleX = t.titleX || 0;
+  const titleY = t.titleY || 0;
+  const bioX = t.bioX || 0;
+  const bioY = t.bioY || 0;
+
+  return <>
+    <SectionHeading title="Profile" />
+    <div className="admFormGrid">
+      <Field label="Page name"><input value={page.name} onChange={event => onEdit({ name: event.target.value })} required /></Field>
+      <Field label="URL slug"><input value={page.slug} onChange={event => onEdit({ slug: slugifyDraft(event.target.value) })} onBlur={() => { const next = slugify(page.slug); if (next !== page.slug) onEdit({ slug: next }); }} required /></Field>
+      <div className="admSpanFull"><Field label="Profile title"><input value={page.title} onChange={event => onEdit({ title: event.target.value })} /></Field></div>
+      <div className="admSpanFull"><Field label="Bio"><textarea rows={3} value={page.bio} onChange={event => onEdit({ bio: event.target.value })} /></Field></div>
+      <div className="admSpanFull"><ImageUploader category="logo" label="Logo" round value={page.logoImage || page.profileImage} onChange={logoImage => onEdit({ logoImage })} /></div>
+      <div className="admSpanFull"><ImageUploader category="profile" label="Profile photo" round value={page.profileImage} onChange={profileImage => onEdit({ profileImage })} /></div>
+      <div className="admSpanFull"><ImageUploader category="banner" label="Cover image" value={page.theme.backgroundImage} onChange={backgroundImage => theme({ backgroundImage })} /></div>
+      <Field label="Profile layout"><select value={resolveProfileLayout(page.theme)} onChange={event => theme({ profileLayout: event.target.value as ThemeSettings['profileLayout'] })}><option value="hero">Banner and profile</option><option value="centered">Stacked profile</option><option value="avatar">Profile without banner</option><option value="none">Text only</option></select></Field>
+      <Field label="Alignment"><span className="admSegmented" role="group" aria-label="Profile alignment">{([["left", AlignLeft], ["center", AlignCenter], ["right", AlignRight]] as const).map(([value, Icon]) => <button type="button" key={value} title={`Align ${value}`} aria-label={`Align ${value}`} aria-pressed={resolveAlignment(page.theme) === value} onClick={() => theme({ profileAlignment: value })}><Icon size={18} /></button>)}</span></Field>
+      <label className="admCheck"><input type="checkbox" checked={page.theme.showShareButton ?? false} onChange={event => theme({ showShareButton: event.target.checked })} />Show Share button</label>
+    </div>
+
+    {/* Dedicated Profile Position Controls */}
+    <section className="admFormSection admProfilePositionSection">
+      <div className="admPositionHeadingRow">
+        <div>
+          <h3>Profile position & fine-tuning</h3>
+          <p className="admFieldHint">Independently nudge & resize image, title, and bio placement.</p>
+        </div>
+        <button
+          type="button"
+          className="admButton"
+          title="Reset all positions to default"
+          onClick={() => theme({
+            avatarX: 0,
+            avatarY: 0,
+            avatarSize: 76,
+            titleX: 0,
+            titleY: 0,
+            bioX: 0,
+            bioY: 0,
+          })}
+        >
+          <RotateCcw size={14} aria-hidden="true" />
+          <span>Reset position</span>
+        </button>
+      </div>
+
+      <div className="admPositionGrid">
+        {/* Profile Image Controls */}
+        <div className="admPositionCard">
+          <header>
+            <strong>Profile Image</strong>
+            <span>{avatarSize}px • X: {avatarX}px • Y: {avatarY}px</span>
+          </header>
+          <div className="admFormStack">
+            <Field label={`Horizontal position (X: ${avatarX}px)`}>
+              <div className="admPositionStepper">
+                <button type="button" className="admButton" onClick={() => theme({ avatarX: avatarX - 2 })} title="Move 2px left">← Left</button>
+                <input
+                  type="range"
+                  min={-60}
+                  max={60}
+                  value={avatarX}
+                  onChange={e => theme({ avatarX: Number(e.target.value) })}
+                  aria-label="Profile image horizontal position"
+                />
+                <button type="button" className="admButton" onClick={() => theme({ avatarX: avatarX + 2 })} title="Move 2px right">Right →</button>
+              </div>
+            </Field>
+
+            <Field label={`Vertical position (Y: ${avatarY}px)`}>
+              <div className="admPositionStepper">
+                <button type="button" className="admButton" onClick={() => theme({ avatarY: avatarY - 2 })} title="Move 2px up">↑ Up</button>
+                <input
+                  type="range"
+                  min={-60}
+                  max={100}
+                  value={avatarY}
+                  onChange={e => theme({ avatarY: Number(e.target.value) })}
+                  aria-label="Profile image vertical position"
+                />
+                <button type="button" className="admButton" onClick={() => theme({ avatarY: avatarY + 2 })} title="Move 2px down">Down ↓</button>
+              </div>
+            </Field>
+
+            <Field label={`Image size (${avatarSize}px)`}>
+              <div className="admPositionStepper">
+                <button type="button" className="admButton" onClick={() => theme({ avatarSize: Math.max(48, avatarSize - 4) })} title="Smaller">-4px</button>
+                <input
+                  type="range"
+                  min={48}
+                  max={140}
+                  value={avatarSize}
+                  onChange={e => theme({ avatarSize: Number(e.target.value) })}
+                  aria-label="Profile image size"
+                />
+                <button type="button" className="admButton" onClick={() => theme({ avatarSize: Math.min(140, avatarSize + 4) })} title="Larger">+4px</button>
+              </div>
+            </Field>
+          </div>
+        </div>
+
+        {/* Profile Title Controls */}
+        <div className="admPositionCard">
+          <header>
+            <strong>Profile Title</strong>
+            <span>X: {titleX}px • Y: {titleY}px</span>
+          </header>
+          <div className="admFormStack">
+            <Field label={`Horizontal position (X: ${titleX}px)`}>
+              <div className="admPositionStepper">
+                <button type="button" className="admButton" onClick={() => theme({ titleX: titleX - 2 })} title="Move 2px left">← Left</button>
+                <input
+                  type="range"
+                  min={-80}
+                  max={80}
+                  value={titleX}
+                  onChange={e => theme({ titleX: Number(e.target.value) })}
+                  aria-label="Profile title horizontal position"
+                />
+                <button type="button" className="admButton" onClick={() => theme({ titleX: titleX + 2 })} title="Move 2px right">Right →</button>
+              </div>
+            </Field>
+
+            <Field label={`Vertical position (Y: ${titleY}px)`}>
+              <div className="admPositionStepper">
+                <button type="button" className="admButton" onClick={() => theme({ titleY: titleY - 2 })} title="Move 2px up">↑ Up</button>
+                <input
+                  type="range"
+                  min={-60}
+                  max={100}
+                  value={titleY}
+                  onChange={e => theme({ titleY: Number(e.target.value) })}
+                  aria-label="Profile title vertical position"
+                />
+                <button type="button" className="admButton" onClick={() => theme({ titleY: titleY + 2 })} title="Move 2px down">Down ↓</button>
+              </div>
+            </Field>
+          </div>
+        </div>
+
+        {/* Bio Controls */}
+        <div className="admPositionCard">
+          <header>
+            <strong>Bio / Subtitle</strong>
+            <span>X: {bioX}px • Y: {bioY}px</span>
+          </header>
+          <div className="admFormStack">
+            <Field label={`Horizontal position (X: ${bioX}px)`}>
+              <div className="admPositionStepper">
+                <button type="button" className="admButton" onClick={() => theme({ bioX: bioX - 2 })} title="Move 2px left">← Left</button>
+                <input
+                  type="range"
+                  min={-80}
+                  max={80}
+                  value={bioX}
+                  onChange={e => theme({ bioX: Number(e.target.value) })}
+                  aria-label="Bio horizontal position"
+                />
+                <button type="button" className="admButton" onClick={() => theme({ bioX: bioX + 2 })} title="Move 2px right">Right →</button>
+              </div>
+            </Field>
+
+            <Field label={`Vertical position (Y: ${bioY}px)`}>
+              <div className="admPositionStepper">
+                <button type="button" className="admButton" onClick={() => theme({ bioY: bioY - 2 })} title="Move 2px up">↑ Up</button>
+                <input
+                  type="range"
+                  min={-60}
+                  max={100}
+                  value={bioY}
+                  onChange={e => theme({ bioY: Number(e.target.value) })}
+                  aria-label="Bio vertical position"
+                />
+                <button type="button" className="admButton" onClick={() => theme({ bioY: bioY + 2 })} title="Move 2px down">Down ↓</button>
+              </div>
+            </Field>
+          </div>
+        </div>
+      </div>
+    </section>
+  </>;
 }
 
 function BlockFields({ block, selected, first, last, busy, onSelect, onEdit, onDelete, onDuplicate, onMove }: {

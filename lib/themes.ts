@@ -629,6 +629,13 @@ export function applyThemeDefinition(theme: ThemeDefinition, current?: ThemeSett
       buttonAnimation: current.buttonAnimation,
       profileLayout: current.profileLayout,
       showShareButton: current.showShareButton,
+      avatarX: current.avatarX,
+      avatarY: current.avatarY,
+      avatarSize: current.avatarSize,
+      titleX: current.titleX,
+      titleY: current.titleY,
+      bioX: current.bioX,
+      bioY: current.bioY,
     } : {}),
     ...(current?.profileAlignment ? { profileAlignment: current.profileAlignment } : {}),
   };
@@ -701,5 +708,12 @@ export function themeCssVariables(theme: ThemeSettings): React.CSSProperties {
     "--spacing": `${theme.spacing}px`,
     "--heading": theme.headingColor,
     "--text": theme.textColor,
+    "--avatar-size": `${theme.avatarSize || 76}px`,
+    "--avatar-x": `${theme.avatarX || 0}px`,
+    "--avatar-y": `${theme.avatarY || 0}px`,
+    "--title-x": `${theme.titleX || 0}px`,
+    "--title-y": `${theme.titleY || 0}px`,
+    "--bio-x": `${theme.bioX || 0}px`,
+    "--bio-y": `${theme.bioY || 0}px`,
   } as React.CSSProperties;
 }

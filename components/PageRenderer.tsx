@@ -198,19 +198,38 @@ function PageCover({
 }
 
 function ProfileIdentity({ page, showAvatar, src }: { page: SmartPage; showAvatar: boolean; src: string }) {
+  const theme = page.theme;
+  const avatarStyle: CSSProperties | undefined = (theme.avatarX || theme.avatarY || theme.avatarSize) ? {
+    transform: (theme.avatarX || theme.avatarY) ? `translate(${theme.avatarX || 0}px, ${theme.avatarY || 0}px)` : undefined,
+    width: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
+    height: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
+    minWidth: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
+    minHeight: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
+  } : undefined;
+
+  const titleStyle: CSSProperties | undefined = (theme.titleX || theme.titleY) ? {
+    transform: `translate(${theme.titleX || 0}px, ${theme.titleY || 0}px)`,
+  } : undefined;
+
+  const bioStyle: CSSProperties | undefined = (theme.bioX || theme.bioY) ? {
+    transform: `translate(${theme.bioX || 0}px, ${theme.bioY || 0}px)`,
+  } : undefined;
+
   return (
     <>
-      {showAvatar && <ProfileAvatar key={src} name={page.title || page.name} src={src} />}
-      {(page.title || page.bio) && <div className="pageIdentityText">
-        {page.title && <h1 className="pageTitle">{page.title}</h1>}
-        {page.bio && <p className="pageBio">{page.bio}</p>}
-      </div>}
+      {showAvatar && <ProfileAvatar key={src} name={page.title || page.name} src={src} style={avatarStyle} />}
+      {(page.title || page.bio) && (
+        <div className="pageIdentityText">
+          {page.title && <h1 className="pageTitle" style={titleStyle}>{page.title}</h1>}
+          {page.bio && <p className="pageBio" style={bioStyle}>{page.bio}</p>}
+        </div>
+      )}
     </>
   );
 }
 
 /** Falls back to initials so a missing or broken avatar never leaves a hole. */
-function ProfileAvatar({ name, src }: { name: string; src: string }) {
+function ProfileAvatar({ name, src, style }: { name: string; src: string; style?: CSSProperties }) {
   const [failed, setFailed] = useState(false);
   const initials = name
     .trim()
@@ -221,10 +240,10 @@ function ProfileAvatar({ name, src }: { name: string; src: string }) {
     .toUpperCase();
 
   if (!src || failed) {
-    return <div className="pageAvatar pageAvatarFallback">{initials || "?"}</div>;
+    return <div className="pageAvatar pageAvatarFallback" style={style}>{initials || "?"}</div>;
   }
 
-  return <img className="pageAvatar" key={src} src={src} alt="" onError={() => setFailed(true)} />;
+  return <img className="pageAvatar" key={src} src={src} alt="" style={style} onError={() => setFailed(true)} />;
 }
 
 /**
