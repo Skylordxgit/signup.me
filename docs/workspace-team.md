@@ -53,19 +53,27 @@ online.
 
 The master admin is separate from every workspace: it is not a workspace
 account, owns no workspace, and no workspace owner can become one. It exists
-only when both variables are set:
+when an email and password pair is configured, either as `ADMIN_EMAIL` /
+`ADMIN_PASSWORD_HASH` or as `MASTER_ADMIN_EMAIL` / `MASTER_ADMIN_PASSWORD_HASH`.
 
-- `MASTER_ADMIN_EMAIL`
-- `MASTER_ADMIN_PASSWORD_HASH` (a salted scrypt hash, same format as
-  `ADMIN_PASSWORD_HASH`)
+The password variable accepts a plain password or a salted scrypt hash. A plain
+password is converted to that same hash format before storage, so the database
+never holds a plain value.
 
 Signing in with that email at `/admin/login` redirects to `/admin/master`,
 which lists every workspace with its name, id, owner, status, creation date,
 and page/admin/subscriber counts, and can disable or re-enable a workspace.
 The main workspace cannot be disabled.
 
-The two session kinds do not overlap: a master session is refused by every
-workspace API, and a workspace session is refused by every master route.
+Choosing **Open** on a workspace enters it with full owner rights. The master
+never requires a team record, an invitation, or an assigned permission, and is
+not blocked by a disabled workspace, so any tenant can be inspected and
+repaired. Workspace-scoped data stays scoped: the master sees exactly the
+selected workspace, and switching workspaces is an explicit action.
+
+The two session kinds do not overlap: a workspace session is refused by every
+master route, and master-only global controls are never exposed to a workspace
+session.
 
 ## Storage
 

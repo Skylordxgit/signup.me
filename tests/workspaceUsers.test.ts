@@ -8,7 +8,7 @@ import { publicWorkspaceUser, findWorkspaceUser, updateWorkspaceUser } from '../
 import { signUp } from '../lib/signup';
 import { isWorkspaceActive, updateWorkspace } from '../lib/workspaces';
 import { masterCredentialVersion, provisionMaster, validMasterSession } from '../lib/master';
-import { canAccess } from '../lib/permissions';
+import { canAccess, workspacePermissions } from '../lib/permissions';
 
 test('stored membership, account identity and session version control workspace access', async () => {
   const previous = process.cwd();
@@ -62,7 +62,18 @@ test('master credentials need a matching database record and explicit workspace 
     await updateWorkspace(workspace.workspaceId, { status: 'disabled' });
     const scoped = await resolveAdminSession(readSessionToken(createSessionToken(descriptor)));
     assert.equal(scoped?.isMaster, true);
-    assert.equal(scoped?.workspaceId, '');
+    // With no workspace chosen yet, the master lands in the default workspace
+    // and already holds every permission.
+    assert.equal(scoped?.workspaceId, 'default');
+    assert.deepEqual(scoped?.permissions, [...workspacePermissions]);
+    for (const permission of workspacePermissions) assert.equal(canAccess(scoped!, permission), true);
+
+    // A disabled workspace never locks the master out of it.
+    const entered = await resolveAdminSession(readSessionToken(createSessionToken({ ...descriptor, workspaceId: workspace.workspaceId })));
+    assert.equal(entered?.workspaceId, workspace.workspaceId);
+    assert.equal(entered?.role, 'owner');
+    for (const permission of workspacePermissions) assert.equal(canAccess(entered!, permission), true);
+
     assert.equal(await validMasterSession({ ...workspace, scope: 'workspace' }), false);
     process.env.MASTER_ADMIN_PASSWORD_HASH = hashPassword('rotated-password');
     assert.equal(await validMasterSession(descriptor), false, 'credential rotation revokes existing sessions');

@@ -5,11 +5,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { NextRequest } from 'next/server';
 import { withSession } from './requestContext';
-import { createSessionToken, hashPassword, resolveAdminSession, readSessionToken } from '../lib/auth';
+import { createSessionToken, hashPassword, resolveAdminSession, readSessionToken, verifyPassword } from '../lib/auth';
 import { signUp, acceptInvitation } from '../lib/signup';
 import { addWorkspaceUser, findWorkspaceUser, updateWorkspaceUser } from '../lib/workspaceUsers';
-import { listWorkspaces } from '../lib/workspaces';
-import { masterCredentialVersion, provisionMaster } from '../lib/master';
+import { listWorkspaces, updateWorkspace } from '../lib/workspaces';
+import { workspacePermissions } from '../lib/permissions';
+import { masterAdmin, masterCredentialVersion, provisionMaster } from '../lib/master';
 import { createPage, createBlock, getPageById, listPages, savePushSubscription, listPushSubscribers } from '../lib/store';
 import { getPreferences, savePreferences } from '../lib/workspaceSettings';
 import * as pages from '../app/api/pages/route';
@@ -22,6 +23,8 @@ import * as notifications from '../app/api/admin/notifications/route';
 import * as masterUsers from '../app/api/master/users/route';
 import * as masterContext from '../app/api/master/context/route';
 import * as uploads from '../app/api/uploads/route';
+import * as me from '../app/api/auth/me/route';
+import * as auth from '../app/api/auth/login/route';
 
 function request(body: unknown = {}, method = 'POST') { return new NextRequest('http://localhost/api/test', { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
 function params(id: number) { return { params: Promise.resolve({ id: String(id) }) }; }
@@ -137,6 +140,87 @@ test('only the stored master account can enumerate users and select any workspac
         assert.equal(created.workspaceId, owner.workspaceId);
       }
     });
+  } finally {
+    if (oldEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = oldEmail;
+    if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;
+  }
+}));
+
+test('a master needs no membership or permission grant inside any workspace', async () => isolated(async () => {
+  const oldEmail = process.env.MASTER_ADMIN_EMAIL;
+  const oldHash = process.env.MASTER_ADMIN_PASSWORD_HASH;
+  process.env.MASTER_ADMIN_EMAIL = 'master@example.test';
+  // Hosting panels only accept plain text, so the plain password is supported.
+  process.env.MASTER_ADMIN_PASSWORD_HASH = 'PlainHostingerPassword123';
+  try {
+    const owner = await signUp({ email: 'tenant@example.test', password: 'a-long-password' });
+    const tenantPage = await createPage({ name: 'Tenant page', slug: 'tenant-page', title: '', bio: '', profileImage: '', workspaceId: owner.workspaceId });
+    const account = (await provisionMaster())!;
+    const token = createSessionToken({ email: account.email, version: account.version, credentialVersion: masterCredentialVersion(), scope: 'master' });
+
+    await withSession(token, async () => {
+      // Entering the tenant workspace needs no invitation or team record.
+      assert.equal((await masterContext.POST(request({ workspaceId: owner.workspaceId }))).status, 200);
+
+      const identity = await (await me.GET()).json() as { isMaster: boolean; role: string; permissions: string[]; workspaceId: string };
+      assert.equal(identity.isMaster, true);
+      assert.equal(identity.role, 'owner');
+      assert.equal(identity.workspaceId, owner.workspaceId);
+      assert.deepEqual([...identity.permissions].sort(), [...workspacePermissions].sort());
+
+      // Every permission-gated area answers for the master.
+      assert.equal((await pages.GET()).status, 200);
+      assert.equal((await team.GET()).status, 200);
+      assert.equal((await uploads.GET()).status, 200);
+      assert.equal((await notifications.GET()).status, 200);
+      assert.equal((await page.GET(request(), params(tenantPage.id))).status, 200);
+      assert.equal((await analytics.GET(request(), params(tenantPage.id))).status, 200);
+      assert.equal((await exports.POST(request({ ids: [tenantPage.id] }))).status, 200);
+      assert.equal((await page.PUT(request({ title: 'Edited by master' }), params(tenantPage.id))).status, 200);
+    });
+
+    assert.equal((await getPageById(tenantPage.id))?.title, 'Edited by master');
+
+    // A master account is never blocked by a disabled workspace either.
+    await updateWorkspace(owner.workspaceId, { status: 'disabled' });
+    await withSession(token, async () => {
+      assert.equal((await masterContext.POST(request({ workspaceId: owner.workspaceId }))).status, 200);
+      assert.equal((await pages.GET()).status, 200);
+    });
+  } finally {
+    if (oldEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = oldEmail;
+    if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;
+  }
+}));
+
+test('a plain master password is stored and matched as a salted scrypt hash', async () => isolated(async () => {
+  const oldEmail = process.env.MASTER_ADMIN_EMAIL;
+  const oldHash = process.env.MASTER_ADMIN_PASSWORD_HASH;
+  process.env.MASTER_ADMIN_EMAIL = 'master@example.test';
+  process.env.MASTER_ADMIN_PASSWORD_HASH = 'PlainHostingerPassword123';
+  try {
+    const configured = masterAdmin()!;
+    // Nothing plain reaches storage, and the hash is stable across restarts.
+    assert.notEqual(configured.passwordHash, 'PlainHostingerPassword123');
+    assert.match(configured.passwordHash, /^[a-f0-9]{32}:[a-f0-9]{128}$/);
+    assert.equal(configured.passwordHash, masterAdmin()!.passwordHash);
+    assert.equal(verifyPassword('PlainHostingerPassword123', configured.passwordHash), true);
+    assert.equal(verifyPassword('wrong-password', configured.passwordHash), false);
+
+    const stored = (await provisionMaster())!;
+    assert.equal(stored.passwordHash, configured.passwordHash);
+
+    await withSession(undefined, async () => {
+      const login = await auth.POST(request({ email: 'master@example.test', password: 'PlainHostingerPassword123' }));
+      assert.equal(login.status, 200);
+      assert.equal((await login.json() as { redirect: string }).redirect, '/admin/master');
+      assert.equal((await auth.POST(request({ email: 'master@example.test', password: 'wrong-password' }))).status, 401);
+    });
+
+    // An already hashed value keeps working unchanged.
+    const explicit = hashPassword('Another-Password');
+    process.env.MASTER_ADMIN_PASSWORD_HASH = explicit;
+    assert.equal(masterAdmin()!.passwordHash, explicit);
   } finally {
     if (oldEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = oldEmail;
     if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;

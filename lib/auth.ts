@@ -3,8 +3,9 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { findWorkspaceUser, isPendingInvite } from './workspaceUsers';
 import { isWorkspaceActive } from './workspaces';
-import { validMasterSession } from './master';
-import { canAccess, type WorkspacePermission, type WorkspaceRole } from './permissions';
+import { masterAdmin, validMasterSession } from './master';
+import { canAccess, workspacePermissions, type WorkspacePermission, type WorkspaceRole } from './permissions';
+import { DEFAULT_WORKSPACE_ID } from './workspaceConstants';
 
 const cookieName = "smartlink_session";
 const sessionTtlSeconds = 60 * 60 * 8;
@@ -66,10 +67,10 @@ export function ownerEmail() {
 }
 
 export function configuredAdmin() {
+  const configured = masterAdmin();
   const email = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  const passwordHash = process.env.ADMIN_PASSWORD_HASH;
-  if (!email || !passwordHash) return null;
-  return { email, passwordHash };
+  if (!email || configured?.email !== email) return null;
+  return { email, passwordHash: configured.passwordHash };
 }
 
 async function readSession() {
@@ -82,13 +83,22 @@ export async function requireAdmin(permission?: WorkspacePermission) {
   return session && (!permission || canAccess(session, permission)) ? session : null;
 }
 
-/** Master credentials remain global; workspace context is explicitly selected. */
+/** Master credentials remain global. A master session reaches every workspace
+ *  with full owner rights and never needs a membership record, an invitation or
+ *  a permission grant. When no workspace has been selected yet it falls back to
+ *  the default workspace so the admin shell always opens. */
 export async function resolveAdminSession(session: ReturnType<typeof readSessionToken>): Promise<AdminSession | null> {
   if (!session) return null;
 
   if (session.scope === 'master') {
     if (!(await validMasterSession(session))) return null;
-    return { ...session, workspaceId: session.workspaceId || '', role: 'owner', isMaster: true };
+    return {
+      ...session,
+      workspaceId: session.workspaceId || DEFAULT_WORKSPACE_ID,
+      role: 'owner',
+      permissions: [...workspacePermissions],
+      isMaster: true,
+    };
   }
 
   if (session.scope !== 'workspace' || !session.workspaceId) return null;

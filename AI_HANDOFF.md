@@ -107,14 +107,24 @@ Other recent features already in `main`:
 - Workspace isolation must be enforced on the server, not trusted from client
   input.
 - Master admin is separate from workspace owners/admins.
-- Master admin uses `MASTER_ADMIN_EMAIL` and `MASTER_ADMIN_PASSWORD_HASH`.
-- Master sessions must not access workspace APIs, and workspace sessions must
-  not access master APIs.
+- Master admin uses `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH`, falling back to
+  `MASTER_ADMIN_EMAIL` / `MASTER_ADMIN_PASSWORD_HASH`.
+- The master password variable accepts a plain password or a salted scrypt
+  hash. Plain values are hashed in `lib/master.ts` before storage, using a salt
+  derived from the email so the hash is stable across restarts. A plain password
+  is never written to the database.
+- A master session enters any workspace with full owner rights and every
+  permission. It must never require a team record, invitation, or permission
+  grant, and must not be blocked by a disabled workspace.
+- A master session with no workspace selected falls back to the default
+  workspace so the admin shell always opens.
+- Workspace sessions must not access master APIs, and master-only global
+  controls must stay unavailable to workspace sessions.
 
 ## Team Rules
 
-- The configured `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH` account is the owner of
-  the default/main workspace.
+- The configured `ADMIN_EMAIL` / `ADMIN_PASSWORD_HASH` account is the platform
+  master and the owner of the default/main workspace.
 - Owners and admins can invite/add admins.
 - Admins can manage other admins.
 - Admins must not see the workspace owner in Team.

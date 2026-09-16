@@ -1,15 +1,32 @@
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomUUID, scryptSync } from 'crypto';
 import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery } from './mysql';
 
+/** A stored credential is the salted scrypt format `<salt>:<64-byte hex>`. */
+function isHashedPassword(value: string) {
+  const [salt, key] = value.split(':');
+  return Boolean(salt) && /^[a-f0-9]{128}$/i.test(key || '');
+}
+
+/** Hosting panels only offer plain text fields, so a plain master password is
+ *  accepted and converted to the same salted scrypt hash that is stored in the
+ *  database. The salt is derived from the email so the hash is stable across
+ *  restarts and instances, which keeps existing sessions valid. */
+function normalizeMasterPassword(email: string, value: string) {
+  if (isHashedPassword(value)) return value;
+  const salt = createHash('sha256').update('signup888:master:' + email).digest('hex').slice(0, 32);
+  return `${salt}:${scryptSync(value, salt, 64).toString('hex')}`;
+}
+
 /** Environment credentials configure the sole global Master Admin account.
- * Uses ADMIN_EMAIL and ADMIN_PASSWORD_HASH (with MASTER_ADMIN_* as fallback). */
+ * Uses ADMIN_EMAIL and ADMIN_PASSWORD_HASH (with MASTER_ADMIN_* as fallback).
+ * Either password variable may hold a plain password or a scrypt hash. */
 export function masterAdmin() {
   const email = (process.env.ADMIN_EMAIL || process.env.MASTER_ADMIN_EMAIL)?.trim().toLowerCase();
-  const passwordHash = (process.env.ADMIN_PASSWORD_HASH || process.env.MASTER_ADMIN_PASSWORD_HASH)?.trim();
-  if (!email || !passwordHash) return null;
-  return { email, passwordHash };
+  const configuredPassword = (process.env.ADMIN_PASSWORD_HASH || process.env.MASTER_ADMIN_PASSWORD_HASH || process.env.ADMIN_PASSWORD || process.env.MASTER_ADMIN_PASSWORD)?.trim();
+  if (!email || !configuredPassword) return null;
+  return { email, passwordHash: normalizeMasterPassword(email, configuredPassword) };
 }
 
 export function isMasterEmail(email: string) {

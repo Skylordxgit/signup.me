@@ -13,9 +13,24 @@ npm install
 npm run dev
 ```
 
-## Generate An Admin Password Hash
+## Admin Password
 
-Run this locally and place the result in `ADMIN_PASSWORD_HASH`:
+`ADMIN_PASSWORD_HASH` accepts a plain password directly, which is what
+Hostinger's environment variable fields are designed for:
+
+```bash
+ADMIN_EMAIL=you@your-domain.com
+ADMIN_PASSWORD_HASH=YourStrongPassword123
+```
+
+The app never stores or compares that plain value. On first use it converts the
+password into the same salted scrypt hash format used everywhere else, and only
+the hash is written to the `admins` table in MySQL. The salt is derived from the
+admin email, so the hash stays identical across restarts and redeploys and your
+existing sessions are not invalidated.
+
+If you prefer to supply the hash yourself, generate it locally and paste the
+result instead. It is detected automatically and used unchanged:
 
 ```bash
 node -e "const { scryptSync, randomBytes } = require('crypto'); const p = process.argv[1]; const s = randomBytes(16).toString('hex'); console.log(`${s}:${scryptSync(p, s, 64).toString('hex')}`)" "your-strong-password"
@@ -64,12 +79,21 @@ For the supplied Hostinger database, use the database and user names exactly as 
 
 Use a long random value for `SESSION_SECRET`. Never expose database credentials in frontend code.
 
-`ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH` identify the owner of the main
-workspace, unchanged. `MASTER_ADMIN_EMAIL` and `MASTER_ADMIN_PASSWORD_HASH` are
-optional: set both to enable the master admin area at `/admin/master`, which
-sees every workspace and belongs to none. Leave either blank and master admin
-login is disabled entirely. Use a different email from `ADMIN_EMAIL`. Both
-password hashes use the same salted scrypt format.
+`ADMIN_EMAIL` and `ADMIN_PASSWORD_HASH` configure the platform Master Admin.
+Signing in with them opens `/admin/master`, which lists every workspace and can
+enter any of them with full access. `MASTER_ADMIN_EMAIL` and
+`MASTER_ADMIN_PASSWORD_HASH` are an equivalent fallback pair, used only when the
+`ADMIN_*` pair is not set. Leave both pairs blank and master admin login is
+disabled entirely.
+
+Either password variable accepts a plain password or a salted scrypt hash. A
+plain value is hashed before it is stored in the database, so no plain password
+is ever persisted.
+
+A master session does not need a team membership, an invitation, or a permission
+grant in any workspace. After choosing a workspace from the control center it
+operates there with full owner rights, including disabled workspaces, so a
+tenant can always be recovered.
 
 The multi-workspace columns are applied automatically on the first database
 connection; see `docs/workspace-team.md` and `docs/schema.sql`.
