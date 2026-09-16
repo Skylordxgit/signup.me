@@ -163,6 +163,8 @@ test("saved background color and font reach the shared renderer", () => {
   assert.match(variables["--page-font"], /Georgia/);
   const gradient = themeCssVariables({ ...theme, backgroundStyle: "gradient", gradientFrom: "#ff0000", gradientTo: "#000000" }) as Record<string, string>;
   assert.equal(gradient["--page-background"], "linear-gradient(135deg, #ff0000, #000000)");
+  const imageBg = themeCssVariables({ ...theme, backgroundStyle: "image", pageBackground: "/uploads/wallpaper.webp" }) as Record<string, string>;
+  assert.match(imageBg["--page-background"], /url\(\/uploads\/wallpaper\.webp\)/);
 });
 
 test("profile alignments (left, center, right) set data-align accurately", () => {

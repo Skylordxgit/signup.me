@@ -26,6 +26,19 @@ export type ThemePreset =
   | LegacyThemePreset
   | "glass-light"
   | "midnight-glass"
+  | "cyberpunk"
+  | "cosmic-nebula"
+  | "emerald-luxe"
+  | "rose-gold"
+  | "synthwave"
+  | "frosted-matcha"
+  | "stealth-black"
+  | "midnight-sapphire"
+  | "golden-hour"
+  | "nordic-frost"
+  | "ruby-royale"
+  | "lavender-dream"
+  | "monochrome"
   | "aurora"
   | "minimal-white"
   | "minimal-dark"
@@ -75,7 +88,8 @@ export type ThemeSettings = {
   buttonStyle?: ButtonStyle;
   buttonAnimation?: boolean;
   surface?: SurfaceStyle;
-  backgroundStyle?: "solid" | "gradient";
+  backgroundStyle?: "solid" | "gradient" | "image";
+  pageBackground?: string;
   showShareButton?: boolean;
   profileLayout?: "hero" | "centered" | "avatar" | "none";
   /* Profile layout. Kept in the theme blob so it needs no schema change, and

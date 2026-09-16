@@ -126,12 +126,15 @@ export function BuilderEditor(props: Props) {
           <SectionHeading title="Appearance" />
           <ThemeGallery current={page.theme} onSelect={next => onEdit({ theme: next })} />
           <section className="admFormSection"><h3>Background & typography</h3><div className="admFormGrid">
-            <Field label="Background style"><select value={page.theme.backgroundStyle || 'gradient'} onChange={event => theme({ backgroundStyle: event.target.value as 'solid' | 'gradient' })}><option value="solid">Solid</option><option value="gradient">Gradient</option></select></Field>
+            <Field label="Background style"><select value={page.theme.backgroundStyle || (page.theme.pageBackground ? 'image' : 'gradient')} onChange={event => theme({ backgroundStyle: event.target.value as 'solid' | 'gradient' | 'image' })}><option value="gradient">Gradient</option><option value="solid">Solid color</option><option value="image">Custom wallpaper image</option></select></Field>
             <Field label="Font"><select value={page.theme.font} onChange={event => theme({ font: event.target.value as ThemeSettings['font'] })}>{['inter', 'system', 'serif', 'mono'].map(font => <option key={font} value={font}>{font}</option>)}</select></Field>
+            {(page.theme.backgroundStyle === 'image' || page.theme.pageBackground) && <div className="admSpanFull">
+              <ImageUploader category="banner" label="Custom page background image" value={page.theme.pageBackground || ''} onChange={pageBackground => theme({ pageBackground, backgroundStyle: 'image' })} />
+            </div>}
             <ColorField label="Background" value={page.theme.backgroundColor} onChange={backgroundColor => theme({ backgroundColor })} />
             <ColorField label="Heading" value={page.theme.headingColor} onChange={headingColor => theme({ headingColor })} />
             <ColorField label="Body text" value={page.theme.textColor} onChange={textColor => theme({ textColor })} />
-            {page.theme.backgroundStyle !== 'solid' && <><ColorField label="Gradient start" value={page.theme.gradientFrom} onChange={gradientFrom => theme({ gradientFrom })} /><ColorField label="Gradient end" value={page.theme.gradientTo} onChange={gradientTo => theme({ gradientTo })} /></>}
+            {page.theme.backgroundStyle === 'gradient' && <><ColorField label="Gradient start" value={page.theme.gradientFrom} onChange={gradientFrom => theme({ gradientFrom })} /><ColorField label="Gradient end" value={page.theme.gradientTo} onChange={gradientTo => theme({ gradientTo })} /></>}
           </div></section>
           <section className="admFormSection"><h3>Buttons & spacing</h3><div className="admFormGrid">
             <Field label="Button style"><select value={resolveButtonStyle(page.theme)} onChange={event => theme({ buttonStyle: event.target.value as ThemeSettings['buttonStyle'] })}>{['solid', 'glass', 'soft', 'outline', 'pill', 'minimal', 'elevated', 'neon'].map(style => <option key={style}>{style}</option>)}</select></Field>

@@ -3215,8 +3215,16 @@ button:hover:not(:disabled) {
   font-family: var(--page-font);
   letter-spacing: 0;
   background: var(--page-background, var(--bg));
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   overflow-x: hidden;
   box-sizing: border-box;
+}
+
+.phoneScreen .smartPage {
+  background-attachment: scroll;
 }
 
 /* Shared responsive column: max 528px on desktop, fluid on phone */
