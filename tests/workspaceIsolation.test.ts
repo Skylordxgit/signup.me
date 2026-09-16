@@ -226,3 +226,130 @@ test('a plain master password is stored and matched as a salted scrypt hash', as
     if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;
   }
 }));
+
+test('owners and admins can add team members with password or invite with roles and permissions', async () => isolated(async () => {
+  const host = await signUp({ email: 'orgowner@example.test', password: 'a-long-password' });
+  const token = createSessionToken({ ...host, scope: 'workspace' });
+
+  await withSession(token, async () => {
+    // 1. Add workspace admin with password directly (accepts role: 'admin' or 'owner')
+    const addAdminRes = await team.POST(request({
+      name: 'Admin Colleague',
+      email: 'colleague@example.test',
+      role: 'admin',
+      password: 'ColleaguePassword123',
+    }));
+    assert.equal(addAdminRes.status, 201);
+    const addedAdmin = await addAdminRes.json() as { email: string; role: string; pending: boolean };
+    assert.equal(addedAdmin.email, 'colleague@example.test');
+    assert.equal(addedAdmin.role, 'owner');
+    assert.equal(addedAdmin.pending, false);
+
+    // 2. Add team member with custom permissions and password
+    const addMemberRes = await team.POST(request({
+      name: 'Analytics Member',
+      email: 'analytics-user@example.test',
+      role: 'member',
+      permissions: ['analytics', 'pages'],
+      password: 'MemberPassword123',
+    }));
+    assert.equal(addMemberRes.status, 201);
+    const addedMember = await addMemberRes.json() as { email: string; role: string; permissions: string[] };
+    assert.equal(addedMember.email, 'analytics-user@example.test');
+    assert.equal(addedMember.role, 'member');
+    assert.deepEqual(addedMember.permissions.sort(), ['analytics', 'pages']);
+
+    // 3. List team returns all accounts
+    const listRes = await team.GET();
+    assert.equal(listRes.status, 200);
+    const list = await listRes.json() as { email: string }[];
+    assert.ok(list.some(u => u.email === 'colleague@example.test'));
+    assert.ok(list.some(u => u.email === 'analytics-user@example.test'));
+
+    // 4. Update permissions for a member
+    const memberObj = (await findWorkspaceUser('analytics-user@example.test'))!;
+    const patchRes = await team.PATCH(request({
+      id: memberObj.id,
+      action: 'permissions',
+      role: 'member',
+      permissions: ['analytics', 'pages', 'media'],
+    }));
+    assert.equal(patchRes.status, 200);
+  });
+
+  // Verify created admin can sign in immediately
+  await withSession(undefined, async () => {
+    const login = await auth.POST(request({ email: 'colleague@example.test', password: 'ColleaguePassword123' }));
+    assert.equal(login.status, 200);
+    const data = await login.json() as { redirect: string; scope: string };
+    assert.equal(data.redirect, '/admin');
+    assert.equal(data.scope, 'workspace');
+  });
+}));
+
+test('master admin can create, modify, and delete users and admins across any workspace', async () => isolated(async () => {
+  const oldEmail = process.env.MASTER_ADMIN_EMAIL;
+  const oldHash = process.env.MASTER_ADMIN_PASSWORD_HASH;
+  process.env.MASTER_ADMIN_EMAIL = 'master@example.test';
+  process.env.MASTER_ADMIN_PASSWORD_HASH = hashPassword('master-password');
+  try {
+    const host = await signUp({ email: 'existingorg@example.test', password: 'a-long-password' });
+    const account = (await provisionMaster())!;
+    const token = createSessionToken({ email: account.email, version: account.version, credentialVersion: masterCredentialVersion(), scope: 'master' });
+
+    await withSession(token, async () => {
+      // 1. Create a new user in an existing workspace
+      const createRes = await masterUsers.POST(request({
+        name: 'Workspace Staff',
+        email: 'staff@example.test',
+        password: 'StaffPassword123',
+        workspaceId: host.workspaceId,
+        role: 'member',
+        permissions: ['pages', 'analytics'],
+      }));
+      assert.equal(createRes.status, 201);
+      const createdUser = await createRes.json() as { email: string; workspaceId: string; role: string };
+      assert.equal(createdUser.email, 'staff@example.test');
+      assert.equal(createdUser.workspaceId, host.workspaceId);
+
+      // 2. Create a new admin with their own new workspace
+      const createAdminRes = await masterUsers.POST(request({
+        name: 'New Tenant Admin',
+        email: 'newtenant@example.test',
+        password: 'NewTenantPassword123',
+        workspaceId: 'new',
+        role: 'owner',
+      }));
+      assert.equal(createAdminRes.status, 201);
+      const newAdmin = await createAdminRes.json() as { email: string; workspaceId: string; role: string };
+      assert.equal(newAdmin.email, 'newtenant@example.test');
+      assert.notEqual(newAdmin.workspaceId, host.workspaceId);
+      assert.equal(newAdmin.role, 'owner');
+
+      // 3. Update permissions and reset password
+      const userRecord = (await findWorkspaceUser('staff@example.test'))!;
+      const updateRes = await masterUsers.PATCH(request({
+        id: userRecord.id,
+        action: 'permissions',
+        role: 'member',
+        permissions: ['pages', 'analytics', 'media', 'notifications'],
+      }));
+      assert.equal(updateRes.status, 200);
+
+      const passRes = await masterUsers.PATCH(request({
+        id: userRecord.id,
+        action: 'password',
+        password: 'UpdatedStaffPassword456',
+      }));
+      assert.equal(passRes.status, 200);
+
+      // 4. Delete user
+      const delRes = await masterUsers.DELETE(request({ id: userRecord.id }));
+      assert.equal(delRes.status, 200);
+      assert.equal(await findWorkspaceUser('staff@example.test'), null);
+    });
+  } finally {
+    if (oldEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = oldEmail;
+    if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;
+  }
+}));

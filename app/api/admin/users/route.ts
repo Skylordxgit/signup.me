@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
-import { hashPassword, configuredAdmin, requireAdmin, type AdminSession } from '@/lib/auth';
-import { canAccess, parsePermissions } from '@/lib/permissions';
+import { hashPassword, configuredAdmin, requireAdmin, type AdminSession, ownerEmail } from '@/lib/auth';
+import { canAccess, parsePermissions, workspacePermissions } from '@/lib/permissions';
 import { isMasterEmail } from '@/lib/master';
 import { assertEmail, assertPassword, displayName, invitationHash, normalizeEmail } from '@/lib/signup';
 import { addWorkspaceUser, deleteWorkspaceUser, findWorkspaceUser, listWorkspaceUsers, publicWorkspaceUser, updateWorkspaceUser } from '@/lib/workspaceUsers';
+import { DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace } from '@/lib/workspaces';
 
 function errorResponse(error: unknown) {
   return NextResponse.json({ error: error instanceof Error ? error.message : 'Account update failed.' }, { status: 400 });
@@ -14,6 +15,9 @@ async function authorize(): Promise<{ denied: NextResponse } | { session: AdminS
   const session = await requireAdmin();
   if (!session) return { denied: NextResponse.json({ error: 'Authentication required' }, { status: 401 }) };
   if (!canAccess(session, 'team')) return { denied: NextResponse.json({ error: 'Team permission required' }, { status: 403 }) };
+  if (session.workspaceId === DEFAULT_WORKSPACE_ID) {
+    await ensureDefaultWorkspace(ownerEmail() || session.email);
+  }
   return { session };
 }
 
@@ -45,9 +49,9 @@ export async function POST(request: NextRequest) {
     const email = assertEmail(normalizeEmail(body.email));
     const name = displayName(body.name, email);
     if (email === configuredAdmin()?.email || isMasterEmail(email)) throw new Error('This email cannot be added to a workspace.');
-    const role = (body.role === undefined ? 'member' : body.role) as 'owner' | 'member';
-    if (role !== 'owner' && role !== 'member') throw new Error('Choose Admin/Owner or Member.');
-    const permissions = parsePermissions(body.permissions);
+    const rawRole = String(body.role || 'member').toLowerCase();
+    const role: 'owner' | 'member' = (rawRole === 'owner' || rawRole === 'admin') ? 'owner' : 'member';
+    const permissions = role === 'owner' ? [...workspacePermissions] : parsePermissions(body.permissions);
     if (auth.session.role === 'member' && (role !== 'member' || permissions.some(permission => !auth.session.permissions?.includes(permission)))) throw new Error('Cannot assign permissions you do not have.');
 
     const existing = await findWorkspaceUser(email);
@@ -81,11 +85,13 @@ export async function PATCH(request: NextRequest) {
       await updateWorkspaceUser(member.id, { passwordHash: hashPassword(assertPassword(body.password)) }, auth.session.workspaceId);
     }
     else if (body.action === 'access' && typeof body.active === 'boolean') await updateWorkspaceUser(member.id, { active: body.active }, auth.session.workspaceId);
-    else if (body.action === 'permissions' && (body.role === 'owner' || body.role === 'member')) {
-      if (member.role === 'owner') throw new Error('Owner permissions cannot be changed.');
-      const permissions = parsePermissions(body.permissions);
-      if (auth.session.role === 'member' && (body.role !== 'member' || permissions.some(permission => !auth.session.permissions?.includes(permission)))) throw new Error('Cannot assign permissions you do not have.');
-      await updateWorkspaceUser(member.id, { role: body.role, permissions }, auth.session.workspaceId);
+    else if (body.action === 'permissions' && (body.role === 'owner' || body.role === 'admin' || body.role === 'member')) {
+      if (member.role === 'owner' && !auth.session.isMaster) throw new Error('Owner permissions cannot be changed.');
+      const rawRole = String(body.role).toLowerCase();
+      const role: 'owner' | 'member' = (rawRole === 'owner' || rawRole === 'admin') ? 'owner' : 'member';
+      const permissions = role === 'owner' ? [...workspacePermissions] : parsePermissions(body.permissions);
+      if (auth.session.role === 'member' && (role !== 'member' || permissions.some(permission => !auth.session.permissions?.includes(permission)))) throw new Error('Cannot assign permissions you do not have.');
+      await updateWorkspaceUser(member.id, { role, permissions }, auth.session.workspaceId);
     }
     else throw new Error('Invalid account action.');
     return NextResponse.json({ ok: true });

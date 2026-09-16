@@ -95,7 +95,7 @@ export function UsersView({ role, permissions, isMaster }: { role: WorkspaceRole
 
           </>}
           {(creating || editingPermissions) && <>
-            <Field label="Role"><select value={assignedRole} onChange={event => setAssignedRole(event.target.value as 'owner' | 'member')}><option value="member">Member</option>{(role !== 'member' || isMaster) && <option value="admin">Workspace admin</option>}</select></Field>
+            <Field label="Role"><select value={assignedRole} onChange={event => setAssignedRole(event.target.value as 'owner' | 'member')}><option value="member">Member</option>{(role !== 'member' || isMaster) && <option value="owner">Workspace admin</option>}</select></Field>
             {assignedRole === 'member' && <fieldset><legend>Permissions</legend>{(role === 'member' && !isMaster ? permissions : workspacePermissions).map(permission => <label className="admCheck" key={permission}><input type="checkbox" checked={assignedPermissions.includes(permission)} onChange={event => setAssignedPermissions(current => event.target.checked ? [...current, permission] : current.filter(item => item !== permission))} />{permission}</label>)}</fieldset>}
           </>}
           {(!creating && !editingPermissions || creating && withPassword) && <Field label="Password" hint="At least 8 characters."><input required type="password" minLength={8} maxLength={128} autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} /></Field>}
