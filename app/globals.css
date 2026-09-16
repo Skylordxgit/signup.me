@@ -3291,7 +3291,7 @@ button:hover:not(:disabled) {
 
 /* When cover exists without avatar, space the profile text cleanly below the cover */
 .smartCard[data-cover="true"][data-avatar="false"] .pageProfile {
-  margin-top: 10px;
+  margin-top: 16px;
 }
 
 /* Identity wrapper */
@@ -3345,7 +3345,7 @@ button:hover:not(:disabled) {
 }
 
 [data-cover="true"][data-align="left"][data-avatar="true"] .pageIdentityText {
-  padding-top: 34px;
+  padding-top: calc(44px + 12px);
 }
 
 [data-align="left"][data-avatar="false"] .pageIdentity {
@@ -3374,7 +3374,7 @@ button:hover:not(:disabled) {
 }
 
 [data-cover="true"][data-align="right"][data-avatar="true"] .pageIdentityText {
-  padding-top: 34px;
+  padding-top: calc(44px + 12px);
   grid-column: 1;
   grid-row: 1;
 }
@@ -3447,10 +3447,11 @@ button:hover:not(:disabled) {
 
 .pageTitle {
   margin: 0;
+  padding-top: 2px;
   color: var(--heading);
   font-size: 20px;
   font-weight: 750;
-  line-height: 1.25;
+  line-height: 1.35;
   letter-spacing: -0.01em;
   word-break: break-word;
   overflow-wrap: anywhere;

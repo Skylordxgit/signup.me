@@ -180,6 +180,42 @@
 .admBuilderHeading h2 { font-size: var(--text-lg); font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admBuilderHeading small { color: var(--c-muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .admBuilderHeading select { width: auto; min-height: var(--control-h-sm); font-size: var(--text-base); }
+.admStatusSelect {
+  min-height: 34px;
+  height: 34px;
+  padding: 0 30px 0 12px;
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: capitalize;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--c-line);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 11px;
+  transition: all 0.15s ease;
+  box-shadow: var(--shadow-xs);
+}
+.admStatusSelect:hover {
+  filter: brightness(0.97);
+}
+.admStatusSelect.admBadge-published {
+  background-color: var(--c-success-soft);
+  border-color: #c4e6d5;
+  color: var(--c-success);
+}
+.admStatusSelect.admBadge-draft {
+  background-color: #fef3c7;
+  border-color: #fde68a;
+  color: #b45309;
+}
+.admStatusSelect.admBadge-disabled {
+  background-color: var(--c-surface-sunken);
+  border-color: var(--c-line);
+  color: var(--c-muted);
+}
 .admMainBuilder > .admError { margin: var(--sp-4) var(--adm-gutter) 0; }
 
 /* Editor + fixed preview. The preview never changes the shell width. */
