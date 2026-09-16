@@ -3317,7 +3317,8 @@ button:hover:not(:disabled) {
   box-sizing: border-box;
 }
 
-/* Alignments across all layouts: avatar and title stack cleanly so title is always below cover */
+/* Alignments across all layouts */
+/* Center alignment: stacked vertically */
 [data-align="center"] .pageIdentity {
   align-items: center;
   text-align: center;
@@ -3330,7 +3331,24 @@ button:hover:not(:disabled) {
   text-align: center;
 }
 
-[data-align="left"] .pageIdentity {
+/* Left alignment with avatar: Title and Bio sit beside the avatar on the right */
+[data-align="left"][data-avatar="true"] .pageIdentity {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+}
+
+[data-cover="true"][data-align="left"][data-avatar="true"] .pageIdentity {
+  align-items: flex-end;
+}
+
+[data-cover="true"][data-align="left"][data-avatar="true"] .pageIdentityText {
+  padding-top: 34px;
+}
+
+[data-align="left"][data-avatar="false"] .pageIdentity {
   align-items: flex-start;
   text-align: left;
 }
@@ -3342,7 +3360,32 @@ button:hover:not(:disabled) {
   text-align: left;
 }
 
-[data-align="right"] .pageIdentity {
+/* Right alignment with avatar: Title and Bio sit beside the avatar on the left */
+[data-align="right"][data-avatar="true"] .pageIdentity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  align-items: center;
+  gap: 14px;
+  text-align: right;
+}
+
+[data-cover="true"][data-align="right"][data-avatar="true"] .pageIdentity {
+  align-items: flex-end;
+}
+
+[data-cover="true"][data-align="right"][data-avatar="true"] .pageIdentityText {
+  padding-top: 34px;
+  grid-column: 1;
+  grid-row: 1;
+}
+
+[data-align="right"][data-avatar="true"] .pageAvatar {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+[data-align="right"][data-avatar="false"] .pageIdentity {
   align-items: flex-end;
   text-align: right;
 }
@@ -3352,34 +3395,6 @@ button:hover:not(:disabled) {
   flex-direction: column;
   align-items: flex-end;
   text-align: right;
-}
-
-/* When NO cover is present, horizontal side-by-side hero layout is supported */
-[data-layout="hero"][data-cover="false"][data-avatar="true"][data-align="left"] .pageIdentity {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  text-align: left;
-}
-
-[data-layout="hero"][data-cover="false"][data-avatar="true"][data-align="right"] .pageIdentity {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px;
-  align-items: center;
-  gap: 14px;
-  text-align: right;
-}
-
-[data-layout="hero"][data-cover="false"][data-align="right"] .pageAvatar {
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: end;
-}
-
-[data-layout="hero"][data-cover="false"][data-align="right"] .pageIdentityText {
-  grid-column: 1;
-  grid-row: 1;
 }
 
 [data-align="center"] .pageSocials {

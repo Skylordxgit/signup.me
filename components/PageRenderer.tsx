@@ -321,8 +321,16 @@ export function PageBlockView({
   onTrack?: (block: PageBlock) => void;
   preview: boolean;
 }) {
-  if (block.type === "heading") return <h2 className="pageHeading">{block.title}</h2>;
-  if (block.type === "text") return <p className="pageText">{block.subtitle || block.title}</p>;
+  if (block.type === "heading") {
+    const align = typeof block.settings?.align === "string" ? block.settings.align : "";
+    const style = align ? { textAlign: align as CSSProperties["textAlign"] } : undefined;
+    return <h2 className={`pageHeading${align ? ` pageHeading-${align}` : ""}`} style={style}>{block.title}</h2>;
+  }
+  if (block.type === "text") {
+    const align = typeof block.settings?.align === "string" ? block.settings.align : "";
+    const style = align ? { textAlign: align as CSSProperties["textAlign"] } : undefined;
+    return <p className={`pageText${align ? ` pageText-${align}` : ""}`} style={style}>{block.subtitle || block.title}</p>;
+  }
   if (block.type === "divider") return <hr className="pageDivider" />;
   if (block.type === "spacer") {
     const rawHeight = typeof block.settings?.height === "number" ? block.settings.height : Number(block.settings?.height) || 24;

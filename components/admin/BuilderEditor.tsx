@@ -228,8 +228,16 @@ function BlockFields({ block, selected, first, last, busy, onSelect, onEdit, onD
           ))}
         </div>
       </div>}
-      {block.type !== 'divider' && !isSpacer && <Field label={video ? 'Caption' : 'Title'}><input value={block.title} onChange={event => onEdit({ title: event.target.value })} /></Field>}
-      {block.type === 'text' ? <Field label="Text"><textarea rows={4} value={block.subtitle} onChange={event => onEdit({ subtitle: event.target.value })} /></Field> : link && <Field label="Subtitle"><input value={block.subtitle} onChange={event => onEdit({ subtitle: event.target.value })} /></Field>}
+      {block.type !== 'divider' && !isSpacer && block.type !== 'text' && block.type !== 'heading' && <Field label={video ? 'Caption' : 'Title'}><input value={block.title} onChange={event => onEdit({ title: event.target.value })} /></Field>}
+      {block.type === 'heading' && <>
+        <Field label="Heading"><input value={block.title} onChange={event => onEdit({ title: event.target.value })} /></Field>
+        <Field label="Heading alignment"><span className="admSegmented" role="group" aria-label="Heading alignment">{([['left', AlignLeft], ['center', AlignCenter], ['right', AlignRight]] as const).map(([val, Icon]) => <button type="button" key={val} title={`Align ${val}`} aria-label={`Align ${val}`} aria-pressed={(block.settings?.align || 'left') === val} onClick={() => onEdit({ settings: { ...block.settings, align: val } })}><Icon size={18} /></button>)}</span></Field>
+      </>}
+      {block.type === 'text' && <>
+        <Field label="Text"><textarea rows={4} value={block.subtitle || block.title} onChange={event => onEdit({ subtitle: event.target.value, title: event.target.value.slice(0, 40) })} /></Field>
+        <Field label="Text alignment"><span className="admSegmented" role="group" aria-label="Text alignment">{([['left', AlignLeft], ['center', AlignCenter], ['right', AlignRight]] as const).map(([val, Icon]) => <button type="button" key={val} title={`Align ${val}`} aria-label={`Align ${val}`} aria-pressed={(block.settings?.align || 'left') === val} onClick={() => onEdit({ settings: { ...block.settings, align: val } })}><Icon size={18} /></button>)}</span></Field>
+      </>}
+      {link && <Field label="Subtitle"><input value={block.subtitle} onChange={event => onEdit({ subtitle: event.target.value })} /></Field>}
       {link && !['phone', 'whatsapp'].includes(block.type) && <Field label={block.type === 'email' ? 'Email' : 'URL or username'}><input value={block.url} onChange={event => onEdit({ url: event.target.value })} /></Field>}
       {['phone', 'whatsapp'].includes(block.type) && <Field label="Phone number"><input type="tel" value={block.phone} onChange={event => onEdit({ phone: event.target.value })} /></Field>}
       {['email', 'whatsapp'].includes(block.type) && <Field label="Prefilled message"><textarea value={block.message} onChange={event => onEdit({ message: event.target.value })} /></Field>}

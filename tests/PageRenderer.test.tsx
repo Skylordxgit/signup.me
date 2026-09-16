@@ -185,3 +185,16 @@ test("buttons without icon omit the hasIcon class while icon buttons include it"
   assert.match(html, /pageButton buttonStyle-\w+(?!\s*hasIcon)/);
 });
 
+test("text and heading blocks support custom text alignment (left, center, right)", () => {
+  const page = fixture();
+  page.blocks = [
+    { ...page.blocks[0], id: 1, type: "heading", title: "Centered Heading", settings: { align: "center" } },
+    { ...page.blocks[0], id: 2, type: "text", title: "Right Text", subtitle: "Right subtitle", settings: { align: "right" } },
+    { ...page.blocks[0], id: 3, type: "text", title: "Left Text", subtitle: "Left subtitle", settings: { align: "left" } },
+  ];
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(html, /class="pageHeading pageHeading-center"/);
+  assert.match(html, /class="pageText pageText-right"/);
+  assert.match(html, /class="pageText pageText-left"/);
+});
+
