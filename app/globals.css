@@ -3272,6 +3272,7 @@ button:hover:not(:disabled) {
   cursor: pointer;
 }
 
+/* Profile header block */
 .pageProfile {
   position: relative;
   display: flex;
@@ -3283,9 +3284,14 @@ button:hover:not(:disabled) {
   box-sizing: border-box;
 }
 
-/* Cover + Avatar overlap */
+/* Cover + Avatar overlap: only the circular avatar overlaps the bottom edge of the cover */
 .smartCard[data-cover="true"][data-avatar="true"] .pageProfile {
   margin-top: calc(-38px - (var(--spacing, 12px) / 2));
+}
+
+/* When cover exists without avatar, space the profile text cleanly below the cover */
+.smartCard[data-cover="true"][data-avatar="false"] .pageProfile {
+  margin-top: 10px;
 }
 
 /* Identity wrapper */
@@ -3308,45 +3314,10 @@ button:hover:not(:disabled) {
   min-width: 0;
   max-width: 100%;
   width: 100%;
+  box-sizing: border-box;
 }
 
-/* Hero layout with avatar side-by-side on left / right */
-[data-layout="hero"][data-avatar="true"][data-align="left"] .pageIdentity {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  align-items: flex-end;
-  gap: 14px;
-  text-align: left;
-}
-
-[data-layout="hero"][data-avatar="true"][data-cover="true"][data-align="left"] .pageIdentityText {
-  padding-bottom: 2px;
-}
-
-[data-layout="hero"][data-avatar="true"][data-align="right"] .pageIdentity {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px;
-  align-items: flex-end;
-  gap: 14px;
-  text-align: right;
-}
-
-[data-layout="hero"][data-avatar="true"][data-cover="true"][data-align="right"] .pageIdentityText {
-  padding-bottom: 2px;
-}
-
-[data-layout="hero"][data-align="right"] .pageAvatar {
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: end;
-}
-
-[data-layout="hero"][data-align="right"] .pageIdentityText {
-  grid-column: 1;
-  grid-row: 1;
-}
-
-/* Alignments across all layouts */
+/* Alignments across all layouts: avatar and title stack cleanly so title is always below cover */
 [data-align="center"] .pageIdentity {
   align-items: center;
   text-align: center;
@@ -3381,6 +3352,34 @@ button:hover:not(:disabled) {
   flex-direction: column;
   align-items: flex-end;
   text-align: right;
+}
+
+/* When NO cover is present, horizontal side-by-side hero layout is supported */
+[data-layout="hero"][data-cover="false"][data-avatar="true"][data-align="left"] .pageIdentity {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+}
+
+[data-layout="hero"][data-cover="false"][data-avatar="true"][data-align="right"] .pageIdentity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  align-items: center;
+  gap: 14px;
+  text-align: right;
+}
+
+[data-layout="hero"][data-cover="false"][data-align="right"] .pageAvatar {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+}
+
+[data-layout="hero"][data-cover="false"][data-align="right"] .pageIdentityText {
+  grid-column: 1;
+  grid-row: 1;
 }
 
 [data-align="center"] .pageSocials {
