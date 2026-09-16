@@ -199,21 +199,29 @@ function PageCover({
 
 function ProfileIdentity({ page, showAvatar, src }: { page: SmartPage; showAvatar: boolean; src: string }) {
   const theme = page.theme;
-  const avatarStyle: CSSProperties | undefined = (theme.avatarX || theme.avatarY || theme.avatarSize) ? {
-    transform: (theme.avatarX || theme.avatarY) ? `translate(${theme.avatarX || 0}px, ${theme.avatarY || 0}px)` : undefined,
-    width: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
-    height: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
-    minWidth: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
-    minHeight: theme.avatarSize ? `${theme.avatarSize}px` : undefined,
-  } : undefined;
+  const avatarX = theme.avatarX ?? 0;
+  const avatarY = theme.avatarY ?? -19;
+  const avatarSize = theme.avatarSize ?? 76;
+  const titleX = theme.titleX ?? -2;
+  const titleY = theme.titleY ?? -20;
+  const bioX = theme.bioX ?? 0;
+  const bioY = theme.bioY ?? -24;
 
-  const titleStyle: CSSProperties | undefined = (theme.titleX || theme.titleY) ? {
-    transform: `translate(${theme.titleX || 0}px, ${theme.titleY || 0}px)`,
-  } : undefined;
+  const avatarStyle: CSSProperties = {
+    transform: `translate(${avatarX}px, ${avatarY}px)`,
+    width: `${avatarSize}px`,
+    height: `${avatarSize}px`,
+    minWidth: `${avatarSize}px`,
+    minHeight: `${avatarSize}px`,
+  };
 
-  const bioStyle: CSSProperties | undefined = (theme.bioX || theme.bioY) ? {
-    transform: `translate(${theme.bioX || 0}px, ${theme.bioY || 0}px)`,
-  } : undefined;
+  const titleStyle: CSSProperties = {
+    transform: `translate(${titleX}px, ${titleY}px)`,
+  };
+
+  const bioStyle: CSSProperties = {
+    transform: `translate(${bioX}px, ${bioY}px)`,
+  };
 
   return (
     <>

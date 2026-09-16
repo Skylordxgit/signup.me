@@ -239,3 +239,15 @@ test("manual profile position controls apply independent offsets and size to ima
   assert.equal(swapped.bioY, 6);
 });
 
+test("default theme applies the specified default profile positioning", () => {
+  const page = fixture();
+  const html = renderToStaticMarkup(<PageRenderer page={page} />);
+  assert.match(html, /--avatar-x:0px/);
+  assert.match(html, /--avatar-y:-19px/);
+  assert.match(html, /--avatar-size:76px/);
+  assert.match(html, /--title-x:-2px/);
+  assert.match(html, /--title-y:-20px/);
+  assert.match(html, /--bio-x:0px/);
+  assert.match(html, /--bio-y:-24px/);
+});
+

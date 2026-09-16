@@ -166,13 +166,13 @@ export function BuilderEditor(props: Props) {
 export function ProfileFields({ page, onEdit }: { page: SmartPage; onEdit: (patch: Partial<SmartPage>) => void }) {
   const theme = (patch: Partial<ThemeSettings>) => onEdit({ theme: { ...page.theme, ...patch } });
   const t = page.theme;
-  const avatarX = t.avatarX || 0;
-  const avatarY = t.avatarY || 0;
-  const avatarSize = t.avatarSize || 76;
-  const titleX = t.titleX || 0;
-  const titleY = t.titleY || 0;
-  const bioX = t.bioX || 0;
-  const bioY = t.bioY || 0;
+  const avatarX = t.avatarX ?? 0;
+  const avatarY = t.avatarY ?? -19;
+  const avatarSize = t.avatarSize ?? 76;
+  const titleX = t.titleX ?? -2;
+  const titleY = t.titleY ?? -20;
+  const bioX = t.bioX ?? 0;
+  const bioY = t.bioY ?? -24;
 
   return <>
     <SectionHeading title="Profile" />
@@ -202,12 +202,12 @@ export function ProfileFields({ page, onEdit }: { page: SmartPage; onEdit: (patc
           title="Reset all positions to default"
           onClick={() => theme({
             avatarX: 0,
-            avatarY: 0,
+            avatarY: -19,
             avatarSize: 76,
-            titleX: 0,
-            titleY: 0,
+            titleX: -2,
+            titleY: -20,
             bioX: 0,
-            bioY: 0,
+            bioY: -24,
           })}
         >
           <RotateCcw size={14} aria-hidden="true" />

@@ -17,6 +17,13 @@ const base = {
   backgroundImage: "",
   backgroundBlur: 0,
   font: "inter" as const,
+  avatarX: 0,
+  avatarY: -19,
+  avatarSize: 76,
+  titleX: -2,
+  titleY: -20,
+  bioX: 0,
+  bioY: -24,
 };
 
 export const themeLibrary: ThemeDefinition[] = [
@@ -629,13 +636,13 @@ export function applyThemeDefinition(theme: ThemeDefinition, current?: ThemeSett
       buttonAnimation: current.buttonAnimation,
       profileLayout: current.profileLayout,
       showShareButton: current.showShareButton,
-      avatarX: current.avatarX,
-      avatarY: current.avatarY,
-      avatarSize: current.avatarSize,
-      titleX: current.titleX,
-      titleY: current.titleY,
-      bioX: current.bioX,
-      bioY: current.bioY,
+      avatarX: current.avatarX ?? 0,
+      avatarY: current.avatarY ?? -19,
+      avatarSize: current.avatarSize ?? 76,
+      titleX: current.titleX ?? -2,
+      titleY: current.titleY ?? -20,
+      bioX: current.bioX ?? 0,
+      bioY: current.bioY ?? -24,
     } : {}),
     ...(current?.profileAlignment ? { profileAlignment: current.profileAlignment } : {}),
   };
@@ -691,6 +698,14 @@ export function themeCssVariables(theme: ThemeSettings): React.CSSProperties {
       ? theme.backgroundColor
       : bgGradient;
 
+  const avatarX = theme.avatarX ?? 0;
+  const avatarY = theme.avatarY ?? -19;
+  const avatarSize = theme.avatarSize ?? 76;
+  const titleX = theme.titleX ?? -2;
+  const titleY = theme.titleY ?? -20;
+  const bioX = theme.bioX ?? 0;
+  const bioY = theme.bioY ?? -24;
+
   return {
     "--page-font": fonts[theme.font] || fonts.inter,
     "--page-background": pageBg,
@@ -708,12 +723,12 @@ export function themeCssVariables(theme: ThemeSettings): React.CSSProperties {
     "--spacing": `${theme.spacing}px`,
     "--heading": theme.headingColor,
     "--text": theme.textColor,
-    "--avatar-size": `${theme.avatarSize || 76}px`,
-    "--avatar-x": `${theme.avatarX || 0}px`,
-    "--avatar-y": `${theme.avatarY || 0}px`,
-    "--title-x": `${theme.titleX || 0}px`,
-    "--title-y": `${theme.titleY || 0}px`,
-    "--bio-x": `${theme.bioX || 0}px`,
-    "--bio-y": `${theme.bioY || 0}px`,
+    "--avatar-size": `${avatarSize}px`,
+    "--avatar-x": `${avatarX}px`,
+    "--avatar-y": `${avatarY}px`,
+    "--title-x": `${titleX}px`,
+    "--title-y": `${titleY}px`,
+    "--bio-x": `${bioX}px`,
+    "--bio-y": `${bioY}px`,
   } as React.CSSProperties;
 }
