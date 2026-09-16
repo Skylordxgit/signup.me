@@ -239,10 +239,18 @@ textarea {
 }
 
 .authCard h1 {
-  margin: 0 0 26px;
+  margin: 0;
   color: #1c1d22;
   font-size: 26px;
   font-weight: 800;
+  text-align: center;
+}
+
+.authIntro {
+  margin: 8px 0 24px;
+  color: #767a85;
+  font-size: 14px;
+  line-height: 1.5;
   text-align: center;
 }
 
@@ -345,7 +353,15 @@ textarea {
 
 .authEmailForm {
   display: grid;
-  gap: 12px;
+  gap: 16px;
+}
+
+.authEmailForm label {
+  display: grid;
+  gap: 7px;
+  color: #30323a;
+  font-size: 13px;
+  font-weight: 750;
 }
 
 .authEmailForm button[type="submit"] {
@@ -358,19 +374,12 @@ textarea {
 }
 
 .authEmailForm .formError {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fef2f2;
   color: #dc2626;
   font-weight: 700;
   font-size: 13px;
-}
-
-.authBackLink {
-  justify-self: center;
-}
-
-.authEmailForm small {
-  color: #9a9ca3;
-  font-weight: 700;
-  text-align: center;
 }
 
 .phoneStage {

@@ -59,10 +59,9 @@ try {
   assert.equal(await page.getByRole('link', { name: 'Build your page' }).getAttribute('href'), '/admin?slug=fresh-profile');
   await page.getByRole('link', { name: 'Build your page' }).click();
   await page.waitForURL(/\/admin\/login/);
-  await page.getByRole('button', { name: 'Login with Email' }).click();
   await page.locator('input[name=email]').fill('qa@example.com');
   await page.locator('input[name=password]').fill('test-password');
-  await page.getByRole('button', { name: 'Login', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.waitForURL(origin + '/admin?slug=fresh-profile');
   await page.getByRole('heading', { level: 1, name: 'Create Page' }).waitFor();
   assert.equal(await page.getByLabel('URL slug', { exact: true }).inputValue(), 'fresh-profile');

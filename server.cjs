@@ -1,5 +1,6 @@
 // Hostinger loads Node entry files with CommonJS require().
 // Vinext itself is ESM, so start it through a non-blocking dynamic import.
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
