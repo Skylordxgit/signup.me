@@ -412,20 +412,9 @@ textarea {
   flex-shrink: 0;
 }
 
-/* Dynamic island pill */
+/* Sleek phone frame bezel */
 .phoneDevice::before {
-  content: "";
-  position: absolute;
-  top: 9px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 82px;
-  height: 18px;
-  background: #000000;
-  border-radius: 20px;
-  z-index: 20;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: none;
 }
 
 /* Bottom home bar indicator */
@@ -3218,7 +3207,6 @@ button:hover:not(:disabled) {
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
-  background-attachment: fixed;
   overflow-x: hidden;
   box-sizing: border-box;
 }
@@ -3227,20 +3215,16 @@ button:hover:not(:disabled) {
   background-attachment: scroll;
 }
 
-/* Shared responsive column: max 528px on desktop, fluid on phone */
-.pageColumn {
+/* Shared responsive column: max 528px on desktop, fluid on phone - 100% identical in preview and live */
+.pageColumn,
+.phoneScreen .pageColumn {
   width: 100%;
   max-width: 528px;
-  padding: 12px 14px 28px;
+  padding: 16px 14px 28px;
   min-height: 100%;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-}
-
-/* Provide clean padding inside the admin phone preview frame */
-.phoneScreen .pageColumn {
-  padding: 24px 14px 24px;
 }
 
 .smartCard {

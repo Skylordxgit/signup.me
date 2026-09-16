@@ -258,20 +258,9 @@
   box-sizing: border-box; flex-shrink: 0;
 }
 
-/* Dynamic island pill */
+/* Frame bezel */
 .admPreviewPane .phoneDevice::before {
-  content: "";
-  position: absolute;
-  top: 9px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 82px;
-  height: 18px;
-  background: #000000;
-  border-radius: 20px;
-  z-index: 20;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: none;
 }
 
 /* Bottom home bar indicator */
