@@ -238,8 +238,169 @@ function BlockFields({ block, selected, first, last, busy, onSelect, onEdit, onD
       {block.type === 'image' && <ImageUploader category="block" label="Image" value={block.imageUrl || block.url} onChange={imageUrl => onEdit({ imageUrl })} />}
       {link && <><div className="admFormGrid"><Field label="Icon"><button type="button" className="admButton admBlock" onClick={() => setIconsOpen(true)}>{resolveBlockIcon(block.icon, block.type)}Choose icon</button></Field><Field label="Button color"><div className="admActionRow"><input aria-label="Custom button color" type="color" value={typeof block.settings.buttonColor === 'string' ? block.settings.buttonColor : '#000000'} onChange={event => onEdit({ settings: { ...block.settings, buttonColor: event.target.value } })} /><IconButton icon={X} label="Use theme button color" onClick={() => onEdit({ settings: { ...block.settings, buttonColor: '' } })} /></div></Field><Field label="Button effect"><select value={typeof block.settings.buttonEffect === 'string' ? block.settings.buttonEffect : 'none'} onChange={event => onEdit({ settings: { ...block.settings, buttonEffect: event.target.value } })}>{buttonEffects.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field></div></>}
     </div>}
-    {iconsOpen && <Dialog title="Choose icon" onClose={() => setIconsOpen(false)}><div className="admFormStack"><div className="admIconPicker">{['none', 'link', 'globe', 'message', 'mail', 'phone', 'send', 'share', 'map-pin', 'shopping-bag', 'star', 'heart', 'music', 'video', 'image', 'help', 'sparkles', 'instagram', 'facebook', 'whatsapp', 'telegram', 'youtube'].map(icon => <button type="button" key={icon} title={icon} aria-label={icon} aria-pressed={block.icon === icon} onClick={() => { onEdit({ icon }); setIconsOpen(false); }}>{icon === 'none' ? <X size={18} /> : resolveBlockIcon(icon, block.type)}</button>)}</div><Field label="Emoji"><input value={block.icon.startsWith('emoji:') ? block.icon.slice(6) : ''} onChange={event => onEdit({ icon: `emoji:${event.target.value}` })} /></Field><ImageUploader category="icon" label="Custom icon" value={block.icon.startsWith('/uploads/') || block.icon.startsWith('https://') ? block.icon : ''} onChange={icon => { onEdit({ icon }); setIconsOpen(false); }} /></div></Dialog>}
+    {iconsOpen && <IconPickerDialog currentIcon={block.icon} blockType={block.type} onSelect={icon => { onEdit({ icon }); setIconsOpen(false); }} onClose={() => setIconsOpen(false)} />}
   </article>;
+}
+
+const iconCatalog: { key: string; label: string; category: string }[] = [
+  // Major Platforms & Social Networks
+  { key: 'facebook', label: 'Facebook', category: 'Platforms' },
+  { key: 'instagram', label: 'Instagram', category: 'Platforms' },
+  { key: 'whatsapp', label: 'WhatsApp', category: 'Platforms' },
+  { key: 'telegram', label: 'Telegram', category: 'Platforms' },
+  { key: 'youtube', label: 'YouTube', category: 'Platforms' },
+  { key: 'tiktok', label: 'TikTok', category: 'Platforms' },
+  { key: 'twitter', label: 'X (Twitter)', category: 'Platforms' },
+  { key: 'linkedin', label: 'LinkedIn', category: 'Platforms' },
+  { key: 'discord', label: 'Discord', category: 'Platforms' },
+  { key: 'spotify', label: 'Spotify', category: 'Platforms' },
+  { key: 'pinterest', label: 'Pinterest', category: 'Platforms' },
+  { key: 'snapchat', label: 'Snapchat', category: 'Platforms' },
+  { key: 'github', label: 'GitHub', category: 'Platforms' },
+  { key: 'twitch', label: 'Twitch', category: 'Platforms' },
+  { key: 'messenger', label: 'Messenger', category: 'Platforms' },
+
+  // Web & Contact
+  { key: 'link', label: 'Link', category: 'Contact' },
+  { key: 'globe', label: 'Website', category: 'Contact' },
+  { key: 'mail', label: 'Email', category: 'Contact' },
+  { key: 'phone', label: 'Phone', category: 'Contact' },
+  { key: 'message', label: 'Message', category: 'Contact' },
+  { key: 'send', label: 'Send', category: 'Contact' },
+  { key: 'share', label: 'Share', category: 'Contact' },
+  { key: 'map-pin', label: 'Location', category: 'Contact' },
+  { key: 'navigation', label: 'Directions', category: 'Contact' },
+
+  // Commerce & Shop
+  { key: 'shopping-bag', label: 'Shop', category: 'Commerce' },
+  { key: 'cart', label: 'Cart', category: 'Commerce' },
+  { key: 'tag', label: 'Discount Tag', category: 'Commerce' },
+  { key: 'gift', label: 'Gift', category: 'Commerce' },
+  { key: 'ticket', label: 'Ticket', category: 'Commerce' },
+  { key: 'wallet', label: 'Wallet', category: 'Commerce' },
+  { key: 'card', label: 'Payment Card', category: 'Commerce' },
+
+  // Media & Entertainment
+  { key: 'music', label: 'Music', category: 'Media' },
+  { key: 'podcast', label: 'Podcast', category: 'Media' },
+  { key: 'mic', label: 'Microphone', category: 'Media' },
+  { key: 'headphones', label: 'Audio', category: 'Media' },
+  { key: 'video', label: 'Video', category: 'Media' },
+  { key: 'tv', label: 'Stream', category: 'Media' },
+  { key: 'camera', label: 'Camera', category: 'Media' },
+  { key: 'image', label: 'Photo Gallery', category: 'Media' },
+  { key: 'radio', label: 'Radio', category: 'Media' },
+
+  // Badges, UI & General
+  { key: 'star', label: 'Star / Featured', category: 'General' },
+  { key: 'heart', label: 'Heart / Support', category: 'General' },
+  { key: 'thumbsup', label: 'Like', category: 'General' },
+  { key: 'crown', label: 'VIP / Premium', category: 'General' },
+  { key: 'flame', label: 'Trending', category: 'General' },
+  { key: 'zap', label: 'Fast / Instant', category: 'General' },
+  { key: 'sparkles', label: 'Special', category: 'General' },
+  { key: 'shield', label: 'Verified', category: 'General' },
+  { key: 'calendar', label: 'Booking / Event', category: 'General' },
+  { key: 'clock', label: 'Schedule', category: 'General' },
+  { key: 'file', label: 'Document / PDF', category: 'General' },
+  { key: 'news', label: 'Article / Blog', category: 'General' },
+  { key: 'megaphone', label: 'Announcement', category: 'General' },
+  { key: 'home', label: 'Home', category: 'General' },
+  { key: 'user', label: 'Profile', category: 'General' },
+  { key: 'users', label: 'Community', category: 'General' },
+  { key: 'help', label: 'Help / FAQ', category: 'General' },
+  { key: 'info', label: 'Information', category: 'General' },
+];
+
+function IconPickerDialog({
+  currentIcon,
+  blockType,
+  onSelect,
+  onClose,
+}: {
+  currentIcon: string;
+  blockType: PageBlock['type'];
+  onSelect: (icon: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('All');
+  const categories = ['All', 'Platforms', 'Contact', 'Commerce', 'Media', 'General'];
+
+  const filtered = iconCatalog.filter(item => {
+    const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
+    const matchesQuery = !query || item.label.toLowerCase().includes(query.toLowerCase()) || item.key.toLowerCase().includes(query.toLowerCase());
+    return matchesCategory && matchesQuery;
+  });
+
+  return (
+    <Dialog title="Choose icon" onClose={onClose}>
+      <div className="admFormStack">
+        <div className="admIconFilterBar">
+          <Field label="Search icons">
+            <input
+              type="search"
+              placeholder="Search (e.g. Facebook, Instagram, Shop, Email...)"
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              autoFocus
+            />
+          </Field>
+          <div className="admIconGroups" role="tablist" aria-label="Icon categories">
+            {categories.map(cat => (
+              <button
+                type="button"
+                key={cat}
+                aria-pressed={activeCategory === cat}
+                onClick={() => setActiveCategory(cat)}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="admIconPicker" role="listbox" aria-label="Icons list">
+          <button
+            type="button"
+            title="No icon"
+            aria-label="No icon"
+            aria-pressed={currentIcon === 'none'}
+            onClick={() => onSelect('none')}
+          >
+            <X size={18} />
+          </button>
+          {filtered.map(item => (
+            <button
+              type="button"
+              key={item.key}
+              title={item.label}
+              aria-label={item.label}
+              aria-pressed={currentIcon === item.key}
+              onClick={() => onSelect(item.key)}
+            >
+              {resolveBlockIcon(item.key, blockType)}
+            </button>
+          ))}
+        </div>
+
+        <Field label="Or choose Emoji icon">
+          <input
+            placeholder="Type or paste any emoji (e.g. 🔥, 🛍️, 🚀)"
+            value={currentIcon.startsWith('emoji:') ? currentIcon.slice(6) : ''}
+            onChange={event => onSelect(event.target.value ? `emoji:${event.target.value}` : 'none')}
+          />
+        </Field>
+
+        <ImageUploader
+          category="icon"
+          label="Or upload custom icon image"
+          value={currentIcon.startsWith('/uploads/') || currentIcon.startsWith('https://') ? currentIcon : ''}
+          onChange={icon => onSelect(icon)}
+        />
+      </div>
+    </Dialog>
+  );
 }
 
 export function ThemeGallery({ current, onSelect }: { current: ThemeSettings; onSelect: (theme: ThemeSettings) => void }) {
