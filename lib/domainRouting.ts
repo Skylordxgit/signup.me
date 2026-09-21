@@ -50,7 +50,7 @@ export async function resolvePublicHost(rawHost: string | null): Promise<PublicH
 
   try {
     const domainList = await listDomains();
-    const domain = domainList.find(item => item.hostname === hostname && item.workspaceId && item.status === 'active');
+    const domain = domainList.find(item => item.hostname === hostname && item.workspaceId && (item.status === 'active' || item.status === 'verified' || item.status === 'ssl_pending'));
     if (domain?.workspaceId && (await isWorkspaceActive(domain.workspaceId))) {
       return { kind: 'custom', hostname, workspaceId: domain.workspaceId };
     }

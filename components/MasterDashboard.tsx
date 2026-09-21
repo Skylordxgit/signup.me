@@ -523,6 +523,9 @@ export function MasterDashboard({ email }: { email: string }) {
                       const result = await adminApi<{ domain: CustomDomain }>("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domain.id, action: "verify" }) });
                       if (domainDetail?.id === domain.id) setDomainDetail(result.domain);
                     })}>Verify</Button>
+                    {domain.lastVerifiedAt && domain.sslStatus !== "active" && (
+                      <Button size="sm" icon={ShieldCheck} disabled={busy} onClick={() => void run(() => adminApi("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domain.id, action: "ssl", sslStatus: "active" }) }))}>Activate SSL</Button>
+                    )}
                     <Button size="sm" icon={Building2} disabled={busy} onClick={() => openDomainModal({ action: "assign", domain })}>{domain.workspaceId ? "Change workspace" : "Assign workspace"}</Button>
                     {domain.workspaceId && <Button size="sm" disabled={busy} onClick={() => void run(() => adminApi("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domain.id, action: "assign", workspaceId: null }) }))}>Unassign</Button>}
                     <IconButton icon={FilePenLine} label={`Edit ${domain.hostname}`} disabled={busy} onClick={() => openDomainModal({ action: "edit", domain })} />
@@ -617,6 +620,12 @@ export function MasterDashboard({ email }: { email: string }) {
       <DnsInstructions verification={verification} />
       <div className="admDialogActions">
         <Button icon={FilePenLine} onClick={() => { const domain = domainDetail; setDomainDetail(null); openDomainModal({ action: "edit", domain }); }}>Edit domain</Button>
+        {domainDetail.lastVerifiedAt && domainDetail.sslStatus !== "active" && (
+          <Button variant="secondary" icon={ShieldCheck} disabled={busy} onClick={() => void run(async () => {
+            const result = await adminApi<{ domain: CustomDomain }>("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domainDetail.id, action: "ssl", sslStatus: "active" }) });
+            setDomainDetail(result.domain);
+          })}>Activate SSL</Button>
+        )}
         <Button variant="primary" icon={RefreshCw} disabled={busy || !verification.configured || domainDetail.status === "disabled"} onClick={() => void run(async () => {
           const result = await adminApi<{ domain: CustomDomain }>("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domainDetail.id, action: "verify" }) });
           setDomainDetail(result.domain);

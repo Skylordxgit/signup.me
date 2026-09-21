@@ -24,6 +24,7 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     if (typeof body.id !== 'string' || !body.id) throw new Error('Select a domain.');
     if (body.action === 'verify') return { ok: true, domain: await verifyDomainDns(body.id, undefined, session.email) };
+    if (body.action === 'ssl') return { ok: true, domain: await updateDomainSslStatus(body.id, (body.sslStatus as 'pending' | 'active' | 'error' | 'disabled') || 'active') };
     if (body.action === 'edit') return { ok: true, domain: await updateDomainHostname(body.id, body.hostname, session.email), verification: domainVerificationConfig() };
     if (body.action === 'disable') return { ok: true, domain: await setDomainDisabled(body.id, body.disabled !== false) };
     if (body.action === 'assign' || Object.prototype.hasOwnProperty.call(body, 'workspaceId')) {

@@ -121,22 +121,29 @@ test('domain and workspace-domain APIs are master-only and support name changes'
   process.env.MASTER_ADMIN_EMAIL = 'master@example.test';
   process.env.MASTER_ADMIN_PASSWORD_HASH = hashPassword('master-password');
   try {
-    const account = (await provisionMaster())!;
-    const token = createSessionToken({ email: account.email, version: account.version, credentialVersion: masterCredentialVersion(), scope: 'master' });
-    await withSession(token, async () => {
-      const workspace = await createWorkspace({ name: 'Before', ownerEmail: 'owner@example.test' });
-      const createdResponse = await domainsApi.POST(request({ hostname: 'https://www.api-brand.com/' }));
-      assert.equal(createdResponse.status, 200);
-      const created = await createdResponse.json() as { domain: { id: string; hostname: string } };
-      assert.equal(created.domain.hostname, 'api-brand.com');
-      assert.equal((await domainsApi.PATCH(request({ id: created.domain.id, action: 'assign', workspaceId: workspace.id }, 'PATCH'))).status, 200);
-      assert.equal((await workspacesApi.PATCH(request({ id: workspace.id, name: 'After' }, 'PATCH'))).status, 200);
-      assert.equal((await workspacesApi.PATCH(request({ id: 'missing', domainId: null }, 'PATCH'))).status, 400);
-      const listed = await (await workspacesApi.GET()).json() as { workspaces: { id: string; name: string; domain: string | null }[] };
-      const updated = listed.workspaces.find(item => item.id === workspace.id);
-      assert.equal(updated?.name, 'After');
-      assert.equal(updated?.domain, 'api-brand.com');
-    });
+    const oldIp = process.env.CUSTOM_DOMAIN_SERVER_IP;
+    process.env.CUSTOM_DOMAIN_SERVER_IP = '1.2.3.4';
+    try {
+      const account = (await provisionMaster())!;
+      const token = createSessionToken({ email: account.email, version: account.version, credentialVersion: masterCredentialVersion(), scope: 'master' });
+      await withSession(token, async () => {
+        const workspace = await createWorkspace({ name: 'Before', ownerEmail: 'owner@example.test' });
+        const createdResponse = await domainsApi.POST(request({ hostname: 'https://www.api-brand.com/' }));
+        assert.equal(createdResponse.status, 200);
+        const created = await createdResponse.json() as { domain: { id: string; hostname: string } };
+        assert.equal(created.domain.hostname, 'api-brand.com');
+        assert.equal((await domainsApi.PATCH(request({ id: created.domain.id, action: 'assign', workspaceId: workspace.id }, 'PATCH'))).status, 200);
+        assert.equal((await domainsApi.PATCH(request({ id: created.domain.id, action: 'verify' }, 'PATCH'))).status, 200);
+        assert.equal((await workspacesApi.PATCH(request({ id: workspace.id, name: 'After' }, 'PATCH'))).status, 200);
+        assert.equal((await workspacesApi.PATCH(request({ id: 'missing', domainId: null }, 'PATCH'))).status, 400);
+        const listed = await (await workspacesApi.GET()).json() as { workspaces: { id: string; name: string; domain: string | null }[] };
+        const updated = listed.workspaces.find(item => item.id === workspace.id);
+        assert.equal(updated?.name, 'After');
+        assert.equal(updated?.domain, 'api-brand.com');
+      });
+    } finally {
+      restore('CUSTOM_DOMAIN_SERVER_IP', oldIp);
+    }
   } finally {
     restore('MASTER_ADMIN_EMAIL', oldEmail);
     restore('MASTER_ADMIN_PASSWORD_HASH', oldHash);
