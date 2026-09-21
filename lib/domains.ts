@@ -119,12 +119,28 @@ function dnsTarget(value: string) {
 
 export function domainVerificationConfig(): DomainVerificationConfig {
   const cname = process.env.CUSTOM_DOMAIN_CNAME_TARGET?.trim();
-  if (cname) {
-    const value = dnsTarget(cname);
-    return { configured: true, record: { type: 'CNAME', host: '@', value }, www: { type: 'CNAME', host: 'www', value, optional: true } };
-  }
   const address = process.env.CUSTOM_DOMAIN_SERVER_IP?.trim();
-  if (address && isIP(address) === 4) return { configured: true, record: { type: 'A', host: '@', value: address }, www: { type: 'A', host: 'www', value: address, optional: true } };
+  const cnameVal = cname ? dnsTarget(cname) : null;
+  const ipVal = address && isIP(address) === 4 ? address : null;
+
+  if (ipVal) {
+    return {
+      configured: true,
+      record: { type: 'A', host: '@', value: ipVal },
+      www: cnameVal
+        ? { type: 'CNAME', host: 'www', value: cnameVal, optional: true }
+        : { type: 'A', host: 'www', value: ipVal, optional: true },
+    };
+  }
+
+  if (cnameVal) {
+    return {
+      configured: true,
+      record: { type: 'CNAME', host: '@', value: cnameVal },
+      www: { type: 'CNAME', host: 'www', value: cnameVal, optional: true },
+    };
+  }
+
   return { configured: false, record: null, www: null };
 }
 
