@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, LayoutList, Plus, RotateCcw, Trash2, User, X } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Check, Copy, Eye, EyeOff, LayoutList, Lock, Plus, RotateCcw, Trash2, User, X } from "lucide-react";
 import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "@/lib/types";
 import { blockTypes, slugify, slugifyDraft } from "@/lib/utils";
 import { applyThemeDefinition, resolveAlignment, resolveButtonStyle, resolveProfileLayout, themeLibrary } from "@/lib/themes";
@@ -9,9 +9,26 @@ import { ImageUploader } from "../ImageUploader";
 import { PageRenderer, resolveBlockIcon } from "../PageRenderer";
 import { PhoneFrame } from "../PhoneFrame";
 import { Button, Dialog, EmptyState, Field, IconButton, SectionHeading } from "./AdminUI";
-import { notificationPromptDefaults, resolveNotificationPrompt, type NotificationPromptCopyKey } from '@/lib/notificationPrompt';
+import {
+  notificationPromptDefaults,
+  notificationPromptPresets,
+  resolveNotificationPrompt,
+  resolveNotificationPromptTheme,
+  type NotificationPromptAnimation,
+  type NotificationPromptCopyKey,
+} from '@/lib/notificationPrompt';
 
 export type BuilderTab = "profile" | "content" | "design" | "seo" | "integrations" | "notifications";
+
+const promptAnimations: { value: NotificationPromptAnimation; label: string; desc: string }[] = [
+  { value: 'pulse', label: 'Pulsing scale', desc: 'Soft breathing scale pulse' },
+  { value: 'shine', label: 'Shine sweep', desc: 'Glossy light reflection sweep' },
+  { value: 'glow', label: 'Neon glow', desc: 'Radiant breathing neon glow' },
+  { value: 'shake', label: 'Attention shake', desc: 'Periodic wiggle to catch eye' },
+  { value: 'bounce', label: 'Vertical bounce', desc: 'Springy bounce effect' },
+  { value: 'ripple', label: 'Radar ripple', desc: 'Expanding radar wave ring' },
+  { value: 'none', label: 'Static (No animation)', desc: 'Clean still button' },
+];
 
 const buttonEffects = [
   ["none", "None"],
@@ -30,31 +47,147 @@ const buttonEffects = [
 export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; onEdit: (patch: Partial<SmartPage>) => void }) {
   const settings = page.integrations.notificationPrompt || {};
   const enabled = settings.enabled === true;
+  const required = settings.required === true;
+  const theme = resolveNotificationPromptTheme(settings);
+
   const updateSettings = (next: typeof settings) => onEdit({ integrations: { ...page.integrations, notificationPrompt: next } });
   const setText = (key: NotificationPromptCopyKey, value: string) => updateSettings({ ...settings, [key]: value });
+
+  const applyPreset = (preset: typeof notificationPromptPresets[0]) => {
+    updateSettings({
+      ...settings,
+      preset: preset.id,
+      buttonColor: preset.buttonColor,
+      buttonTextColor: preset.buttonTextColor,
+      cardBackground: preset.cardBackground,
+      textColor: preset.textColor,
+      iconColor: preset.iconColor,
+      iconBackground: preset.iconBackground,
+    });
+  };
+
   const renderPromptField = (name: NotificationPromptCopyKey, label: string, long = false) =>
     <Field key={name} label={label}>{long ? <textarea dir="auto" rows={3} maxLength={400} placeholder={notificationPromptDefaults[name]} value={settings[name] ?? ''} onChange={event => setText(name, event.target.value)} /> : <input dir="auto" maxLength={120} placeholder={notificationPromptDefaults[name]} value={settings[name] ?? ''} onChange={event => setText(name, event.target.value)} />}</Field>;
 
-  return <><SectionHeading title="Notifications" />
+  return <>
+    <SectionHeading title="Notifications" />
     <div className="admPromptLayout">
       <div className="admFormStack">
+        {/* Main prompt switch */}
         <label className="admSwitchRow">
-          <span><strong>Visitor prompt</strong><small>{enabled ? 'Visitors can subscribe on this page.' : 'Visitors will not see the subscribe prompt.'}</small></span>
+          <span><strong>Visitor prompt</strong><small>{enabled ? 'Visitors see the notification subscribe prompt.' : 'Subscribe prompt is disabled.'}</small></span>
           <input type="checkbox" checked={enabled} onChange={event => updateSettings({ ...settings, enabled: event.target.checked })} />
         </label>
+
+        {/* Forced / Gated mode switch */}
+        <label className="admSwitchRow" style={{ borderColor: required ? 'var(--c-accent)' : undefined }}>
+          <span>
+            <strong style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Lock size={15} style={{ color: required ? '#dc2626' : 'var(--c-muted)' }} />
+              Force notification to unlock page (Gate)
+            </strong>
+            <small>
+              {required
+                ? 'Active. Visitors MUST allow notifications to access page links and content. Disabling restores free access.'
+                : 'Disabled. Visitors can dismiss the prompt or browse freely without subscribing.'}
+            </small>
+          </span>
+          <input type="checkbox" checked={required} disabled={!enabled} onChange={event => updateSettings({ ...settings, required: event.target.checked })} />
+        </label>
+
+        {/* Theme & Colors */}
         <section className="admFormSection">
-          <h3>Subscribe prompt</h3>
+          <h3>Prompt Theme & Colors</h3>
+          <p style={{ fontSize: '13px', color: 'var(--c-muted)', margin: '4px 0 12px' }}>
+            Choose a preset palette or customize individual colors.
+          </p>
+          <div className="admPromptThemeGrid">
+            {notificationPromptPresets.map(preset => {
+              const isSelected = settings.preset === preset.id ||
+                (settings.buttonColor === preset.buttonColor && settings.cardBackground === preset.cardBackground);
+              return (
+                <button
+                  type="button"
+                  key={preset.id}
+                  className={`admPromptThemeBtn ${isSelected ? 'admPromptThemeBtnActive' : ''}`}
+                  onClick={() => applyPreset(preset)}
+                >
+                  <span className="admPromptThemeDot" style={{ background: preset.buttonColor }} />
+                  <span className="admPromptThemeBgDot" style={{ background: preset.cardBackground, border: '1px solid var(--c-line)' }} />
+                  <span>{preset.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="admFormGrid" style={{ marginTop: '14px' }}>
+            <ColorField
+              label="Button color"
+              value={theme.buttonColor}
+              onChange={buttonColor => updateSettings({ ...settings, buttonColor, preset: 'custom' })}
+            />
+            <ColorField
+              label="Button text color"
+              value={theme.buttonTextColor}
+              onChange={buttonTextColor => updateSettings({ ...settings, buttonTextColor, preset: 'custom' })}
+            />
+            <ColorField
+              label="Card background"
+              value={theme.cardBackground}
+              onChange={cardBackground => updateSettings({ ...settings, cardBackground, preset: 'custom' })}
+            />
+            <ColorField
+              label="Text color"
+              value={theme.textColor}
+              onChange={textColor => updateSettings({ ...settings, textColor, preset: 'custom' })}
+            />
+            <ColorField
+              label="Icon color"
+              value={theme.iconColor}
+              onChange={iconColor => updateSettings({ ...settings, iconColor, preset: 'custom' })}
+            />
+            <ColorField
+              label="Icon background"
+              value={theme.iconBackground}
+              onChange={iconBackground => updateSettings({ ...settings, iconBackground, preset: 'custom' })}
+            />
+          </div>
+        </section>
+
+        {/* Button Animation */}
+        <section className="admFormSection">
+          <h3>Button Animation</h3>
+          <Field label="Animation effect">
+            <select
+              value={theme.buttonAnimation}
+              onChange={event => updateSettings({ ...settings, buttonAnimation: event.target.value as NotificationPromptAnimation })}
+            >
+              {promptAnimations.map(anim => (
+                <option key={anim.value} value={anim.value}>
+                  {anim.label} — {anim.desc}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </section>
+
+        {/* Text / Copy */}
+        <section className="admFormSection">
+          <h3>Prompt Text</h3>
+          {required && renderPromptField('requiredBadge', 'Locked Gate badge text')}
           {renderPromptField('heading', 'Heading')}
           {renderPromptField('message', 'Message', true)}
-          {renderPromptField('allowLabel', 'Allow button')}
+          {renderPromptField('allowLabel', 'Allow button text')}
         </section>
+
         <section className="admFormSection">
           <h3>If subscription fails</h3>
           {renderPromptField('retryLabel', 'Retry button')}
           {renderPromptField('errorMessage', 'Error message', true)}
         </section>
+
         <details className="admFormSection admPromptAdvanced">
-          <summary>iPhone and unsupported browser text</summary>
+          <summary>iPhone & unsupported device guidance</summary>
           <div className="admFormStack">
             {renderPromptField('installHeading', 'iPhone heading')}
             {renderPromptField('installMessage', 'iPhone requirement', true)}
@@ -75,15 +208,83 @@ export function NotificationPromptFields({ page, onEdit }: { page: SmartPage; on
 export function NotificationPromptPreview({ page }: { page: SmartPage }) {
   const settings = page.integrations.notificationPrompt || {};
   const copy = resolveNotificationPrompt(settings);
+  const theme = resolveNotificationPromptTheme(settings);
   const enabled = settings.enabled === true;
+  const isGated = theme.required;
+  const [shake, setShake] = useState(false);
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 450);
+  };
+
   return <aside className="admPromptPreviewWrap">
-    <SectionHeading title="Prompt preview" />
-    <section className={`admPromptCopyPreview ${!enabled ? 'admPromptCopyPreviewOff' : ''}`} dir="auto" aria-label="Notification prompt preview">
-      <span aria-hidden="true"><Bell size={28} /></span>
-      <h3>{copy.heading}</h3>
-      <strong>{page.title || page.name}</strong>
-      <p>{copy.message}</p>
-      <div>{copy.allowLabel}</div>
+    <SectionHeading title="Prompt preview">
+      {isGated && <span className="admPromptGateTag">🔒 Forced Gate</span>}
+    </SectionHeading>
+    <section
+      className={`admPromptCopyPreview ${!enabled ? 'admPromptCopyPreviewOff' : ''} ${shake ? 'pushPromptShakeModal' : ''}`}
+      dir="auto"
+      aria-label="Notification prompt preview"
+      style={{
+        background: theme.cardBackground,
+        color: theme.textColor,
+        borderColor: isGated ? theme.buttonColor : 'var(--c-line)',
+      }}
+      onClick={() => {
+        if (isGated) triggerShake();
+      }}
+    >
+      {isGated && (
+        <div
+          className="pushPromptBadge"
+          style={{
+            margin: '0 auto 12px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: '11px',
+            padding: '3px 10px',
+          }}
+        >
+          <Lock size={12} />
+          <span>{copy.requiredBadge || 'Action Required to View Page'}</span>
+        </div>
+      )}
+
+      <span
+        className="pushPromptIcon"
+        aria-hidden="true"
+        style={{
+          color: theme.iconColor,
+          background: theme.iconBackground,
+        }}
+      >
+        {isGated ? <Lock size={26} /> : <Bell size={26} />}
+      </span>
+
+      <h3 style={{ color: theme.textColor }}>{copy.heading}</h3>
+      <strong style={{ color: theme.textColor }}>{page.title || page.name}</strong>
+      <p style={{ color: theme.textColor, opacity: 0.85 }}>{copy.message}</p>
+
+      <button
+        type="button"
+        className={`pushPromptAllow pushPromptAnim_${theme.buttonAnimation}`}
+        style={{
+          background: theme.buttonColor,
+          color: theme.buttonTextColor,
+          width: '100%',
+          marginTop: '12px',
+        }}
+      >
+        {copy.allowLabel}
+      </button>
+
+      {isGated && (
+        <p style={{ fontSize: '11px', opacity: 0.7, marginTop: '8px', marginBottom: 0 }}>
+          ⚡ Page is locked until visitor accepts
+        </p>
+      )}
     </section>
   </aside>;
 }

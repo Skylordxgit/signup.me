@@ -2492,31 +2492,242 @@ so the card reads as the theme it applies. */
   overflow-x: hidden;
 }
 
-.pushPrompt { width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; margin: auto; padding: 36px 28px 24px; border: 1px solid #dce2e9; border-radius: 8px; background: #fff; color: #17212f; text-align: center; box-shadow: 0 24px 80px #00000030; }
-.pushPrompt::backdrop { background: #11182770; }
-.pushPrompt:not([open]) { display: none; }
-.pushPromptIcon { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 20px; border-radius: 8px; color: #2465d7; background: #edf4ff; }
-.pushPrompt strong { display: block; font-size: 28px; line-height: 1.2; overflow-wrap: anywhere; }
-.pushPrompt p { margin: 14px 0; color: #586579; font-size: 16px; line-height: 1.6; overflow-wrap: anywhere; }
-.pushPrompt .pushPromptPage { color: #17212f; font-weight: 650; }
-.pushPromptAllow { position: relative; width: 100%; min-height: 48px; padding: 12px 16px; font-size: 15px; border-radius: 6px; font-weight: 650; overflow: hidden; isolation: isolate; }
-.pushPromptAllow { margin-top: 12px; color: white; background: #2465d7; border: 0; box-shadow: 0 10px 24px #2465d733; animation: pushPromptPop 1.8s ease-in-out infinite; }
-.pushPromptAllow::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 2px; background: linear-gradient(90deg, #ffffff, #8eb7ff, #ffffff); background-size: 220% 100%; animation: pushPromptBorder 1.7s linear infinite; -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none; z-index: 0; }
-.pushPromptAllow:hover { background: #1955bd; }
-.pushPromptAllow:disabled { opacity: .65; cursor: wait; animation: none; }
-.pushPromptAllow:disabled::before { animation: none; }
+/* Push Notification Prompt & Gating */
+.pushPrompt {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  margin: auto;
+  padding: 36px 28px 24px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  border-radius: 14px;
+  background: var(--prompt-card-bg, #ffffff);
+  color: var(--prompt-text-color, #17212f);
+  text-align: center;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.pushPrompt::backdrop {
+  background: rgba(17, 24, 39, 0.75);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.pushPrompt[data-gated="true"]::backdrop {
+  background: rgba(5, 10, 20, 0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+html.pushPromptGatedActive body {
+  overflow: hidden !important;
+}
+
+html.pushPromptGatedActive .publicPageMain,
+html.pushPromptGatedActive .publicExperience > *:not(dialog) {
+  filter: blur(8px);
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+.pushPrompt:not([open]) {
+  display: none;
+}
+
+.pushPromptBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-bottom: 18px;
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.28);
+}
+
+.pushPromptIcon {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 20px;
+  border-radius: 16px;
+  color: var(--prompt-icon-color, #2465d7);
+  background: var(--prompt-icon-bg, #edf4ff);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.pushPrompt strong {
+  display: block;
+  font-size: 26px;
+  line-height: 1.25;
+  color: var(--prompt-text-color, #17212f);
+  overflow-wrap: anywhere;
+}
+
+.pushPrompt p {
+  margin: 14px 0;
+  color: var(--prompt-text-color, #586579);
+  opacity: 0.85;
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.pushPrompt .pushPromptPage {
+  color: var(--prompt-text-color, #17212f);
+  font-weight: 650;
+  opacity: 1;
+}
+
+.pushPromptAllow {
+  position: relative;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 18px;
+  margin-top: 14px;
+  font-size: 15px;
+  border-radius: 8px;
+  font-weight: 650;
+  overflow: hidden;
+  isolation: isolate;
+  border: 0;
+  cursor: pointer;
+  background: var(--prompt-btn-bg, #2465d7);
+  color: var(--prompt-btn-color, #ffffff);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.pushPromptAllow:hover {
+  filter: brightness(1.08);
+}
+
+.pushPromptAllow:active {
+  transform: scale(0.98);
+}
+
+.pushPromptAllow:disabled {
+  opacity: 0.65;
+  cursor: wait;
+  animation: none !important;
+}
+
+/* Animations */
+.pushPromptAnim_pulse {
+  animation: pushPromptPulse 1.8s ease-in-out infinite;
+}
+
+.pushPromptAnim_shine {
+  position: relative;
+  overflow: hidden;
+}
+.pushPromptAnim_shine::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(60deg, transparent 35%, rgba(255, 255, 255, 0.5) 50%, transparent 65%);
+  animation: pushPromptShineSweep 2.2s infinite;
+  pointer-events: none;
+}
+
+.pushPromptAnim_shake {
+  animation: pushPromptAttentionShake 2.8s ease-in-out infinite;
+}
+
+.pushPromptAnim_glow {
+  animation: pushPromptNeonGlow 2s ease-in-out infinite;
+}
+
+.pushPromptAnim_bounce {
+  animation: pushPromptVerticalBounce 2s cubic-bezier(0.28, 0.84, 0.42, 1) infinite;
+}
+
+.pushPromptAnim_ripple {
+  animation: pushPromptRadarRipple 1.8s ease-out infinite;
+}
+
+.pushPromptAnim_none {
+  animation: none;
+}
+
+/* Keyframes */
+@keyframes pushPromptPulse {
+  0%, 100% { transform: scale(1); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2); }
+  50% { transform: scale(1.035); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35); }
+}
+
+@keyframes pushPromptShineSweep {
+  0% { transform: translateX(-100%) translateY(-25%) rotate(25deg); }
+  100% { transform: translateX(100%) translateY(25%) rotate(25deg); }
+}
+
+@keyframes pushPromptAttentionShake {
+  0%, 70%, 100% { transform: translateX(0); }
+  73%, 85%, 97% { transform: translateX(-4px) rotate(-1deg); }
+  79%, 91% { transform: translateX(4px) rotate(1deg); }
+}
+
+@keyframes pushPromptNeonGlow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.2)); }
+  50% { filter: drop-shadow(0 0 14px var(--prompt-btn-bg, #2465d7)); }
+}
+
+@keyframes pushPromptVerticalBounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-7px); }
+  60% { transform: translateY(-3px); }
+}
+
+@keyframes pushPromptRadarRipple {
+  0% { box-shadow: 0 0 0 0 rgba(36, 101, 215, 0.6); }
+  70% { box-shadow: 0 0 0 14px rgba(36, 101, 215, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(36, 101, 215, 0); }
+}
+
+.pushPromptShakeModal {
+  animation: pushPromptRejectShake 0.45s ease-in-out;
+}
+
+@keyframes pushPromptRejectShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-10px); }
+  40%, 80% { transform: translateX(10px); }
+}
+
+.pushPromptUnlocked .pushPromptIcon {
+  color: #10b981 !important;
+  background: #d1fae5 !important;
+  transform: scale(1.15) rotate(5deg);
+}
+
 .pushPrompt small { display: block; margin-top: 16px; color: #6c788a; font-size: 13px; line-height: 1.5; }
-.pushPrompt .pushPromptError { color: #a12845; font-size: 14px; }
+.pushPrompt .pushPromptError { color: #dc2626; font-size: 14px; font-weight: 550; background: rgba(220, 38, 38, 0.1); padding: 8px 12px; border-radius: 6px; }
 .pushPromptHelp { margin-top: 20px; text-align: start; }
 .pushPromptHelp strong { font-size: 18px; }
-.pushPromptHelp ol { padding-inline-start: 24px; font-size: 16px; line-height: 1.6; }
+.pushPromptHelp ol { padding-inline-start: 24px; font-size: 15px; line-height: 1.6; }
 .pushPromptHelp li + li { margin-top: 10px; }
-.pushPromptFallback[open] { display: block; position: fixed; inset: 16px; z-index: 10000; height: fit-content; max-height: calc(100vh - 32px); box-shadow: 0 0 0 100vmax #11182770; }
+.pushPromptFallback[open] { display: block; position: fixed; inset: 16px; z-index: 10000; height: fit-content; max-height: calc(100vh - 32px); box-shadow: 0 0 0 100vmax rgba(5, 10, 20, 0.88); }
 .pushPrompt button:focus-visible { outline: 3px solid #3378e5; outline-offset: 3px; }
-@keyframes pushPromptPop { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.025); } }
-@keyframes pushPromptBorder { from { background-position: 0% 50%; } to { background-position: 220% 50%; } }
-@media (prefers-reduced-motion: reduce) { .pushPromptAllow, .pushPromptAllow::before { animation: none; } }
-@media (max-width: 520px) { .pushPrompt { padding: 32px 20px 20px; } .pushPrompt strong { font-size: 24px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pushPromptAllow, .pushPromptAnim_pulse, .pushPromptAnim_shine::after, .pushPromptAnim_shake, .pushPromptAnim_glow, .pushPromptAnim_bounce, .pushPromptAnim_ripple {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 520px) {
+  .pushPrompt { padding: 30px 18px 18px; }
+  .pushPrompt strong { font-size: 22px; }
+}
 
 /* Card surface treatments,
 shared by the theme swatches and the real page. */

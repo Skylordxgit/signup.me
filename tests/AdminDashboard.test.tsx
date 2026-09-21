@@ -9,7 +9,7 @@ import { BuilderEditor } from "../components/admin/BuilderEditor";
 import { ProfileFields } from "../components/admin/BuilderEditor";
 import { NotificationPromptFields, NotificationPromptPreview } from '../components/admin/BuilderEditor';
 import { editablePage } from '../lib/admin';
-import { isNotificationPromptEnabled, resolveNotificationPrompt } from '../lib/notificationPrompt';
+import { isNotificationPromptEnabled, isNotificationPromptRequired, resolveNotificationPrompt, resolveNotificationPromptTheme } from '../lib/notificationPrompt';
 import { NotificationOptIn } from '../components/NotificationOptIn';
 import { PublicPage } from '../components/PublicPage';
 import { combineAnalytics } from "../lib/admin";
@@ -70,19 +70,51 @@ test("upload roots are absolute, anchored to the app, and still contain traversa
 
 test('page-specific prompt text survives the save payload and reaches the visitor prompt', () => {
   const page = seedPages()[0];
-  page.integrations.notificationPrompt = { enabled: true, heading: 'Noticias', allowLabel: 'Permitir', successHeading: 'Suscrito', message: '<script>plain text</script>' };
+  page.integrations.notificationPrompt = {
+    enabled: true,
+    required: true,
+    buttonAnimation: 'glow',
+    buttonColor: '#7c3aed',
+    buttonTextColor: '#ffffff',
+    cardBackground: '#0f0c20',
+    heading: 'Noticias',
+    allowLabel: 'Permitir',
+    requiredBadge: '🔒 Acceso Requerido',
+    successHeading: 'Suscrito',
+    message: '<script>plain text</script>',
+  };
   const saved = JSON.parse(JSON.stringify(editablePage(page)));
   assert.equal(saved.integrations.notificationPrompt.enabled, true);
+  assert.equal(saved.integrations.notificationPrompt.required, true);
   assert.equal(saved.integrations.notificationPrompt.heading, 'Noticias');
   assert.equal(isNotificationPromptEnabled(saved.integrations.notificationPrompt), true);
+  assert.equal(isNotificationPromptRequired(saved.integrations.notificationPrompt), true);
+
+  const theme = resolveNotificationPromptTheme(saved.integrations.notificationPrompt);
+  assert.equal(theme.buttonAnimation, 'glow');
+  assert.equal(theme.buttonColor, '#7c3aed');
+  assert.equal(theme.cardBackground, '#0f0c20');
+  assert.equal(theme.required, true);
+
   const html = renderToStaticMarkup(<NotificationOptIn slug={page.slug} title={page.title} settings={saved.integrations.notificationPrompt} />);
   assert.match(html, /Noticias/);
   assert.match(html, /Permitir/);
-  assert.doesNotMatch(html, /Continue without notifications/);
+  assert.match(html, /Acceso Requerido/);
+  assert.match(html, /data-gated="true"/);
+  assert.match(html, /pushPromptAnim_glow/);
+  assert.match(html, /--prompt-btn-bg:#7c3aed/);
   assert.match(html, /&lt;script&gt;plain text&lt;\/script&gt;/);
   assert.equal(resolveNotificationPrompt({ heading: ' ' }).heading, 'Stay up to date');
   assert.match(renderToStaticMarkup(<NotificationPromptFields page={page} onEdit={() => {}} />), /value="Noticias"/);
   assert.match(renderToStaticMarkup(<NotificationPromptPreview page={page} />), /Prompt preview/);
+  assert.match(renderToStaticMarkup(<NotificationPromptPreview page={page} />), /Forced Gate/);
+
+  // When forced gate mode is turned off, it returns to non-gated standard prompt
+  page.integrations.notificationPrompt.required = false;
+  assert.equal(isNotificationPromptRequired(page.integrations.notificationPrompt), false);
+  const unforcedHtml = renderToStaticMarkup(<NotificationOptIn slug={page.slug} title={page.title} settings={page.integrations.notificationPrompt} />);
+  assert.match(unforcedHtml, /data-gated="false"/);
+  assert.doesNotMatch(unforcedHtml, /Acceso Requerido/);
 });
 
 test('public pages only render the notification prompt when the visitor prompt is enabled', () => {
