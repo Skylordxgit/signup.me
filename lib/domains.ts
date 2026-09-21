@@ -444,7 +444,10 @@ export async function verifyDomainDns(id: string, dns: DomainResolver = resolver
   else await mysqlQuery("UPDATE custom_domains SET status = 'verifying', verification_error = NULL WHERE id = ?", [id]);
 
   const expectedCname = process.env.CUSTOM_DOMAIN_CNAME_TARGET ? dnsTarget(process.env.CUSTOM_DOMAIN_CNAME_TARGET) : null;
-  const configuredIp = process.env.CUSTOM_DOMAIN_SERVER_IP?.trim() || null;
+  const configuredIps = (process.env.CUSTOM_DOMAIN_SERVER_IP || '')
+    .split(/[\s,]+/)
+    .map(ip => ip.trim())
+    .filter(ip => isIP(ip) === 4);
 
   let cnameAnswers: string[] = [];
   let aAnswers: string[] = [];
@@ -465,7 +468,7 @@ export async function verifyDomainDns(id: string, dns: DomainResolver = resolver
     return saveVerification(id, true, null, actorEmail);
   }
 
-  if (configuredIp && aAnswers.some(ans => ans === configuredIp)) {
+  if (configuredIps.length > 0 && aAnswers.some(ans => configuredIps.includes(ans))) {
     return saveVerification(id, true, null, actorEmail);
   }
 
@@ -482,7 +485,7 @@ export async function verifyDomainDns(id: string, dns: DomainResolver = resolver
 
   const expectedList = [
     expectedCname ? `CNAME "${expectedCname}"` : null,
-    configuredIp ? `A record "${configuredIp}"` : null,
+    configuredIps.length > 0 ? `A record "${configuredIps.join(' or ')}"` : null,
   ].filter(Boolean).join(' or ');
 
   const foundList = [
