@@ -7,6 +7,8 @@ import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
 import { DEFAULT_WORKSPACE_ID } from '../workspaces';
+import { invalidatePublishedPageCache } from "../pageSnapshot";
+import { enqueueLinkClick, enqueuePageView } from "../analyticsQueue";
 
 type PageRow = {
   id: number;
@@ -355,6 +357,7 @@ export async function createPage(input: {
 
   const page = await loadPage(result.insertId);
   if (!page) throw new Error("Failed to create page");
+  void invalidatePublishedPageCache(page.slug, page.workspaceId);
   return page;
 }
 
@@ -404,10 +407,19 @@ export async function updatePage(id: number, patch: Partial<SmartPage>) {
     ],
   );
 
+  void invalidatePublishedPageCache(current.slug, current.workspaceId);
+  if (nextSlug !== current.slug) {
+    void invalidatePublishedPageCache(nextSlug, current.workspaceId);
+  }
+
   return loadPage(id);
 }
 
 export async function deletePage(id: number) {
+  const current = await loadPage(id);
+  if (current) {
+    void invalidatePublishedPageCache(current.slug, current.workspaceId);
+  }
   const result = await mysqlQuery<{ affectedRows: number }>("DELETE FROM pages WHERE id = ?", [id]);
   return result.affectedRows > 0;
 }
@@ -498,6 +510,7 @@ export async function createBlock(pageId: number, type: BlockType) {
     ],
   );
   await mysqlQuery("UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [pageId]);
+  void invalidatePublishedPageCache(page.slug, page.workspaceId);
 
   return { ...block, workspaceId: page.workspaceId, id: result.insertId };
 }
@@ -540,6 +553,8 @@ export async function updateBlock(id: number, patch: Partial<PageBlock>) {
     ],
   );
   await mysqlQuery("UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [row.page_id]);
+  const page = await loadPage(row.page_id);
+  if (page) void invalidatePublishedPageCache(page.slug, page.workspaceId);
 
   return merged;
 }
@@ -555,6 +570,8 @@ export async function deleteBlock(id: number) {
   const remaining = await mysqlQuery<BlockRow[]>("SELECT id FROM page_blocks WHERE page_id = ? ORDER BY sort_order ASC", [pageId]);
   await Promise.all(remaining.map((block, index) => mysqlQuery("UPDATE page_blocks SET sort_order = ? WHERE id = ?", [index + 1, block.id])));
   await mysqlQuery("UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [pageId]);
+  const page = await loadPage(pageId);
+  if (page) void invalidatePublishedPageCache(page.slug, page.workspaceId);
 
   return true;
 }
@@ -623,22 +640,21 @@ export async function trackView(
   workspaceId?: string,
 ) {
   void location;
-  const rows = await mysqlQuery<{ id: number }[]>(`SELECT id FROM pages WHERE slug = ? AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''}`, [slug, ...(workspaceId ? [workspaceId] : [])]);
-  const pageId = rows[0]?.id;
-  if (!pageId) return null;
+  const rows = await mysqlQuery<{ id: number; workspace_id: string }[]>(`SELECT id, workspace_id FROM pages WHERE slug = ? AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''} LIMIT 1`, [slug, ...(workspaceId ? [workspaceId] : [])]);
+  const row = rows[0];
+  if (!row) return null;
 
   const hash = visitorHash(visitorKey);
-  const seen = await mysqlQuery<{ id: number }[]>("SELECT id FROM page_views WHERE page_id = ? AND visitor_hash = ? LIMIT 1", [pageId, hash]);
-  const isNewVisitor = seen.length === 0;
-
-  await mysqlQuery(
-    "UPDATE pages SET views = views + 1, unique_visitors = unique_visitors + ? WHERE id = ?",
-    [isNewVisitor ? 1 : 0, pageId],
-  );
-  await mysqlQuery(
-    "INSERT INTO page_views (workspace_id, page_id, visitor_hash, device_type, referrer, country, city) SELECT workspace_id, id, ?, ?, ?, ?, ? FROM pages WHERE id = ?",
-    [hash, detectDevice(userAgent), safeReferrer(referrer), country || null, city || null, pageId],
-  );
+  enqueuePageView({
+    pageId: row.id,
+    visitorHash: hash,
+    deviceType: detectDevice(userAgent),
+    referrer: safeReferrer(referrer),
+    country: country || null,
+    city: city || null,
+    workspaceId: row.workspace_id || workspaceId || 'default',
+    isUnique: true,
+  });
 
   return { ok: true };
 }
@@ -654,14 +670,19 @@ export async function trackClick(
   workspaceId?: string,
 ) {
   void location;
-  const rows = await mysqlQuery<{ id: number }[]>(`SELECT b.id FROM page_blocks b INNER JOIN pages p ON p.id = b.page_id WHERE b.id = ? AND b.page_id = ? AND p.status = 'published'${workspaceId ? ' AND p.workspace_id = ?' : ''}`, [blockId, pageId, ...(workspaceId ? [workspaceId] : [])]);
-  if (!rows.length) return null;
+  const rows = await mysqlQuery<{ id: number; workspace_id: string }[]>(`SELECT b.id, p.workspace_id FROM page_blocks b INNER JOIN pages p ON p.id = b.page_id WHERE b.id = ? AND b.page_id = ? AND p.status = 'published'${workspaceId ? ' AND p.workspace_id = ?' : ''} LIMIT 1`, [blockId, pageId, ...(workspaceId ? [workspaceId] : [])]);
+  const row = rows[0];
+  if (!row) return null;
 
-  await mysqlQuery("UPDATE page_blocks SET clicks = clicks + 1 WHERE id = ?", [blockId]);
-  await mysqlQuery(
-    "INSERT INTO link_clicks (workspace_id, page_id, block_id, device_type, referrer, country, city) SELECT workspace_id, page_id, id, ?, ?, ?, ? FROM page_blocks WHERE id = ? AND page_id = ?",
-    [detectDevice(userAgent), safeReferrer(referrer), country || null, city || null, blockId, pageId],
-  );
+  enqueueLinkClick({
+    pageId,
+    blockId,
+    deviceType: detectDevice(userAgent),
+    referrer: safeReferrer(referrer),
+    country: country || null,
+    city: city || null,
+    workspaceId: row.workspace_id || workspaceId || 'default',
+  });
 
   return { ok: true };
 }

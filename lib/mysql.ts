@@ -209,6 +209,11 @@ const migrationStatements = [
   `ALTER TABLE page_views ADD COLUMN city VARCHAR(100) NULL`,
   `ALTER TABLE link_clicks ADD COLUMN country VARCHAR(100) NULL`,
   `ALTER TABLE link_clicks ADD COLUMN city VARCHAR(100) NULL`,
+  `ALTER TABLE custom_domains ADD INDEX idx_custom_domains_host_status (hostname, status)`,
+  `ALTER TABLE pages ADD INDEX idx_pages_ws_slug_status (workspace_id, slug, status)`,
+  `ALTER TABLE page_blocks ADD INDEX idx_blocks_page_active_order (page_id, is_active, sort_order)`,
+  `ALTER TABLE page_views ADD INDEX idx_views_ws_created (workspace_id, created_at)`,
+  `ALTER TABLE link_clicks ADD INDEX idx_clicks_ws_created (workspace_id, created_at)`,
 ];
 
 /* Errors that mean "this migration already ran". */
@@ -221,8 +226,32 @@ export function hasMysqlConfig() {
   );
 }
 
+// Circuit breaker state
+let consecutiveFailures = 0;
+let circuitBreakerOpenUntil = 0;
+const FAILURE_THRESHOLD = 5;
+const CIRCUIT_RESET_MS = 15000;
+
+export function isDatabaseCircuitOpen(): boolean {
+  return Date.now() < circuitBreakerOpenUntil;
+}
+
+function recordDbSuccess() {
+  consecutiveFailures = 0;
+}
+
+function recordDbFailure() {
+  consecutiveFailures++;
+  if (consecutiveFailures >= FAILURE_THRESHOLD) {
+    circuitBreakerOpenUntil = Date.now() + CIRCUIT_RESET_MS;
+    console.warn(`[MySQL Circuit Breaker] OPENED for ${CIRCUIT_RESET_MS / 1000}s after ${consecutiveFailures} consecutive failures.`);
+  }
+}
+
 export function mysqlPool() {
   if (pool) return pool;
+
+  const poolMax = Math.min(Math.max(Number(process.env.DB_POOL_MAX || 30), 5), 100);
 
   if (process.env.DB_HOST && process.env.DB_NAME && process.env.DB_USER && process.env.DB_PASSWORD) {
     const port = Number(process.env.DB_PORT ?? "3306");
@@ -236,6 +265,12 @@ export function mysqlPool() {
       user: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
+      waitForConnections: true,
+      connectionLimit: poolMax,
+      queueLimit: 500,
+      connectTimeout: 5000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
     });
     return pool;
   }
@@ -244,7 +279,15 @@ export function mysqlPool() {
     throw new Error("Configure DATABASE_URL or DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD");
   }
 
-  pool = mysql.createPool(process.env.DATABASE_URL);
+  pool = mysql.createPool({
+    uri: process.env.DATABASE_URL,
+    waitForConnections: true,
+    connectionLimit: poolMax,
+    queueLimit: 500,
+    connectTimeout: 5000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+  });
   return pool;
 }
 
@@ -268,17 +311,36 @@ async function ensureMysqlSchema() {
 }
 
 export async function mysqlQuery<T>(sql: string, values: unknown[] = []) {
+  if (isDatabaseCircuitOpen()) {
+    throw new Error('Database temporarily unavailable (circuit breaker open). Serving cached content.');
+  }
+
   await ensureMysqlSchema();
-  const [rows] = await mysqlPool().execute<mysql.RowDataPacket[] & mysql.ResultSetHeader[]>(
-    sql,
-    values as (string | number | boolean | Buffer | null)[],
-  );
-  return rows as T;
+  const start = Date.now();
+  try {
+    const [rows] = await mysqlPool().execute<mysql.RowDataPacket[] & mysql.ResultSetHeader[]>(
+      sql,
+      values as (string | number | boolean | Buffer | null)[],
+    );
+    recordDbSuccess();
+    const duration = Date.now() - start;
+    if (duration > 250 && process.env.NODE_ENV !== 'production') {
+      console.warn(`[MySQL Slow Query ${duration}ms]: ${sql.slice(0, 120)}`);
+    }
+    return rows as T;
+  } catch (error) {
+    recordDbFailure();
+    throw error;
+  }
 }
 
 export type TransactionQuery = <R>(sql: string, values?: unknown[]) => Promise<R>;
 
 export async function withTransaction<T>(handler: (query: TransactionQuery) => Promise<T>) {
+  if (isDatabaseCircuitOpen()) {
+    throw new Error('Database temporarily unavailable (circuit breaker open).');
+  }
+
   await ensureMysqlSchema();
   const connection = await mysqlPool().getConnection();
   try {
@@ -292,9 +354,11 @@ export async function withTransaction<T>(handler: (query: TransactionQuery) => P
     };
     const result = await handler(query);
     await connection.commit();
+    recordDbSuccess();
     return result;
   } catch (error) {
     await connection.rollback();
+    recordDbFailure();
     throw error;
   } finally {
     connection.release();

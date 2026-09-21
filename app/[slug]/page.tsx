@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { PublicPage } from "@/components/PublicPage";
 import { publicPageMetadata, resolveCurrentHost, resolvePublicPage } from '@/lib/domainRouting';
 
+export const revalidate = 60;
+
 type Props = {
   params: Promise<{ slug: string }>;
 };

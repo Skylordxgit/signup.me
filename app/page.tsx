@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { PublicPage } from '@/components/PublicPage';
 import { publicPageMetadata, resolveCurrentHost, resolveCustomDomainRoot } from '@/lib/domainRouting';
 
+export const revalidate = 60;
+
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const host = await resolveCurrentHost();

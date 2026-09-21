@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, writeFile } from 'fs/promises';
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery, type TransactionQuery } from './mysql';
 import { DEFAULT_WORKSPACE_ID } from './workspaceConstants';
+import { invalidateDomainCache } from './pageSnapshot';
 
 /* The workspace every pre-multi-workspace page and admin belongs to. It is a
    fixed id rather than a generated one so the backfill is deterministic: the
@@ -128,4 +129,5 @@ export async function updateWorkspace(id: string, patch: { status?: WorkspaceSta
       if (patch.name?.trim()) workspace.name = patch.name.trim().slice(0, 190);
     });
   }
+  void invalidateDomainCache();
 }

@@ -13,3 +13,4 @@ import './workspaceIsolation.test';
 import './domains.test';
 import './domainRouting.test';
 import './MasterDashboard.test';
+import './concurrencyCache.test';

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { protectedJson, requireAdmin } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rateLimit";
 import {
   isSafeSvg,
   isUploadCategory,
@@ -23,6 +24,11 @@ export async function POST(request: NextRequest) {
   // Only a signed-in admin may write files to the server.
   const session = await requireAdmin('media');
   if (!session) return fail("Authentication required", 401);
+
+  const limit = await checkRateLimit(`upload:${session.workspaceId}`, 30, 60);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "Upload rate limit reached. Please wait a moment." }, { status: 429 });
+  }
 
   // Reject an oversized body before reading it into memory where we can.
   const declared = Number(request.headers.get("content-length") || 0);

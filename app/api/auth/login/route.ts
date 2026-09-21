@@ -3,14 +3,13 @@ import { setSessionCookie, verifyPassword } from "@/lib/auth";
 import { masterAdmin, masterCredentialVersion, provisionMaster } from '@/lib/master';
 import { findWorkspaceUser, isPendingInvite } from '@/lib/workspaceUsers';
 import { isWorkspaceActive } from '@/lib/workspaces';
-
-const attempts = new Map<string, { count: number; resetAt: number }>();
+import { checkRateLimit, getClientIp } from '@/lib/rateLimit';
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0] || "local";
-  const current = attempts.get(ip);
-  if (current && current.count >= 5 && current.resetAt > Date.now()) {
-    return NextResponse.json({ error: "Too many login attempts. Try again later." }, { status: 429 });
+  const ip = getClientIp(request.headers);
+  const limit = await checkRateLimit(`login:${ip}`, 10, 60);
+  if (!limit.allowed) {
+    return NextResponse.json({ error: "Too many login attempts. Try again later." }, { status: 429, headers: { 'Retry-After': String(limit.resetInSeconds) } });
   }
 
   const { email, password } = (await request.json()) as { email?: string; password?: string };
@@ -19,10 +18,6 @@ export async function POST(request: NextRequest) {
   const usable = typeof password === 'string' && password.length <= 256;
 
   function reject(status = 401, error = "Invalid email or password") {
-    attempts.set(ip, {
-      count: (current && current.resetAt > Date.now() ? current.count : 0) + 1,
-      resetAt: Date.now() + 15 * 60 * 1000,
-    });
     return NextResponse.json({ error }, { status });
   }
 
@@ -32,7 +27,6 @@ export async function POST(request: NextRequest) {
     if (!usable || !verifyPassword(password!, master.passwordHash)) return reject();
     const account = await provisionMaster();
     if (!account?.active || !verifyPassword(password!, account.passwordHash)) return reject();
-    attempts.delete(ip);
     await setSessionCookie({ email: normalizedEmail, scope: 'master', version: account.version, credentialVersion: masterCredentialVersion() });
     return NextResponse.json({ ok: true, scope: 'master', redirect: '/admin/master' });
   }
@@ -42,7 +36,6 @@ export async function POST(request: NextRequest) {
   if (!member || !member.active || isPendingInvite(member) || !usable || !verifyPassword(password!, member.passwordHash)) return reject();
   if (!(await isWorkspaceActive(member.workspaceId))) return reject(403, 'This workspace is disabled. Contact your administrator.');
 
-  attempts.delete(ip);
   await setSessionCookie({ email: normalizedEmail, accountId: member.id, version: member.version, workspaceId: member.workspaceId, role: member.role, scope: 'workspace' });
   return NextResponse.json({ ok: true, scope: 'workspace', redirect: '/admin' });
 }

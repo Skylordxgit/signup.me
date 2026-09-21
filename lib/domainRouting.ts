@@ -2,9 +2,7 @@ import { isIP } from 'node:net';
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import type { SmartPage } from './types';
-import { listDomains } from './domains';
-import { getPrimaryPublicPage, getPublicPageBySlug } from './store';
-import { isWorkspaceActive } from './workspaces';
+import { getCachedPrimaryPublicPage, getCachedPublicHost, getCachedPublicPage } from './pageSnapshot';
 
 export type PublicHost =
   | { kind: 'platform'; hostname: string }
@@ -48,17 +46,7 @@ export async function resolvePublicHost(rawHost: string | null): Promise<PublicH
   if (hostname && hostname === configuredHostname(process.env.MASTER_ADMIN_DOMAIN)) return { kind: 'master', hostname };
   if (isPlatformHostname(hostname)) return { kind: 'platform', hostname };
 
-  try {
-    const domainList = await listDomains();
-    const domain = domainList.find(item => item.hostname === hostname && item.workspaceId && item.status === 'active');
-    if (domain?.workspaceId && (await isWorkspaceActive(domain.workspaceId))) {
-      return { kind: 'custom', hostname, workspaceId: domain.workspaceId };
-    }
-  } catch (error) {
-    console.error('Error resolving custom domain host:', error);
-  }
-
-  return { kind: 'unknown', hostname };
+  return getCachedPublicHost(rawHost);
 }
 
 export async function resolveRequestHost(request: Request) {
@@ -72,12 +60,12 @@ export async function resolveCurrentHost() {
 export async function resolvePublicPage(slug: string, host?: PublicHost) {
   const resolvedHost = host ?? await resolveCurrentHost();
   if (resolvedHost.kind === 'unknown' || resolvedHost.kind === 'master') return null;
-  return getPublicPageBySlug(slug, resolvedHost.kind === 'custom' ? resolvedHost.workspaceId : undefined);
+  return getCachedPublicPage(slug, resolvedHost.kind === 'custom' ? resolvedHost.workspaceId : undefined);
 }
 
 export async function resolveCustomDomainRoot(host?: PublicHost) {
   const resolvedHost = host ?? await resolveCurrentHost();
-  return resolvedHost.kind === 'custom' ? getPrimaryPublicPage(resolvedHost.workspaceId) : null;
+  return resolvedHost.kind === 'custom' ? getCachedPrimaryPublicPage(resolvedHost.workspaceId) : null;
 }
 
 export function canonicalPublicUrl(page: SmartPage, host: PublicHost, root = false) {
