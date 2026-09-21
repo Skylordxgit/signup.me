@@ -6,7 +6,9 @@ import {
   ArrowRight,
   ArrowUpRight,
   Building2,
+  CheckCircle2,
   Copy,
+  FilePenLine,
   Globe2,
   KeyRound,
   LayoutDashboard,
@@ -16,6 +18,7 @@ import {
   Plus,
   Power,
   RefreshCw,
+  ShieldAlert,
   Settings2,
   ShieldCheck,
   Trash2,
@@ -29,6 +32,7 @@ import type { PublicWorkspaceUser } from "@/lib/workspaceUsers";
 import { workspacePermissions, type WorkspacePermission, type WorkspaceRole } from "@/lib/permissions";
 import { adminApi } from "@/lib/admin";
 import { defaultBranding, type BrandingSettings } from "@/lib/brandingConstants";
+import type { CustomDomain, DomainVerificationConfig } from "@/lib/domains";
 import { ImageUploader } from "./ImageUploader";
 import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, SectionHeading } from "./admin/AdminUI";
 import "./admin/admin.css";
@@ -43,15 +47,20 @@ type MasterWorkspace = {
   pages: number;
   admins: number;
   subscribers: number;
+  domainId: string | null;
+  domain: string | null;
 };
 
 type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
+type DomainsPayload = { domains: CustomDomain[]; verification: DomainVerificationConfig };
 type SignupSettings = { enabled: boolean };
-type MasterView = "overview" | "workspaces" | "users" | "branding" | "signup";
+type MasterView = "overview" | "workspaces" | "domains" | "users" | "branding" | "signup";
+type DomainModal = "add" | { action: "edit" | "assign" | "delete"; domain: CustomDomain } | null;
 
 const views = [
   { id: "overview", label: "Overview", description: "Platform health", icon: LayoutDashboard },
   { id: "workspaces", label: "Workspaces", description: "Manage every workspace", icon: Building2 },
+  { id: "domains", label: "Domains", description: "DNS and workspace routing", icon: Globe2 },
   { id: "users", label: "All users", description: "Accounts and access", icon: Users },
   { id: "branding", label: "Global branding", description: "Identity and assets", icon: Palette },
   { id: "signup", label: "Signup access", description: "Registration control", icon: UserPlus },
@@ -61,6 +70,8 @@ export function MasterDashboard({ email }: { email: string }) {
   const [view, setView] = useState<MasterView>("overview");
   const [menuOpen, setMenuOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
+  const [domains, setDomains] = useState<CustomDomain[]>([]);
+  const [verification, setVerification] = useState<DomainVerificationConfig>({ configured: false, record: null, www: null });
   const [users, setUsers] = useState<PublicWorkspaceUser[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(defaultBranding);
   const [signup, setSignup] = useState<SignupSettings>({ enabled: true });
@@ -70,6 +81,11 @@ export function MasterDashboard({ email }: { email: string }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [inspect, setInspect] = useState<MasterWorkspace | null>(null);
+  const [domainDetail, setDomainDetail] = useState<CustomDomain | null>(null);
+  const [domainModal, setDomainModal] = useState<DomainModal>(null);
+  const [domainHostname, setDomainHostname] = useState("");
+  const [domainWorkspaceId, setDomainWorkspaceId] = useState("");
+  const [domainError, setDomainError] = useState("");
 
   // User management state
   const [userModal, setUserModal] = useState<"create" | { user: PublicWorkspaceUser; action: "password" | "permissions" } | null>(null);
@@ -83,21 +99,25 @@ export function MasterDashboard({ email }: { email: string }) {
   const [inviteUrl, setInviteUrl] = useState("");
 
   // Workspace management state
-  const [workspaceModal, setWorkspaceModal] = useState(false);
+  const [workspaceModal, setWorkspaceModal] = useState<"create" | MasterWorkspace | null>(null);
   const [wsName, setWsName] = useState("");
   const [wsOwnerEmail, setWsOwnerEmail] = useState("");
   const [wsOwnerName, setWsOwnerName] = useState("");
   const [wsWithPassword, setWsWithPassword] = useState(true);
   const [wsPassword, setWsPassword] = useState("");
+  const [wsDomainId, setWsDomainId] = useState("");
 
   const load = useCallback(async () => {
-    const [data, brand, signupSettings, accounts] = await Promise.all([
+    const [data, domainData, brand, signupSettings, accounts] = await Promise.all([
       adminApi<Payload>("/api/master/workspaces"),
+      adminApi<DomainsPayload>("/api/master/domains"),
       adminApi<BrandingSettings>("/api/master/branding"),
       adminApi<SignupSettings>("/api/master/signup"),
       adminApi<PublicWorkspaceUser[]>("/api/master/users"),
     ]);
     setWorkspaces(data.workspaces);
+    setDomains(domainData.domains);
+    setVerification(domainData.verification);
     setBranding(brand);
     setSignup(signupSettings);
     setUsers(accounts);
@@ -107,13 +127,16 @@ export function MasterDashboard({ email }: { email: string }) {
     let cancelled = false;
     void Promise.all([
       adminApi<Payload>("/api/master/workspaces"),
+      adminApi<DomainsPayload>("/api/master/domains"),
       adminApi<BrandingSettings>("/api/master/branding"),
       adminApi<SignupSettings>("/api/master/signup"),
       adminApi<PublicWorkspaceUser[]>("/api/master/users"),
     ])
-      .then(([data, brand, signupSettings, accounts]) => {
+      .then(([data, domainData, brand, signupSettings, accounts]) => {
         if (cancelled) return;
         setWorkspaces(data.workspaces);
+        setDomains(domainData.domains);
+        setVerification(domainData.verification);
         setBranding(brand);
         setSignup(signupSettings);
         setUsers(accounts);
@@ -209,7 +232,16 @@ export function MasterDashboard({ email }: { email: string }) {
     setWsOwnerName("");
     setWsWithPassword(true);
     setWsPassword("");
-    setWorkspaceModal(true);
+    setWsDomainId("");
+    setWorkspaceModal("create");
+  }
+
+  function openEditWorkspaceModal(workspace: MasterWorkspace) {
+    setError("");
+    setInspect(null);
+    setWsName(workspace.name);
+    setWsDomainId(workspace.domainId || "");
+    setWorkspaceModal(workspace);
   }
 
   async function handleWorkspaceSubmit(event: React.FormEvent) {
@@ -219,24 +251,82 @@ export function MasterDashboard({ email }: { email: string }) {
     setError("");
     setMessage("");
     try {
-      const result = await adminApi<{ ok: boolean; workspace: MasterWorkspace; invitePath?: string }>("/api/master/workspaces", {
-        method: "POST",
-        body: JSON.stringify({
-          name: wsName,
-          ownerEmail: wsOwnerEmail,
-          ownerName: wsOwnerName,
-          withPassword: wsWithPassword,
-          password: wsPassword,
-        }),
-      });
-      if (result?.invitePath) {
-        setInviteUrl(new URL(result.invitePath, window.location.origin).href);
+      if (workspaceModal === "create") {
+        const result = await adminApi<{ ok: boolean; workspace: MasterWorkspace; invitePath?: string }>("/api/master/workspaces", {
+          method: "POST",
+          body: JSON.stringify({
+            name: wsName,
+            ownerEmail: wsOwnerEmail,
+            ownerName: wsOwnerName,
+            withPassword: wsWithPassword,
+            password: wsPassword,
+            ...(wsDomainId ? { domainId: wsDomainId } : {}),
+          }),
+        });
+        if (result?.invitePath) setInviteUrl(new URL(result.invitePath, window.location.origin).href);
+        setMessage(`Workspace "${wsName}" created successfully.`);
+      } else if (workspaceModal) {
+        await adminApi("/api/master/workspaces", {
+          method: "PATCH",
+          body: JSON.stringify({ id: workspaceModal.id, name: wsName, domainId: wsDomainId || null }),
+        });
+        setMessage(`Workspace "${wsName}" updated.`);
+        setInspect(null);
       }
-      setMessage(`Workspace "${wsName}" created successfully.`);
-      setWorkspaceModal(false);
+      setWorkspaceModal(null);
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not create workspace.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openDomainModal(modal: DomainModal) {
+    setDomainError("");
+    setDomainHostname(modal === "add" ? "" : modal?.domain.hostname || "");
+    setDomainWorkspaceId(modal && modal !== "add" ? modal.domain.workspaceId || "" : "");
+    setDomainModal(modal);
+  }
+
+  async function handleDomainSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || !domainModal) return;
+    setBusy(true);
+    setDomainError("");
+    setMessage("");
+    try {
+      if (domainModal === "add") {
+        const result = await adminApi<{ domain: CustomDomain; verification: DomainVerificationConfig }>("/api/master/domains", {
+          method: "POST",
+          body: JSON.stringify({ hostname: domainHostname }),
+        });
+        setVerification(result.verification);
+        setDomainDetail(result.domain);
+        setMessage(`${result.domain.hostname} added. Add the DNS records shown below, then verify it.`);
+      } else if (domainModal.action === "edit") {
+        const result = await adminApi<{ domain: CustomDomain; verification: DomainVerificationConfig }>("/api/master/domains", {
+          method: "PATCH",
+          body: JSON.stringify({ id: domainModal.domain.id, action: "edit", hostname: domainHostname }),
+        });
+        setVerification(result.verification);
+        setDomainDetail(result.domain);
+        setMessage(`${result.domain.hostname} updated. DNS and SSL verification were reset.`);
+      } else if (domainModal.action === "assign") {
+        await adminApi("/api/master/domains", {
+          method: "PATCH",
+          body: JSON.stringify({ id: domainModal.domain.id, action: "assign", workspaceId: domainWorkspaceId || null }),
+        });
+        setMessage(domainWorkspaceId ? "Domain assignment updated." : "Domain unassigned.");
+      } else {
+        await adminApi("/api/master/domains", { method: "DELETE", body: JSON.stringify({ id: domainModal.domain.id }) });
+        setDomainDetail(null);
+        setMessage(`${domainModal.domain.hostname} deleted.`);
+      }
+      setDomainModal(null);
+      await load();
+    } catch (cause) {
+      setDomainError(cause instanceof Error ? cause.message : "Could not update the domain.");
     } finally {
       setBusy(false);
     }
@@ -368,7 +458,7 @@ export function MasterDashboard({ email }: { email: string }) {
       </header>
 
       <main className="masterMain" aria-busy={busy || loading}>
-        {error && !userModal && !workspaceModal && <div className="admError masterNotice" role="alert"><span>{error}</span><IconButton icon={X} label="Dismiss error" onClick={() => setError("")} /></div>}
+        {error && !userModal && !workspaceModal && !domainModal && <div className="admError masterNotice" role="alert"><span>{error}</span><IconButton icon={X} label="Dismiss error" onClick={() => setError("")} /></div>}
         {message && <p className="admSuccess masterNotice" role="status">{message}</p>}
         {inviteUrl && <div className="admCard admFormStack masterNotice"><Field label="Invitation link" hint="Single-use link for the invited user."><input readOnly value={inviteUrl} onFocus={event => event.target.select()} /></Field><Button icon={Copy} onClick={() => void navigator.clipboard.writeText(inviteUrl).then(() => setMessage("Link copied to clipboard.")).catch(() => setError("Could not copy link."))}>Copy invitation link</Button></div>}
         {loading ? <LoadingState label="Loading your control center..." /> : <>
@@ -393,7 +483,7 @@ export function MasterDashboard({ email }: { email: string }) {
                   <button type="button" className="masterTextButton" onClick={() => navigate("workspaces")}>View all <ArrowRight size={14} /></button>
                 </div>
               </SectionHeading>
-              <WorkspaceList workspaces={workspaces.slice(0, 5)} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onCreate={openCreateWorkspaceModal} />
+              <WorkspaceList workspaces={workspaces.slice(0, 5)} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onEdit={openEditWorkspaceModal} onCreate={openCreateWorkspaceModal} />
             </section>
           </div>}
 
@@ -402,7 +492,47 @@ export function MasterDashboard({ email }: { email: string }) {
               <div><span>{workspaces.length} total</span><h2>Workspace management</h2><p>Inspect, enter, enable or disable every tenant from one place.</p></div>
               <Button variant="primary" icon={Plus} disabled={busy} onClick={openCreateWorkspaceModal}>Create workspace</Button>
             </div>
-            <section className="masterPanel"><WorkspaceList workspaces={workspaces} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onToggle={workspace => void run(() => adminApi("/api/master/workspaces", { method: "PATCH", body: JSON.stringify({ id: workspace.id, status: workspace.status === "active" ? "disabled" : "active" }) }))} onCreate={openCreateWorkspaceModal} /></section>
+            <section className="masterPanel"><WorkspaceList workspaces={workspaces} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onEdit={openEditWorkspaceModal} onToggle={workspace => void run(() => adminApi("/api/master/workspaces", { method: "PATCH", body: JSON.stringify({ id: workspace.id, status: workspace.status === "active" ? "disabled" : "active" }) }))} onCreate={openCreateWorkspaceModal} /></section>
+          </div>}
+
+          {view === "domains" && <div className="masterView">
+            <div className="masterPageIntro">
+              <div><span>{domains.length} configured</span><h2>Custom domains</h2><p>Connect branded hostnames, verify DNS, and control workspace routing.</p></div>
+              <Button variant="primary" icon={Plus} disabled={busy} onClick={() => openDomainModal("add")}>Add domain</Button>
+            </div>
+            <div className="masterMetrics masterDomainMetrics">
+              <article><span className="masterMetricIcon masterToneBlue"><Globe2 size={20} /></span><div><small>Total domains</small><strong>{domains.length}</strong><em>platform-wide</em></div></article>
+              <article><span className="masterMetricIcon masterToneGreen"><CheckCircle2 size={20} /></span><div><small>Active</small><strong>{domains.filter(domain => domain.status === "active").length}</strong><em>DNS and SSL ready</em></div></article>
+              <article><span className="masterMetricIcon masterToneAmber"><ShieldAlert size={20} /></span><div><small>Needs attention</small><strong>{domains.filter(domain => !["active", "disabled"].includes(domain.status)).length}</strong><em>pending or errored</em></div></article>
+              <article><span className="masterMetricIcon masterToneViolet"><Building2 size={20} /></span><div><small>Assigned</small><strong>{domains.filter(domain => domain.workspaceId).length}</strong><em>{domains.filter(domain => !domain.workspaceId).length} available</em></div></article>
+            </div>
+            {!verification.configured && <p className="admSetupNote masterNotice" role="status">DNS verification is not configured. Set <code>CUSTOM_DOMAIN_CNAME_TARGET</code> or <code>CUSTOM_DOMAIN_SERVER_IP</code> on the server.</p>}
+            <section className="masterPanel masterDomainPanel">
+              {!domains.length ? <EmptyState icon={Globe2} title="No custom domains" description="Add a hostname to see the DNS records needed to connect it."><Button variant="primary" icon={Plus} onClick={() => openDomainModal("add")}>Add domain</Button></EmptyState> : <div className="masterDomainList">{domains.map(domain => {
+                const workspace = workspaces.find(item => item.id === domain.workspaceId);
+                return <article key={domain.id}>
+                  <button type="button" className="masterDomainIdentity" onClick={() => setDomainDetail(domain)}>
+                    <span><Globe2 size={19} /></span>
+                    <div><strong>{domain.hostname}</strong><small>Added {formatDate(domain.createdAt)}</small></div>
+                  </button>
+                  <div className="masterDomainStatus"><small>Verification</small><DomainBadge status={domain.status} /></div>
+                  <div className="masterDomainStatus"><small>SSL</small><DomainBadge status={domain.sslStatus} /></div>
+                  <div className="masterDomainWorkspace"><small>Workspace</small><strong>{workspace?.name || "Unassigned"}</strong></div>
+                  <div className="masterDomainActions">
+                    <Button size="sm" icon={RefreshCw} disabled={busy || !verification.configured || domain.status === "disabled"} onClick={() => void run(async () => {
+                      const result = await adminApi<{ domain: CustomDomain }>("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domain.id, action: "verify" }) });
+                      if (domainDetail?.id === domain.id) setDomainDetail(result.domain);
+                    })}>Verify</Button>
+                    <Button size="sm" icon={Building2} disabled={busy} onClick={() => openDomainModal({ action: "assign", domain })}>{domain.workspaceId ? "Change workspace" : "Assign workspace"}</Button>
+                    {domain.workspaceId && <Button size="sm" disabled={busy} onClick={() => void run(() => adminApi("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domain.id, action: "assign", workspaceId: null }) }))}>Unassign</Button>}
+                    <IconButton icon={FilePenLine} label={`Edit ${domain.hostname}`} disabled={busy} onClick={() => openDomainModal({ action: "edit", domain })} />
+                    <IconButton icon={Power} label={`${domain.status === "disabled" ? "Enable" : "Disable"} ${domain.hostname}`} disabled={busy} onClick={() => void run(() => adminApi("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domain.id, action: "disable", disabled: domain.status !== "disabled" }) }))} />
+                    <IconButton icon={Trash2} tone="danger" label={`Delete ${domain.hostname}`} disabled={busy} onClick={() => openDomainModal({ action: "delete", domain })} />
+                  </div>
+                  {domain.verificationError && <p className="masterDomainError" role="status">{domain.verificationError}</p>}
+                </article>;
+              })}</div>}
+            </section>
           </div>}
 
           {view === "users" && <div className="masterView">
@@ -470,7 +600,63 @@ export function MasterDashboard({ email }: { email: string }) {
         <div><dt>Pages</dt><dd>{inspect.pages}</dd></div>
         <div><dt>Admins</dt><dd>{inspect.admins}</dd></div>
         <div><dt>Subscribers</dt><dd>{inspect.subscribers}</dd></div>
+        <div><dt>Custom domain</dt><dd>{inspect.domain || "Use Default Domain"}</dd></div>
       </dl>
+      <div className="admDialogActions"><Button icon={FilePenLine} onClick={() => openEditWorkspaceModal(inspect)}>Edit workspace</Button></div>
+    </Dialog>}
+
+    {domainDetail && <Dialog title={domainDetail.hostname} onClose={() => setDomainDetail(null)}>
+      <dl className="admMasterDetail">
+        <div><dt>Verification</dt><dd><DomainBadge status={domainDetail.status} /></dd></div>
+        <div><dt>SSL</dt><dd><DomainBadge status={domainDetail.sslStatus} /></dd></div>
+        <div><dt>Workspace</dt><dd>{workspaces.find(workspace => workspace.id === domainDetail.workspaceId)?.name || "Unassigned"}</dd></div>
+        <div><dt>Created</dt><dd>{formatDate(domainDetail.createdAt)}</dd></div>
+        <div><dt>Last checked</dt><dd>{domainDetail.lastCheckedAt ? formatDate(domainDetail.lastCheckedAt) : "Not checked"}</dd></div>
+      </dl>
+      {domainDetail.verificationError && <p className="admError masterDomainDialogError" role="alert">{domainDetail.verificationError}</p>}
+      <DnsInstructions verification={verification} />
+      <div className="admDialogActions">
+        <Button icon={FilePenLine} onClick={() => { const domain = domainDetail; setDomainDetail(null); openDomainModal({ action: "edit", domain }); }}>Edit domain</Button>
+        <Button variant="primary" icon={RefreshCw} disabled={busy || !verification.configured || domainDetail.status === "disabled"} onClick={() => void run(async () => {
+          const result = await adminApi<{ domain: CustomDomain }>("/api/master/domains", { method: "PATCH", body: JSON.stringify({ id: domainDetail.id, action: "verify" }) });
+          setDomainDetail(result.domain);
+        })}>Verify DNS</Button>
+      </div>
+    </Dialog>}
+
+    {domainModal && <Dialog
+      title={domainModal === "add" ? "Add custom domain" : domainModal.action === "edit" ? "Edit domain" : domainModal.action === "assign" ? "Assign workspace" : "Delete domain"}
+      onClose={() => { if (!busy) { setDomainModal(null); setDomainError(""); } }}
+    >
+      <form onSubmit={handleDomainSubmit}>
+        <fieldset disabled={busy} className="admTeamFields">
+          <div className="admFormStack">
+            {(domainModal === "add" || domainModal.action === "edit") && <>
+              <Field label="Domain" hint="Enter a hostname such as example.com. HTTPS and www are optional and will be removed automatically.">
+                <input required inputMode="url" autoCapitalize="none" autoCorrect="off" placeholder="example.com" value={domainHostname} onChange={event => setDomainHostname(event.target.value)} />
+              </Field>
+              {domainModal !== "add" && domainHostname.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "") !== domainModal.domain.hostname && <p className="admSetupNote">Changing the hostname resets DNS verification and SSL status. The workspace assignment is preserved.</p>}
+            </>}
+            {domainModal !== "add" && domainModal.action === "assign" && <>
+              <p className="admMuted">Choose a workspace with no custom domain. Moving this domain away from its current workspace is completed atomically.</p>
+              <Field label="Workspace">
+                <select value={domainWorkspaceId} onChange={event => setDomainWorkspaceId(event.target.value)}>
+                  <option value="">Unassigned</option>
+                  {workspaces.filter(workspace => !workspace.domainId || workspace.id === domainModal.domain.workspaceId).map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}
+                </select>
+              </Field>
+            </>}
+            {domainModal !== "add" && domainModal.action === "delete" && <p>Delete <strong>{domainModal.domain.hostname}</strong>? Its workspace assignment and domain history will no longer be available from this record. This cannot be undone.</p>}
+            {domainError && <p className="admError" role="alert" tabIndex={-1}>{domainError}</p>}
+          </div>
+        </fieldset>
+        <div className="admDialogActions">
+          <button type="button" className="admButton" disabled={busy} onClick={() => { setDomainModal(null); setDomainError(""); }}>Cancel</button>
+          <button type="submit" className={`admButton ${domainModal !== "add" && domainModal.action === "delete" ? "admDestructive" : "admPrimary"}`} disabled={busy}>
+            {busy ? "Saving..." : domainModal === "add" ? "Add domain" : domainModal.action === "edit" ? "Save domain" : domainModal.action === "assign" ? "Save assignment" : "Delete domain"}
+          </button>
+        </div>
+      </form>
     </Dialog>}
 
     {userModal && <Dialog
@@ -549,8 +735,8 @@ export function MasterDashboard({ email }: { email: string }) {
     </Dialog>}
 
     {workspaceModal && <Dialog
-      title="Create new workspace"
-      onClose={() => { if (!busy) { setWorkspaceModal(false); setWsPassword(""); setError(""); } }}
+      title={workspaceModal === "create" ? "Create new workspace" : `Edit ${workspaceModal.name}`}
+      onClose={() => { if (!busy) { setWorkspaceModal(null); setWsPassword(""); setError(""); } }}
     >
       <form onSubmit={handleWorkspaceSubmit}>
         <fieldset disabled={busy} className="admTeamFields">
@@ -564,7 +750,7 @@ export function MasterDashboard({ email }: { email: string }) {
                 onChange={event => setWsName(event.target.value)}
               />
             </Field>
-            <Field label="Owner email" hint="Leave blank to assign to Master Admin, or specify a tenant owner.">
+            {workspaceModal === "create" && <><Field label="Owner email" hint="Leave blank to assign to Master Admin, or specify a tenant owner.">
               <input
                 type="email"
                 maxLength={190}
@@ -610,15 +796,22 @@ export function MasterDashboard({ email }: { email: string }) {
               ) : (
                 <p className="admMuted admSmall">An expiring invitation link will be generated after creation.</p>
               )}
-            </>}
+            </>}</>}
+
+            <Field label="Assign domain" hint="Only active, unassigned domains are available. Use the default domain to remove a custom assignment.">
+              <select value={wsDomainId} onChange={event => setWsDomainId(event.target.value)}>
+                <option value="">Use Default Domain</option>
+                {domains.filter(domain => domain.id === (workspaceModal === "create" ? null : workspaceModal.domainId) || domain.status === "active" && !domain.workspaceId).map(domain => <option key={domain.id} value={domain.id}>{domain.hostname}</option>)}
+              </select>
+            </Field>
 
             {error && <p className="admError" role="alert">{error}</p>}
           </div>
         </fieldset>
         <div className="admDialogActions">
-          <button type="button" className="admButton" disabled={busy} onClick={() => { setWorkspaceModal(false); setWsPassword(""); setError(""); }}>Cancel</button>
+          <button type="button" className="admButton" disabled={busy} onClick={() => { setWorkspaceModal(null); setWsPassword(""); setError(""); }}>Cancel</button>
           <button type="submit" className="admButton admPrimary" disabled={busy}>
-            {busy ? "Creating..." : "Create workspace"}
+            {busy ? "Saving..." : workspaceModal === "create" ? "Create workspace" : "Save workspace"}
           </button>
         </div>
       </form>
@@ -631,6 +824,7 @@ function WorkspaceList({
   busy,
   onInspect,
   onOpen,
+  onEdit,
   onToggle,
   onCreate,
 }: {
@@ -638,6 +832,7 @@ function WorkspaceList({
   busy: boolean;
   onInspect: (workspace: MasterWorkspace) => void;
   onOpen: (workspace: MasterWorkspace) => void;
+  onEdit: (workspace: MasterWorkspace) => void;
   onToggle?: (workspace: MasterWorkspace) => void;
   onCreate?: () => void;
 }) {
@@ -645,13 +840,42 @@ function WorkspaceList({
   return <div className="masterWorkspaceList">{workspaces.map(workspace => <article key={workspace.id}>
     <button type="button" className="masterWorkspaceIdentity" onClick={() => onInspect(workspace)}>
       <span><Building2 size={19} /></span>
-      <div><strong>{workspace.name}</strong><small>{workspace.ownerEmail}</small></div>
+      <div><strong>{workspace.name}</strong><small>{workspace.ownerEmail}</small><small className="masterWorkspaceDomain">{workspace.domain || "Default domain"}</small></div>
     </button>
     <span className={`admBadge admBadge-${workspace.status === "active" ? "published" : "disabled"}`}>{workspace.status}</span>
     <div className="masterWorkspaceStats"><span><small>Pages</small><strong>{workspace.pages}</strong></span><span><small>Admins</small><strong>{workspace.admins}</strong></span><span><small>Subscribers</small><strong>{workspace.subscribers}</strong></span></div>
     <div className="masterWorkspaceActions">
       <Button size="sm" disabled={busy} onClick={() => onOpen(workspace)}>Open <ArrowUpRight size={15} aria-hidden="true" /></Button>
+      <IconButton icon={FilePenLine} label={`Edit ${workspace.name}`} disabled={busy} onClick={() => onEdit(workspace)} />
       {onToggle && <IconButton icon={Power} label={`${workspace.status === "active" ? "Disable" : "Enable"} ${workspace.name}`} disabled={busy} onClick={() => onToggle(workspace)} />}
     </div>
   </article>)}</div>;
+}
+
+function DomainBadge({ status }: { status: CustomDomain["status"] | CustomDomain["sslStatus"] }) {
+  const tone = status === "active" || status === "verified" ? "published" : status === "disabled" || status === "error" ? "disabled" : "draft";
+  return <span className={`admBadge admBadge-${tone}`}>{status.replaceAll("_", " ")}</span>;
+}
+
+function DnsInstructions({ verification }: { verification: DomainVerificationConfig }) {
+  if (!verification.record) return <p className="admSetupNote masterDnsInstructions">DNS instructions are unavailable until the server verification target is configured.</p>;
+  return <section className="masterDnsInstructions" aria-labelledby="dns-instructions-title">
+    <div><h3 id="dns-instructions-title">DNS records</h3><p>Add these records at your DNS provider. Changes may take time to propagate.</p></div>
+    <div className="masterDnsRecord" role="group" aria-label="Required DNS record">
+      <span><small>Type</small><strong>{verification.record.type}</strong></span>
+      <span><small>Host</small><code>{verification.record.host}</code></span>
+      <span><small>Value</small><code>{verification.record.value}</code></span>
+      <em>Required</em>
+    </div>
+    {verification.www && <div className="masterDnsRecord" role="group" aria-label="Optional www DNS record">
+      <span><small>Type</small><strong>{verification.www.type}</strong></span>
+      <span><small>Host</small><code>{verification.www.host}</code></span>
+      <span><small>Value</small><code>{verification.www.value}</code></span>
+      <em>Optional</em>
+    </div>}
+  </section>;
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
 }

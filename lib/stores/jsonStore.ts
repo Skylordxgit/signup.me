@@ -111,9 +111,17 @@ export async function getPageById(id: number, workspaceId?: string) {
   return page ? sortBlocks(page) : null;
 }
 
-export async function getPublicPageBySlug(slug: string) {
+export async function getPublicPageBySlug(slug: string, workspaceId?: string) {
   const db = await readJsonDb();
-  const page = db.pages.find((item) => item.slug === slug && item.status === "published");
+  const page = db.pages.find((item) => item.slug === slug && item.status === "published" && inWorkspace(item, workspaceId));
+  return page ? sortBlocks(page) : null;
+}
+
+export async function getPrimaryPublicPage(workspaceId: string) {
+  const db = await readJsonDb();
+  const page = db.pages
+    .filter(item => item.status === 'published' && inWorkspace(item, workspaceId))
+    .sort((a, b) => a.id - b.id)[0];
   return page ? sortBlocks(page) : null;
 }
 
@@ -350,9 +358,10 @@ async function trackViewUnlocked(
   country = '',
   city = '',
   location = '',
+  workspaceId?: string,
 ) {
   const db = await readJsonDb();
-  const page = db.pages.find((item) => item.slug === slug && item.status === "published");
+  const page = db.pages.find((item) => item.slug === slug && item.status === "published" && inWorkspace(item, workspaceId));
   if (!page) return null;
 
   page.views += 1;
@@ -383,9 +392,10 @@ async function trackClickUnlocked(
   country = '',
   city = '',
   location = '',
+  workspaceId?: string,
 ) {
   const db = await readJsonDb();
-  const page = db.pages.find((item) => item.id === pageId);
+  const page = db.pages.find((item) => item.id === pageId && item.status === 'published' && inWorkspace(item, workspaceId));
   const block = page?.blocks.find((item) => item.id === blockId);
   if (!page || !block) return null;
 
@@ -678,15 +688,15 @@ function subscriptionHash(endpoint: string) {
   return createHash("sha256").update(endpoint).digest("hex");
 }
 
-async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails) {
+async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails, workspaceId?: string) {
   const db = await readJsonDb();
-  const page = db.pages.find((item) => item.slug === slug && item.status === "published");
+  const page = db.pages.find((item) => item.slug === slug && item.status === "published" && inWorkspace(item, workspaceId));
   if (!page) return null;
 
   const timestamp = nowIso();
   const endpointHash = subscriptionHash(subscription.endpoint);
-  const workspaceId = page.workspaceId || DEFAULT_WORKSPACE_ID;
-  const existing = db.pushSubscriptions.find((item) => item.endpointHash === endpointHash && item.workspaceId === workspaceId);
+  const ownerWorkspaceId = page.workspaceId || DEFAULT_WORKSPACE_ID;
+  const existing = db.pushSubscriptions.find((item) => item.endpointHash === endpointHash && item.workspaceId === ownerWorkspaceId);
   if (existing) {
     existing.pageId = page.id;
     existing.slug = page.slug;
@@ -701,7 +711,7 @@ async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubs
   }
 
   const subscriber = {
-    workspaceId,
+    workspaceId: ownerWorkspaceId,
     id: nextId(db.pushSubscriptions),
     pageId: page.id,
     slug: page.slug,

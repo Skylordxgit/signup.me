@@ -7,6 +7,7 @@ import { listPushSubscribers, pagesByWorkspace } from '@/lib/store';
 import { adminCounts, addWorkspaceUser, findWorkspaceUser, listWorkspaceUsers } from '@/lib/workspaceUsers';
 import { createWorkspace, DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, listWorkspaces, updateWorkspace, type WorkspaceStatus } from '@/lib/workspaces';
 import { workspacePermissions } from '@/lib/permissions';
+import { listDomains, setWorkspacePrimaryDomain } from '@/lib/domains';
 
 export type MasterWorkspace = {
   id: string;
@@ -18,17 +19,20 @@ export type MasterWorkspace = {
   pages: number;
   admins: number;
   subscribers: number;
+  domainId: string | null;
+  domain: string | null;
 };
 
 export async function GET() {
   return masterJson(async () => {
     await ensureDefaultWorkspace(ownerEmail());
-    const [workspaces, pages, admins, users, subscribers] = await Promise.all([
+    const [workspaces, pages, admins, users, subscribers, domains] = await Promise.all([
       listWorkspaces(),
       pagesByWorkspace(),
       adminCounts(),
       listWorkspaceUsers(),
       listPushSubscribers(),
+      listDomains(),
     ]);
 
     // Subscribers hang off pages, so map each page id back to its workspace.
@@ -39,18 +43,23 @@ export async function GET() {
       if (id) subscriberCounts.set(id, (subscriberCounts.get(id) ?? 0) + entry.subscribers);
     }
 
-    const rows: MasterWorkspace[] = workspaces.map(workspace => ({
-      id: workspace.id,
-      name: workspace.name,
-      ownerEmail: workspace.ownerEmail,
-      ownerName: users.find(user => user.workspaceId === workspace.id && user.role === 'owner')?.name
-        || (workspace.id === DEFAULT_WORKSPACE_ID ? 'Configured administrator' : workspace.ownerEmail),
-      status: workspace.status,
-      createdAt: workspace.createdAt,
-      pages: pages.filter(page => page.workspaceId === workspace.id).length,
-      admins: admins.get(workspace.id) ?? 0,
-      subscribers: subscriberCounts.get(workspace.id) ?? 0,
-    }));
+    const rows: MasterWorkspace[] = workspaces.map(workspace => {
+      const domain = domains.find(item => item.workspaceId === workspace.id && item.isPrimary);
+      return {
+        id: workspace.id,
+        name: workspace.name,
+        ownerEmail: workspace.ownerEmail,
+        ownerName: users.find(user => user.workspaceId === workspace.id && user.role === 'owner')?.name
+          || (workspace.id === DEFAULT_WORKSPACE_ID ? 'Configured administrator' : workspace.ownerEmail),
+        status: workspace.status,
+        createdAt: workspace.createdAt,
+        pages: pages.filter(page => page.workspaceId === workspace.id).length,
+        admins: admins.get(workspace.id) ?? 0,
+        subscribers: subscriberCounts.get(workspace.id) ?? 0,
+        domainId: domain?.id ?? null,
+        domain: domain?.hostname ?? null,
+      };
+    });
 
     return { workspaces: rows, defaultWorkspaceId: DEFAULT_WORKSPACE_ID };
   });
@@ -73,11 +82,19 @@ export async function POST(request: NextRequest) {
     const createOwner = body.createOwner !== false;
     const existingUser = await findWorkspaceUser(ownerEmailAddr);
 
+    if (body.domainId !== undefined && (typeof body.domainId !== 'string' || !body.domainId)) {
+      throw new Error('Select a domain.');
+    }
+
     if (createOwner && existingUser && !isMasterEmail(ownerEmailAddr)) {
       throw new Error(`An account for ${ownerEmailAddr} already exists in another workspace.`);
     }
 
     const workspace = await createWorkspace({ name, ownerEmail: ownerEmailAddr });
+
+    if (typeof body.domainId === 'string') {
+      await setWorkspacePrimaryDomain(workspace.id, body.domainId, session.email);
+    }
 
     let invitePath: string | undefined;
 
@@ -113,6 +130,7 @@ export async function POST(request: NextRequest) {
         ownerEmail: workspace.ownerEmail,
         status: workspace.status,
         createdAt: workspace.createdAt,
+        domainId: typeof body.domainId === 'string' ? body.domainId : null,
       },
       invitePath,
     };
@@ -120,11 +138,20 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  return masterJson(async () => {
+  return masterJson(async session => {
     const body = await request.json() as Record<string, unknown>;
     if (typeof body.id !== 'string' || !body.id) throw new Error('Select a workspace.');
-    if (body.status !== 'active' && body.status !== 'disabled') throw new Error('Choose an active or disabled status.');
-    await updateWorkspace(body.id, { status: body.status });
+    const hasStatus = Object.prototype.hasOwnProperty.call(body, 'status');
+    const hasName = Object.prototype.hasOwnProperty.call(body, 'name');
+    const hasDomain = Object.prototype.hasOwnProperty.call(body, 'domainId');
+    if (!hasStatus && !hasName && !hasDomain) throw new Error('Choose a workspace change.');
+    if (hasStatus && body.status !== 'active' && body.status !== 'disabled') throw new Error('Choose an active or disabled status.');
+    if (hasName && (typeof body.name !== 'string' || !body.name.trim())) throw new Error('Workspace name is required.');
+    if (hasDomain && body.domainId !== null && (typeof body.domainId !== 'string' || !body.domainId)) throw new Error('Select a domain or use null to unassign.');
+    if (hasDomain) {
+      await setWorkspacePrimaryDomain(body.id, body.domainId as string | null, session.email);
+    }
+    if (hasStatus || hasName) await updateWorkspace(body.id, { status: hasStatus ? body.status as WorkspaceStatus : undefined, name: hasName ? body.name as string : undefined });
     return { ok: true };
   });
 }

@@ -10,6 +10,13 @@ export async function cookies() {
     delete: (key: string) => { values.delete(key); },
   };
 }
+export async function headers() {
+  const values = context.getStore();
+  return { get: (key: string) => values?.get(`header:${key.toLowerCase()}`) ?? null };
+}
 export function withSession<T>(token: string | undefined, run: () => Promise<T>) {
   return context.run(new Map(token ? [['smartlink_session', token]] : []), run);
+}
+export function withHeaders<T>(values: Record<string, string>, run: () => Promise<T>) {
+  return context.run(new Map(Object.entries(values).map(([key, value]) => [`header:${key.toLowerCase()}`, value])), run);
 }

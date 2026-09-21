@@ -19,6 +19,36 @@ const schemaStatements = [
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_workspaces_owner (owner_email)
   )`,
+  `CREATE TABLE IF NOT EXISTS custom_domains (
+    id CHAR(36) PRIMARY KEY,
+    hostname VARCHAR(253) NOT NULL UNIQUE,
+    workspace_id CHAR(36) NULL,
+    is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+    primary_workspace_id CHAR(36) GENERATED ALWAYS AS (CASE WHEN is_primary = 1 THEN workspace_id ELSE NULL END) STORED,
+    status ENUM('pending_dns', 'verifying', 'verified', 'ssl_pending', 'active', 'error', 'disabled') NOT NULL DEFAULT 'pending_dns',
+    ssl_status ENUM('pending', 'active', 'error', 'disabled') NOT NULL DEFAULT 'pending',
+    last_checked_at DATETIME NULL,
+    last_verified_at DATETIME NULL,
+    verification_error VARCHAR(700) NULL,
+    ssl_updated_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_custom_domains_primary_workspace (primary_workspace_id),
+    INDEX idx_custom_domains_workspace (workspace_id),
+    INDEX idx_custom_domains_status (status)
+  )`,
+  `CREATE TABLE IF NOT EXISTS domain_audit_events (
+    sequence BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    id CHAR(36) NOT NULL UNIQUE,
+    domain_id CHAR(36) NULL,
+    hostname VARCHAR(253) NOT NULL,
+    workspace_id CHAR(36) NULL,
+    action VARCHAR(40) NOT NULL,
+    actor_email VARCHAR(190) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_domain_audit_domain_created (domain_id, created_at),
+    INDEX idx_domain_audit_workspace_created (workspace_id, created_at)
+  )`,
   `CREATE TABLE IF NOT EXISTS workspace_users (
     id CHAR(36) PRIMARY KEY,
     email VARCHAR(190) NOT NULL UNIQUE,

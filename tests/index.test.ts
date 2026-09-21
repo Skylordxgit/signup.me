@@ -10,3 +10,6 @@ import './authUi.test';
 import './pageTransfer.test';
 import './signupClient.test';
 import './workspaceIsolation.test';
+import './domains.test';
+import './domainRouting.test';
+import './MasterDashboard.test';

@@ -218,7 +218,7 @@ try {
   if (login.ok()) {
     for (const [tag, width, height] of [['1440', 1440, 900], ['1024', 1024, 820], ['390', 390, 844]]) {
       await masterPage.setViewportSize({ width, height });
-      for (const section of ['Overview', 'Workspaces', 'All users', 'Global branding', 'Signup access']) {
+      for (const section of ['Overview', 'Workspaces', 'Domains', 'All users', 'Global branding', 'Signup access']) {
         await masterPage.goto(origin + '/admin/master');
         const menu = masterPage.getByRole('button', { name: 'Open menu', exact: true });
         if (await menu.isVisible()) await menu.click();

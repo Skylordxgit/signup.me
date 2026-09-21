@@ -20,7 +20,20 @@ session can obtain and which cannot reach any workspace route.
 - `GET /api/master/workspaces` - every workspace with owner, status, and
   page/admin/subscriber counts.
 - `PATCH /api/master/workspaces` - set a workspace `status` to
-  `active` or `disabled`.
+  `active` or `disabled`, change its `name`, and assign/unassign its primary
+  custom domain with `domainId` (use `null` to unassign).
+- `POST /api/master/workspaces` - accepts optional `domainId` when creating a
+  workspace. `GET` includes the assigned `domainId` and normalized `domain`.
+- `GET /api/master/domains` - custom domains, DNS instructions, SSL status,
+  and recent domain audit events.
+- `POST /api/master/domains` - add a unique normalized hostname, optionally
+  assigned with `workspaceId`.
+- `PATCH /api/master/domains` - `action` is `verify`, `assign`, `ssl`, or
+  `disable`. DNS verification performs real CNAME/A lookups. SSL updates only
+  persist status supplied by this trusted master endpoint; they do not issue a
+  certificate.
+- `DELETE /api/master/domains` - unassign and delete a domain while retaining
+  its audit history.
 
 ## Team
 

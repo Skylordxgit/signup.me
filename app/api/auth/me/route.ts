@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { workspacePermissions } from "@/lib/permissions";
 import { getWorkspace } from "@/lib/workspaces";
+import { listDomains } from '@/lib/domains';
 
 export async function GET() {
   const session = await requireAdmin();
@@ -9,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   }
 
-  const workspace = await getWorkspace(session.workspaceId);
+  const [workspace, domains] = await Promise.all([getWorkspace(session.workspaceId), listDomains()]);
   return NextResponse.json({
     email: session.email,
     role: session.role,
@@ -19,5 +20,6 @@ export async function GET() {
     isMaster: session.isMaster ?? false,
     workspaceId: session.workspaceId,
     workspaceName: workspace?.name || 'Main workspace',
+    customDomain: workspace?.status === 'active' ? domains.find(domain => domain.workspaceId === session.workspaceId && domain.status === 'active')?.hostname ?? null : null,
   });
 }

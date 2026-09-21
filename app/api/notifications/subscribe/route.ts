@@ -3,6 +3,7 @@ import { isPushSubscription } from "@/lib/push";
 import { savePushSubscription } from "@/lib/store";
 import { isValidSlug } from "@/lib/utils";
 import { collectSubscriberDetails } from '@/lib/subscriberDetails';
+import { resolvePublicHost } from '@/lib/domainRouting';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,8 +18,10 @@ export async function POST(request: NextRequest) {
     if (!isPushSubscription(subscription)) {
       return NextResponse.json({ error: "Invalid notification subscription" }, { status: 400 });
     }
+    const host = await resolvePublicHost(request.headers.get('host'));
+    if (host.kind === 'unknown' || host.kind === 'master') return NextResponse.json({ error: 'Published page not found' }, { status: 404 });
 
-    const saved = await savePushSubscription(slug, subscription, request.headers.get("user-agent") || "", collectSubscriberDetails(request.headers, body?.deviceHints));
+    const saved = await savePushSubscription(slug, subscription, request.headers.get("user-agent") || "", collectSubscriberDetails(request.headers, body?.deviceHints), host.kind === 'custom' ? host.workspaceId : undefined);
     if (!saved) {
       return NextResponse.json({ error: "Published page not found" }, { status: 404 });
     }

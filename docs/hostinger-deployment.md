@@ -73,6 +73,10 @@ NEXT_PUBLIC_APP_URL=
 COOKIE_SECURE=true
 UPLOAD_DIR=/home/USER/smartlink-uploads
 MAX_UPLOAD_BYTES=5242880
+CUSTOM_DOMAIN_CNAME_TARGET=domains.example.com
+CUSTOM_DOMAIN_SERVER_IP=
+MASTER_ADMIN_DOMAIN=admin.example.com
+DEFAULT_APP_DOMAIN=app.example.com
 ```
 
 For the supplied Hostinger database, use the database and user names exactly as created in hPanel. The database host is shown in **hPanel -> Databases -> Management**. Individual variables take priority when both options are present. URL-encode special characters in the password (for example, `@` becomes `%40`) only when placing it in `DATABASE_URL`.
@@ -97,6 +101,16 @@ tenant can always be recovered.
 
 The multi-workspace columns are applied automatically on the first database
 connection; see `docs/workspace-team.md` and `docs/schema.sql`.
+
+Custom-domain verification requires one DNS target. Set
+`CUSTOM_DOMAIN_CNAME_TARGET` when customers should create a CNAME, or
+`CUSTOM_DOMAIN_SERVER_IP` when they should create an A record. CNAME takes
+precedence if both are set. The master API returns apex and optional `www`
+instructions and verifies the apex with Node's DNS resolver; it never fakes a
+successful check. Reserve the control-plane and default hostnames with
+`MASTER_ADMIN_DOMAIN` and `DEFAULT_APP_DOMAIN` so tenants cannot claim them.
+The application records SSL state for display and infrastructure integration,
+but does not request or install certificates.
 
 ## Build And Start
 

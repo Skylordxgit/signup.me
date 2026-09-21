@@ -576,25 +576,22 @@ At minimum, add a short note under this section:
   `/api/master/branding` APIs. Verification passed: `npm run lint`,
   `./node_modules/.bin/tsc --noEmit --incremental false`, `npm test` (49
   passing), and `npm run build`.
-- 2026-09-21: Unified Analytics and Workspace Dashboard into a single workspace
-  hub with granular regional intelligence and custom date filtering.
-  - Added custom date range filter control supporting presets (`today`,
-    `yesterday`, `7d`, `14d`, `30d`, `90d`, `month`, `all`) and custom start/end
-    date pickers with live API synchronization.
-  - Added detailed geographic drill-down (`CountryDrilldownView`) reporting
-    country totals (flags, views, clicks, CTR) and expanding into city-level
-    breakdowns (e.g. Bangladesh -> Dhaka, Chittagong) with top clicked links per
-    city.
-  - Added live recent activity feed (`RecentActivityFeed`) showing real-time
-    visitor page views and link clicks with location flags, device badges, and
-    timestamps.
-  - Extended JSON store (`lib/stores/jsonStore.ts`) and MySQL store
-    (`lib/stores/mysqlStore.ts`) analytics engines to support custom date
-    intervals (`from`/`to`), city grouping, and top clicked link tracking.
-  - Updated `combineAnalytics` in `lib/admin.ts` to aggregate multi-page
-    geographic metrics and activity streams.
-  - Added unit test coverage in `tests/AdminDashboard.test.tsx` (72 passing tests).
-  - Verified: `npm run lint`, `npx tsc --noEmit --incremental false`, `npm test`
-    (72 tests), and `npm run build`.
+- 2026-09-21: Built complete Custom Domain Management system in Master Admin.
+  - Added `custom_domains` and `domain_audit_events` tables in MySQL runtime
+    migrations and `docs/schema.sql` with JSON fallback persistence in `data/domains.json`.
+  - Added domain normalization: auto-strips `https://`, `www.`, ports, paths,
+    and trailing slashes (`https://www.brand-a.com/` -> `brand-a.com`).
+  - Added strict domain validation rejecting localhost, IP addresses, internal suffixes,
+    and reserved platform domains (`MASTER_ADMIN_DOMAIN`, `DEFAULT_APP_DOMAIN`).
+  - Added DNS verification using `node:dns/promises` checking CNAME (`CUSTOM_DOMAIN_CNAME_TARGET`)
+    or A (`CUSTOM_DOMAIN_SERVER_IP`) records with optional `www` configuration.
+  - Added Master Admin Domains panel with full CRUD, DNS verification trigger, assignment,
+    unassignment, and enable/disable toggles.
+  - Integrated Assign Domain into workspace creation dialog and workspace edit dialog.
+  - Implemented hostname-based tenant resolution in `lib/domainRouting.ts`: incoming request `Host`
+    resolves mapped workspace and serves custom-domain root primary page and pages without leaking other tenants.
+  - Scoped public telemetry (view tracking, click tracking, push subscriptions, manifest) to the host-resolved workspace.
+  - Added test coverage in `tests/domains.test.ts`, `tests/domainRouting.test.ts`, and `tests/MasterDashboard.test.tsx` (83 passing tests).
+  - Verified: `npm run lint`, `npx tsc --noEmit --incremental false`, `npm test` (83 tests), and `npm run build`.
 
 

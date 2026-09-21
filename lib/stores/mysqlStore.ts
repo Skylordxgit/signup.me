@@ -300,8 +300,14 @@ export async function pagesByWorkspace() {
   return rows.map((row) => ({ id: row.id, workspaceId: row.workspace_id || DEFAULT_WORKSPACE_ID }));
 }
 
-export async function getPublicPageBySlug(slug: string) {
-  const rows = await mysqlQuery<PageRow[]>("SELECT * FROM pages WHERE slug = ? AND status = 'published'", [slug]);
+export async function getPublicPageBySlug(slug: string, workspaceId?: string) {
+  const rows = await mysqlQuery<PageRow[]>(`SELECT * FROM pages WHERE slug = ? AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''}`, [slug, ...(workspaceId ? [workspaceId] : [])]);
+  if (!rows[0]) return null;
+  return mapPage(rows[0], await blocksForPage(rows[0].id));
+}
+
+export async function getPrimaryPublicPage(workspaceId: string) {
+  const rows = await mysqlQuery<PageRow[]>("SELECT * FROM pages WHERE workspace_id = ? AND status = 'published' ORDER BY id LIMIT 1", [workspaceId]);
   if (!rows[0]) return null;
   return mapPage(rows[0], await blocksForPage(rows[0].id));
 }
@@ -613,8 +619,11 @@ export async function trackView(
   visitorKey: string,
   country = '',
   city = '',
+  location = '',
+  workspaceId?: string,
 ) {
-  const rows = await mysqlQuery<{ id: number }[]>("SELECT id FROM pages WHERE slug = ? AND status = 'published'", [slug]);
+  void location;
+  const rows = await mysqlQuery<{ id: number }[]>(`SELECT id FROM pages WHERE slug = ? AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''}`, [slug, ...(workspaceId ? [workspaceId] : [])]);
   const pageId = rows[0]?.id;
   if (!pageId) return null;
 
@@ -641,8 +650,11 @@ export async function trackClick(
   referrer: string | null,
   country = '',
   city = '',
+  location = '',
+  workspaceId?: string,
 ) {
-  const rows = await mysqlQuery<{ id: number }[]>("SELECT id FROM page_blocks WHERE id = ? AND page_id = ?", [blockId, pageId]);
+  void location;
+  const rows = await mysqlQuery<{ id: number }[]>(`SELECT b.id FROM page_blocks b INNER JOIN pages p ON p.id = b.page_id WHERE b.id = ? AND b.page_id = ? AND p.status = 'published'${workspaceId ? ' AND p.workspace_id = ?' : ''}`, [blockId, pageId, ...(workspaceId ? [workspaceId] : [])]);
   if (!rows.length) return null;
 
   await mysqlQuery("UPDATE page_blocks SET clicks = clicks + 1 WHERE id = ?", [blockId]);
@@ -885,9 +897,9 @@ export async function analyticsForPage(
   };
 }
 
-export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails) {
+export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails, workspaceId?: string) {
   await ensurePushTable();
-  const rows = await mysqlQuery<{ id: number; workspace_id: string }[]>("SELECT id, workspace_id FROM pages WHERE slug = ? AND status = 'published'", [slug]);
+  const rows = await mysqlQuery<{ id: number; workspace_id: string }[]>(`SELECT id, workspace_id FROM pages WHERE slug = ? AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''}`, [slug, ...(workspaceId ? [workspaceId] : [])]);
   const pageId = rows[0]?.id;
   if (!pageId) return null;
 

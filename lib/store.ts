@@ -10,6 +10,7 @@ export const listPages: typeof jsonStore.listPages = (...args) => store().listPa
 export const getPageById: typeof jsonStore.getPageById = (...args) => store().getPageById(...args);
 export const pagesByWorkspace: typeof jsonStore.pagesByWorkspace = (...args) => store().pagesByWorkspace(...args);
 export const getPublicPageBySlug: typeof jsonStore.getPublicPageBySlug = (...args) => store().getPublicPageBySlug(...args);
+export const getPrimaryPublicPage: typeof jsonStore.getPrimaryPublicPage = (...args) => store().getPrimaryPublicPage(...args);
 export const createPage: typeof jsonStore.createPage = (...args) => store().createPage(...args);
 export const updatePage: typeof jsonStore.updatePage = (...args) => store().updatePage(...args);
 export const deletePage: typeof jsonStore.deletePage = (...args) => store().deletePage(...args);
