@@ -404,12 +404,55 @@ export async function verifyDomainDns(id: string, dns: DomainResolver = resolver
   if (!config.record) throw new Error('Configure CUSTOM_DOMAIN_CNAME_TARGET or CUSTOM_DOMAIN_SERVER_IP before verification.');
   if (!hasMysqlConfig()) await mutateData(data => { const item = data.domains.find(row => row.id === id); if (item) { item.status = 'verifying'; item.updatedAt = new Date().toISOString(); } });
   else await mysqlQuery("UPDATE custom_domains SET status = 'verifying', verification_error = NULL WHERE id = ?", [id]);
-  let answers: string[];
-  try { answers = config.record.type === 'CNAME' ? await dns.resolveCname(domain.hostname) : await dns.resolve4(domain.hostname); }
-  catch (error) { return saveVerification(id, false, error instanceof Error ? error.message : 'DNS lookup failed.', actorEmail); }
-  const expected = dnsTarget(config.record.value);
-  if (!answers.some(answer => dnsTarget(answer) === expected)) return saveVerification(id, false, `Expected ${config.record.type} ${expected}, but DNS returned ${answers.join(', ') || 'no records'}.`, actorEmail);
-  return saveVerification(id, true, null, actorEmail);
+
+  const expectedCname = process.env.CUSTOM_DOMAIN_CNAME_TARGET ? dnsTarget(process.env.CUSTOM_DOMAIN_CNAME_TARGET) : null;
+  const configuredIp = process.env.CUSTOM_DOMAIN_SERVER_IP?.trim() || null;
+
+  let cnameAnswers: string[] = [];
+  let aAnswers: string[] = [];
+
+  try {
+    cnameAnswers = (await dns.resolveCname(domain.hostname)).map(dnsTarget);
+  } catch {
+    cnameAnswers = [];
+  }
+
+  try {
+    aAnswers = (await dns.resolve4(domain.hostname)).map(dnsTarget);
+  } catch {
+    aAnswers = [];
+  }
+
+  if (expectedCname && cnameAnswers.some(ans => ans === expectedCname)) {
+    return saveVerification(id, true, null, actorEmail);
+  }
+
+  if (configuredIp && aAnswers.some(ans => ans === configuredIp)) {
+    return saveVerification(id, true, null, actorEmail);
+  }
+
+  if (expectedCname && aAnswers.length > 0) {
+    try {
+      const targetIps = (await dns.resolve4(expectedCname)).map(dnsTarget);
+      if (targetIps.some(ip => aAnswers.includes(ip))) {
+        return saveVerification(id, true, null, actorEmail);
+      }
+    } catch {
+      // Ignore target IP resolution errors and fall through
+    }
+  }
+
+  const expectedList = [
+    expectedCname ? `CNAME "${expectedCname}"` : null,
+    configuredIp ? `A record "${configuredIp}"` : null,
+  ].filter(Boolean).join(' or ');
+
+  const foundList = [
+    cnameAnswers.length > 0 ? `CNAME: ${cnameAnswers.join(', ')}` : null,
+    aAnswers.length > 0 ? `A: ${aAnswers.join(', ')}` : null,
+  ].filter(Boolean).join('; ') || 'no DNS records found';
+
+  return saveVerification(id, false, `Expected ${expectedList || 'configured target'}, but DNS returned ${foundList}.`, actorEmail);
 }
 
 export async function updateDomainSslStatus(id: string, sslStatus: DomainSslStatus) {
