@@ -101,17 +101,11 @@ export function DashboardHome({
       <SectionCard title="Quick actions"><div className="admQuickActions">{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'Send notification', icon: Bell, view: 'notifications' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={17} aria-hidden="true" /><span>{action.label}</span><ArrowUpRight size={15} aria-hidden="true" /></button>)}</div></SectionCard>
     </div>
     <div className="admHomeGrid">
-      <SectionCard title="Link click locations" actions={<span className="admMuted">{analytics?.linkLocations?.length || analytics?.locations?.length || 0} locations</span>}>
-        <LocationDetailsCard report={analytics} />
+      <SectionCard title="Geographic location graph" actions={<span className="admMuted">{(analytics?.locations || []).length} active regions</span>}>
+        <LocationChart report={analytics} />
       </SectionCard>
-      <SectionCard title="Geographic reach">
-        <Distribution
-          title=""
-          items={(analytics?.locations || []).slice(0, 6).map(item => ({
-            label: item.location || item.country || 'Direct / Local',
-            count: item.clicks,
-          }))}
-        />
+      <SectionCard title="Link clicks by location" actions={<span className="admMuted">{analytics?.linkLocations?.length || 0} links clicked</span>}>
+        <LocationDetailsCard report={analytics} />
       </SectionCard>
     </div>
     <div className="admHomeGrid">
@@ -133,6 +127,73 @@ export function TrafficChart({ report, rangeLabel }: { report: AnalyticsReport |
       <div className="admChartBars">{report.daily.map(day => <div key={day.date} title={`${day.date}: ${day.views} views, ${day.clicks} clicks`}><i style={{ height: `${day.views / peak * 100}%` }} /><b style={{ height: `${day.clicks / peak * 100}%` }} /></div>)}{!views && !clicks && <span className="admChartEmpty">No traffic in this period</span>}</div>
     </div><div className="admChartDates"><span>{report.daily[0]?.date}</span><span>{report.daily.at(-1)?.date}</span></div>
   </div>;
+}
+
+export function LocationChart({ report }: { report: AnalyticsReport | null }) {
+  if (!report) return <div className="admChartLoading" role="status">Loading locations...</div>;
+  const locations = report.locations || [];
+  if (!locations.length) {
+    return (
+      <EmptyState
+        icon={Globe2}
+        title="No location data yet"
+        description="Geographic graph will appear here as visitors view pages and click links."
+      />
+    );
+  }
+
+  const peakViews = Math.max(1, ...locations.map(l => l.views));
+  const peakClicks = Math.max(1, ...locations.map(l => l.clicks));
+  const totalViews = locations.reduce((sum, l) => sum + l.views, 0);
+  const totalClicks = locations.reduce((sum, l) => sum + l.clicks, 0);
+
+  return (
+    <div className="admLocationChart">
+      <div className="admLocationChartLegend">
+        <span><i className="admDotClicks" /> Link clicks (<strong>{number(totalClicks)}</strong>)</span>
+        <span><i className="admDotViews" /> Page views (<strong>{number(totalViews)}</strong>)</span>
+      </div>
+      <div className="admLocationChartList">
+        {locations.slice(0, 8).map((item, index) => {
+          const ctr = item.views > 0 ? ((item.clicks / item.views) * 100).toFixed(1) : (item.clicks > 0 ? '100' : '0');
+          const clicksWidth = Math.max(4, Math.round((item.clicks / peakClicks) * 100));
+          const viewsWidth = Math.max(4, Math.round((item.views / peakViews) * 100));
+
+          return (
+            <div className="admLocationChartItem" key={`${item.location}-${index}`}>
+              <div className="admLocationChartItemHead">
+                <div className="admLocationChartName">
+                  <Globe2 size={15} aria-hidden="true" />
+                  <span title={item.location || item.country || 'Direct / Local'}>
+                    {item.location || item.country || 'Direct / Local'}
+                  </span>
+                </div>
+                <div className="admLocationChartStats">
+                  <span><strong>{number(item.clicks)}</strong> clicks</span>
+                  <span><strong>{number(item.views)}</strong> views</span>
+                  <span className="admLocationCtrBadge">{ctr}% CTR</span>
+                </div>
+              </div>
+              <div className="admLocationChartBars">
+                <div className="admLocationBarRow">
+                  <div className="admLocationBarTrack">
+                    <div className="admLocationBarFill admBarClicks" style={{ width: `${item.clicks > 0 ? clicksWidth : 0}%` }} />
+                  </div>
+                  <span className="admLocationBarLabel">{number(item.clicks)} clk</span>
+                </div>
+                <div className="admLocationBarRow">
+                  <div className="admLocationBarTrack">
+                    <div className="admLocationBarFill admBarViews" style={{ width: `${item.views > 0 ? viewsWidth : 0}%` }} />
+                  </div>
+                  <span className="admLocationBarLabel">{number(item.views)} view</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function LocationDetailsCard({ report }: { report: AnalyticsReport | null }) {
@@ -201,15 +262,17 @@ export function AnalyticsView({
     <div className="admMetrics">{[['Views', report.views], ['Unique visitors', report.uniqueVisitors], ['Clicks', report.clicks], ['Click-through rate', `${report.ctr}%`]].map(([label, value]) => <article className="admMetric" key={label}><div><span>{label}</span><strong>{typeof value === 'number' ? number(value) : value}</strong></div></article>)}</div>
     <SectionCard title="Traffic" actions={<span className="admMuted">{rangeLabel}</span>}><TrafficChart report={report} rangeLabel={rangeLabel} /></SectionCard>
     <div className="admThreeColumns">
-      <Distribution title="Click locations" items={(report.locations || []).slice(0, 8).map(item => ({ label: item.location || item.country || 'Direct / Local', count: item.clicks }))} />
       <Distribution title="Top links" items={report.topBlocks.map(item => ({ label: item.title, count: item.clicks }))} />
       <Distribution title="Devices" items={report.devices.map(item => ({ label: item.device, count: item.count }))} />
+      <Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
     </div>
     <div className="admHomeGrid">
+      <SectionCard title="Geographic locations graph (Views & Clicks)" actions={<span className="admMuted">{(report.locations || []).length} locations</span>}>
+        <LocationChart report={report} />
+      </SectionCard>
       <SectionCard title="Detailed link clicks by location" actions={<span className="admMuted">{report.linkLocations?.length || 0} link locations</span>}>
         <LocationDetailsCard report={report} />
       </SectionCard>
-      <Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
     </div>
   </>;
 }
