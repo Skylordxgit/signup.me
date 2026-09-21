@@ -6,7 +6,6 @@ import type { CSSProperties } from "react";
 import {
   Calendar,
   Camera,
-  CircleHelp,
   Clock,
   Compass,
   CreditCard,

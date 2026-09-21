@@ -12,7 +12,7 @@ import { defaultTheme } from "@/lib/defaults";
 import { ImageUploader } from "./ImageUploader";
 import { BuilderEditor, ThemeGallery, type BuilderTab } from "./admin/BuilderEditor";
 import { AnalyticsView, DashboardHome, MediaView, NotificationsView, PagesTable, SettingsView } from "./admin/DashboardViews";
-import { Button, Dialog, Field, IconButton, LoadingState, PageHeader, StatusBadge } from "./admin/AdminUI";
+import { Button, Dialog, Field, IconButton, LoadingState, PageHeader } from "./admin/AdminUI";
 import { UsersView } from "./admin/UsersView";
 import { fallbackBranding, fetchBranding, type ClientBranding } from "./AuthBranding";
 import { usePageEditor } from "./admin/usePageEditor";

@@ -352,6 +352,13 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-21: Added "Create workspace" functionality to the Master Admin control center with complete multi-tenant data isolation.
+  - Implemented `POST /api/master/workspaces` supporting custom workspace name and optional owner email with immediate password or 7-day single-use invite link.
+  - Added "Create workspace" buttons to Master Admin Workspaces view, Overview hero/recent section, and EmptyState.
+  - Integrated `Create new workspace` modal dialog conforming to the Admin design system with live validation and error handling.
+  - Verified strict multi-tenant workspace isolation across all entities: pages, blocks, media uploads, push subscriptions, notification campaigns, team members, and settings.
+  - Added regression test `master admin can create multiple workspaces and their data never mixes` to `tests/workspaceIsolation.test.ts`.
+  - All 70 tests pass, linting and TypeScript compile with 0 errors and 0 warnings, and production build succeeds.
 - 2026-09-15: Audited, cleaned, optimized, and debugged the entire project.
   - Repaired `tests/admin-browser.mjs` auth setup so the isolated test server
     provisions the `qa@example.com` workspace test account, allowing all 43

@@ -82,6 +82,14 @@ export function MasterDashboard({ email }: { email: string }) {
   const [withPassword, setWithPassword] = useState(true);
   const [inviteUrl, setInviteUrl] = useState("");
 
+  // Workspace management state
+  const [workspaceModal, setWorkspaceModal] = useState(false);
+  const [wsName, setWsName] = useState("");
+  const [wsOwnerEmail, setWsOwnerEmail] = useState("");
+  const [wsOwnerName, setWsOwnerName] = useState("");
+  const [wsWithPassword, setWsWithPassword] = useState(true);
+  const [wsPassword, setWsPassword] = useState("");
+
   const load = useCallback(async () => {
     const [data, brand, signupSettings, accounts] = await Promise.all([
       adminApi<Payload>("/api/master/workspaces"),
@@ -192,6 +200,46 @@ export function MasterDashboard({ email }: { email: string }) {
   async function openWorkspace(workspaceId: string) {
     await adminApi("/api/master/context", { method: "POST", body: JSON.stringify({ workspaceId }) });
     window.location.assign("/admin");
+  }
+
+  function openCreateWorkspaceModal() {
+    setError("");
+    setWsName("");
+    setWsOwnerEmail("");
+    setWsOwnerName("");
+    setWsWithPassword(true);
+    setWsPassword("");
+    setWorkspaceModal(true);
+  }
+
+  async function handleWorkspaceSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      const result = await adminApi<{ ok: boolean; workspace: MasterWorkspace; invitePath?: string }>("/api/master/workspaces", {
+        method: "POST",
+        body: JSON.stringify({
+          name: wsName,
+          ownerEmail: wsOwnerEmail,
+          ownerName: wsOwnerName,
+          withPassword: wsWithPassword,
+          password: wsPassword,
+        }),
+      });
+      if (result?.invitePath) {
+        setInviteUrl(new URL(result.invitePath, window.location.origin).href);
+      }
+      setMessage(`Workspace "${wsName}" created successfully.`);
+      setWorkspaceModal(false);
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not create workspace.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function openCreateUserModal() {
@@ -320,14 +368,17 @@ export function MasterDashboard({ email }: { email: string }) {
       </header>
 
       <main className="masterMain" aria-busy={busy || loading}>
-        {error && !userModal && <div className="admError masterNotice" role="alert"><span>{error}</span><IconButton icon={X} label="Dismiss error" onClick={() => setError("")} /></div>}
+        {error && !userModal && !workspaceModal && <div className="admError masterNotice" role="alert"><span>{error}</span><IconButton icon={X} label="Dismiss error" onClick={() => setError("")} /></div>}
         {message && <p className="admSuccess masterNotice" role="status">{message}</p>}
         {inviteUrl && <div className="admCard admFormStack masterNotice"><Field label="Invitation link" hint="Single-use link for the invited user."><input readOnly value={inviteUrl} onFocus={event => event.target.select()} /></Field><Button icon={Copy} onClick={() => void navigator.clipboard.writeText(inviteUrl).then(() => setMessage("Link copied to clipboard.")).catch(() => setError("Could not copy link."))}>Copy invitation link</Button></div>}
         {loading ? <LoadingState label="Loading your control center..." /> : <>
           {view === "overview" && <div className="masterView">
             <section className="masterHero">
               <div><span className="masterEyebrow"><ShieldCheck size={14} />Global platform access</span><h2>Everything important, at a glance.</h2><p>Monitor workspaces, accounts, pages and notification reach from one secure control center.</p></div>
-              <button type="button" onClick={() => navigate("workspaces")}>Manage workspaces <ArrowRight size={16} /></button>
+              <div className="admActionRow">
+                <Button variant="primary" icon={Plus} disabled={busy} onClick={openCreateWorkspaceModal}>Create workspace</Button>
+                <button type="button" onClick={() => navigate("workspaces")}>Manage workspaces <ArrowRight size={16} /></button>
+              </div>
             </section>
             <div className="masterMetrics">
               <article><span className="masterMetricIcon masterToneBlue"><Building2 size={20} /></span><div><small>Workspaces</small><strong>{workspaces.length}</strong><em>{activeWorkspaces} active</em></div></article>
@@ -336,14 +387,22 @@ export function MasterDashboard({ email }: { email: string }) {
               <article><span className="masterMetricIcon masterToneGreen"><Globe2 size={20} /></span><div><small>Push audience</small><strong>{totals.subscribers}</strong><em>subscribers</em></div></article>
             </div>
             <section className="masterPanel">
-              <SectionHeading title="Recent workspaces"><button type="button" className="masterTextButton" onClick={() => navigate("workspaces")}>View all <ArrowRight size={14} /></button></SectionHeading>
-              <WorkspaceList workspaces={workspaces.slice(0, 5)} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} />
+              <SectionHeading title="Recent workspaces">
+                <div className="admActionRow">
+                  <Button size="sm" icon={Plus} disabled={busy} onClick={openCreateWorkspaceModal}>New workspace</Button>
+                  <button type="button" className="masterTextButton" onClick={() => navigate("workspaces")}>View all <ArrowRight size={14} /></button>
+                </div>
+              </SectionHeading>
+              <WorkspaceList workspaces={workspaces.slice(0, 5)} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onCreate={openCreateWorkspaceModal} />
             </section>
           </div>}
 
           {view === "workspaces" && <div className="masterView">
-            <div className="masterPageIntro"><div><span>{workspaces.length} total</span><h2>Workspace management</h2><p>Inspect, enter, enable or disable every tenant from one place.</p></div></div>
-            <section className="masterPanel"><WorkspaceList workspaces={workspaces} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onToggle={workspace => void run(() => adminApi("/api/master/workspaces", { method: "PATCH", body: JSON.stringify({ id: workspace.id, status: workspace.status === "active" ? "disabled" : "active" }) }))} /></section>
+            <div className="masterPageIntro">
+              <div><span>{workspaces.length} total</span><h2>Workspace management</h2><p>Inspect, enter, enable or disable every tenant from one place.</p></div>
+              <Button variant="primary" icon={Plus} disabled={busy} onClick={openCreateWorkspaceModal}>Create workspace</Button>
+            </div>
+            <section className="masterPanel"><WorkspaceList workspaces={workspaces} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onToggle={workspace => void run(() => adminApi("/api/master/workspaces", { method: "PATCH", body: JSON.stringify({ id: workspace.id, status: workspace.status === "active" ? "disabled" : "active" }) }))} onCreate={openCreateWorkspaceModal} /></section>
           </div>}
 
           {view === "users" && <div className="masterView">
@@ -488,6 +547,82 @@ export function MasterDashboard({ email }: { email: string }) {
         </div>
       </form>
     </Dialog>}
+
+    {workspaceModal && <Dialog
+      title="Create new workspace"
+      onClose={() => { if (!busy) { setWorkspaceModal(false); setWsPassword(""); setError(""); } }}
+    >
+      <form onSubmit={handleWorkspaceSubmit}>
+        <fieldset disabled={busy} className="admTeamFields">
+          <div className="admFormStack">
+            <Field label="Workspace name" hint="A distinct name for this workspace.">
+              <input
+                required
+                maxLength={190}
+                placeholder="e.g. Acme Studio"
+                value={wsName}
+                onChange={event => setWsName(event.target.value)}
+              />
+            </Field>
+            <Field label="Owner email" hint="Leave blank to assign to Master Admin, or specify a tenant owner.">
+              <input
+                type="email"
+                maxLength={190}
+                autoComplete="off"
+                placeholder={email}
+                value={wsOwnerEmail}
+                onChange={event => setWsOwnerEmail(event.target.value)}
+              />
+            </Field>
+
+            {wsOwnerEmail.trim() && wsOwnerEmail.trim().toLowerCase() !== email.toLowerCase() && <>
+              <Field label="Owner name">
+                <input
+                  maxLength={120}
+                  autoComplete="name"
+                  placeholder="e.g. John Doe"
+                  value={wsOwnerName}
+                  onChange={event => setWsOwnerName(event.target.value)}
+                />
+              </Field>
+
+              <label className="admCheck">
+                <input
+                  type="checkbox"
+                  checked={wsWithPassword}
+                  onChange={event => setWsWithPassword(event.target.checked)}
+                />
+                Set a password now (immediate access)
+              </label>
+
+              {wsWithPassword ? (
+                <Field label="Owner password" hint="At least 8 characters.">
+                  <input
+                    required
+                    type="password"
+                    minLength={8}
+                    maxLength={128}
+                    autoComplete="new-password"
+                    value={wsPassword}
+                    onChange={event => setWsPassword(event.target.value)}
+                  />
+                </Field>
+              ) : (
+                <p className="admMuted admSmall">An expiring invitation link will be generated after creation.</p>
+              )}
+            </>}
+
+            {error && <p className="admError" role="alert">{error}</p>}
+          </div>
+        </fieldset>
+        <div className="admDialogActions">
+          <button type="button" className="admButton" disabled={busy} onClick={() => { setWorkspaceModal(false); setWsPassword(""); setError(""); }}>Cancel</button>
+          <button type="submit" className="admButton admPrimary" disabled={busy}>
+            {busy ? "Creating..." : "Create workspace"}
+          </button>
+        </div>
+      </form>
+    </Dialog>}
   </div>;
 }
 
@@ -497,14 +632,16 @@ function WorkspaceList({
   onInspect,
   onOpen,
   onToggle,
+  onCreate,
 }: {
   workspaces: MasterWorkspace[];
   busy: boolean;
   onInspect: (workspace: MasterWorkspace) => void;
   onOpen: (workspace: MasterWorkspace) => void;
   onToggle?: (workspace: MasterWorkspace) => void;
+  onCreate?: () => void;
 }) {
-  if (!workspaces.length) return <EmptyState title="No workspaces yet" />;
+  if (!workspaces.length) return <EmptyState title="No workspaces yet" description="Create an isolated workspace to get started.">{onCreate && <Button variant="primary" icon={Plus} onClick={onCreate}>Create workspace</Button>}</EmptyState>;
   return <div className="masterWorkspaceList">{workspaces.map(workspace => <article key={workspace.id}>
     <button type="button" className="masterWorkspaceIdentity" onClick={() => onInspect(workspace)}>
       <span><Building2 size={19} /></span>

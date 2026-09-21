@@ -1,8 +1,12 @@
+import { randomBytes } from 'crypto';
 import { NextRequest } from 'next/server';
-import { masterJson, ownerEmail } from '@/lib/auth';
+import { hashPassword, masterJson, ownerEmail } from '@/lib/auth';
+import { isMasterEmail } from '@/lib/master';
+import { assertEmail, assertPassword, displayName, invitationHash, normalizeEmail } from '@/lib/signup';
 import { listPushSubscribers, pagesByWorkspace } from '@/lib/store';
-import { adminCounts, listWorkspaceUsers } from '@/lib/workspaceUsers';
-import { DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, listWorkspaces, updateWorkspace, type WorkspaceStatus } from '@/lib/workspaces';
+import { adminCounts, addWorkspaceUser, findWorkspaceUser, listWorkspaceUsers } from '@/lib/workspaceUsers';
+import { createWorkspace, DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, listWorkspaces, updateWorkspace, type WorkspaceStatus } from '@/lib/workspaces';
+import { workspacePermissions } from '@/lib/permissions';
 
 export type MasterWorkspace = {
   id: string;
@@ -49,6 +53,69 @@ export async function GET() {
     }));
 
     return { workspaces: rows, defaultWorkspaceId: DEFAULT_WORKSPACE_ID };
+  });
+}
+
+export async function POST(request: NextRequest) {
+  return masterJson(async (session) => {
+    const body = await request.json() as Record<string, unknown>;
+    const rawName = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!rawName) throw new Error('Workspace name is required.');
+    const name = rawName.slice(0, 190);
+
+    let ownerEmailAddr = typeof body.ownerEmail === 'string' ? body.ownerEmail.trim().toLowerCase() : '';
+    if (!ownerEmailAddr) {
+      ownerEmailAddr = session.email;
+    } else {
+      ownerEmailAddr = assertEmail(normalizeEmail(ownerEmailAddr));
+    }
+
+    const createOwner = body.createOwner !== false;
+    const existingUser = await findWorkspaceUser(ownerEmailAddr);
+
+    if (createOwner && existingUser && !isMasterEmail(ownerEmailAddr)) {
+      throw new Error(`An account for ${ownerEmailAddr} already exists in another workspace.`);
+    }
+
+    const workspace = await createWorkspace({ name, ownerEmail: ownerEmailAddr });
+
+    let invitePath: string | undefined;
+
+    if (createOwner && !isMasterEmail(ownerEmailAddr) && !existingUser) {
+      const ownerName = typeof body.ownerName === 'string' && body.ownerName.trim()
+        ? body.ownerName.trim().slice(0, 120)
+        : displayName('', ownerEmailAddr);
+      const rawPassword = typeof body.password === 'string' ? body.password : '';
+      const withPassword = Boolean(body.withPassword && rawPassword);
+      const passwordHash = withPassword ? hashPassword(assertPassword(rawPassword)) : '';
+      const token = withPassword ? undefined : randomBytes(32).toString('hex');
+
+      await addWorkspaceUser({
+        email: ownerEmailAddr,
+        name: ownerName,
+        passwordHash,
+        workspaceId: workspace.id,
+        role: 'owner',
+        permissions: [...workspacePermissions],
+        ...(token ? { inviteHash: invitationHash(token), inviteExpiresAt: new Date(Date.now() + 7 * 86400000).toISOString() } : {}),
+      });
+
+      if (token) {
+        invitePath = `/admin/invite?token=${token}&email=${encodeURIComponent(ownerEmailAddr)}`;
+      }
+    }
+
+    return {
+      ok: true,
+      workspace: {
+        id: workspace.id,
+        name: workspace.name,
+        ownerEmail: workspace.ownerEmail,
+        status: workspace.status,
+        createdAt: workspace.createdAt,
+      },
+      invitePath,
+    };
   });
 }
 

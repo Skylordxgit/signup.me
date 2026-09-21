@@ -21,6 +21,7 @@ import * as exports from '../app/api/pages/export/route';
 import * as team from '../app/api/admin/users/route';
 import * as notifications from '../app/api/admin/notifications/route';
 import * as masterUsers from '../app/api/master/users/route';
+import * as masterWorkspaces from '../app/api/master/workspaces/route';
 import * as masterContext from '../app/api/master/context/route';
 import * as uploads from '../app/api/uploads/route';
 import * as me from '../app/api/auth/me/route';
@@ -347,6 +348,148 @@ test('master admin can create, modify, and delete users and admins across any wo
       const delRes = await masterUsers.DELETE(request({ id: userRecord.id }));
       assert.equal(delRes.status, 200);
       assert.equal(await findWorkspaceUser('staff@example.test'), null);
+    });
+  } finally {
+    if (oldEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = oldEmail;
+    if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;
+  }
+}));
+
+test('master admin can create multiple workspaces and their data never mixes', async () => isolated(async () => {
+  const oldEmail = process.env.MASTER_ADMIN_EMAIL;
+  const oldHash = process.env.MASTER_ADMIN_PASSWORD_HASH;
+  process.env.MASTER_ADMIN_EMAIL = 'master@example.test';
+  process.env.MASTER_ADMIN_PASSWORD_HASH = hashPassword('master-password');
+  try {
+    const account = (await provisionMaster())!;
+    const masterToken = createSessionToken({ email: account.email, version: account.version, credentialVersion: masterCredentialVersion(), scope: 'master' });
+
+    let wsAlphaId = '';
+    let wsBetaId = '';
+    let wsGammaId = '';
+    let betaInviteToken = '';
+
+    await withSession(masterToken, async () => {
+      // 1. Validation: reject empty workspace name
+      const emptyRes = await masterWorkspaces.POST(request({ name: '' }));
+      assert.equal(emptyRes.status, 400);
+
+      // 2. Master creates Workspace 1 with an owner account & password
+      const ws1Res = await masterWorkspaces.POST(request({
+        name: 'Alpha Workspace',
+        ownerEmail: 'alpha-owner@example.test',
+        ownerName: 'Alpha Owner',
+        withPassword: true,
+        password: 'AlphaPassword123',
+      }));
+      assert.equal(ws1Res.status, 200);
+      const ws1 = await ws1Res.json() as { workspace: { id: string; name: string; ownerEmail: string } };
+      wsAlphaId = ws1.workspace.id;
+      assert.equal(ws1.workspace.name, 'Alpha Workspace');
+      assert.equal(ws1.workspace.ownerEmail, 'alpha-owner@example.test');
+
+      // 3. Master creates Workspace 2 with an invite link
+      const ws2Res = await masterWorkspaces.POST(request({
+        name: 'Beta Workspace',
+        ownerEmail: 'beta-owner@example.test',
+        ownerName: 'Beta Owner',
+        withPassword: false,
+      }));
+      assert.equal(ws2Res.status, 200);
+      const ws2 = await ws2Res.json() as { workspace: { id: string }; invitePath: string };
+      wsBetaId = ws2.workspace.id;
+      assert.ok(ws2.invitePath);
+      betaInviteToken = new URL(ws2.invitePath, 'http://localhost').searchParams.get('token')!;
+
+      // 4. Master creates Workspace 3 owned directly by master (blank owner email)
+      const ws3Res = await masterWorkspaces.POST(request({
+        name: 'Gamma Workspace',
+      }));
+      assert.equal(ws3Res.status, 200);
+      const ws3 = await ws3Res.json() as { workspace: { id: string; ownerEmail: string } };
+      wsGammaId = ws3.workspace.id;
+      assert.equal(ws3.workspace.ownerEmail, 'master@example.test');
+
+      // 5. Ensure all 3 workspaces are distinct
+      assert.notEqual(wsAlphaId, wsBetaId);
+      assert.notEqual(wsAlphaId, wsGammaId);
+      assert.notEqual(wsBetaId, wsGammaId);
+
+      // 6. List all workspaces
+      const listRes = await masterWorkspaces.GET();
+      assert.equal(listRes.status, 200);
+      const allWs = await listRes.json() as { workspaces: { id: string; name: string }[] };
+      assert.ok(allWs.workspaces.some(w => w.id === wsAlphaId));
+      assert.ok(allWs.workspaces.some(w => w.id === wsBetaId));
+      assert.ok(allWs.workspaces.some(w => w.id === wsGammaId));
+
+      // 7. Duplicate owner registration in another workspace is rejected
+      const dupRes = await masterWorkspaces.POST(request({
+        name: 'Duplicate Alpha Workspace',
+        ownerEmail: 'alpha-owner@example.test',
+      }));
+      assert.equal(dupRes.status, 400);
+
+      // 8. Populate Workspace Alpha as Master Admin
+      await masterContext.POST(request({ workspaceId: wsAlphaId }));
+      const alphaPageRes = await pages.POST(request({ name: 'Alpha Page', slug: 'alpha-page' }));
+      assert.equal(alphaPageRes.status, 200);
+      const alphaPage = await alphaPageRes.json() as { id: number; workspaceId: string };
+      assert.equal(alphaPage.workspaceId, wsAlphaId);
+
+      // 9. Switch to Workspace Beta as Master Admin -> verify isolation
+      await masterContext.POST(request({ workspaceId: wsBetaId }));
+      const betaPages = await (await pages.GET()).json() as { id: number; name: string }[];
+      assert.deepEqual(betaPages, [], 'Workspace Beta should have 0 pages');
+
+      const betaPageRes = await pages.POST(request({ name: 'Beta Page', slug: 'beta-page' }));
+      assert.equal(betaPageRes.status, 200);
+      const betaPage = await betaPageRes.json() as { id: number; workspaceId: string };
+      assert.equal(betaPage.workspaceId, wsBetaId);
+
+      // 10. Switch to Workspace Gamma as Master Admin -> verify isolation
+      await masterContext.POST(request({ workspaceId: wsGammaId }));
+      const gammaPages = await (await pages.GET()).json() as { id: number; name: string }[];
+      assert.deepEqual(gammaPages, [], 'Workspace Gamma should have 0 pages');
+    });
+
+    // 11. Sign in as Alpha Owner -> verify they only see Alpha data and cannot access Beta data
+    const alphaUser = (await findWorkspaceUser('alpha-owner@example.test'))!;
+    const alphaToken = createSessionToken({ ...alphaUser, scope: 'workspace', accountId: alphaUser.id });
+
+    await withSession(alphaToken, async () => {
+      const alphaList = await (await pages.GET()).json() as { name: string; slug: string }[];
+      assert.equal(alphaList.length, 1);
+      assert.equal(alphaList[0].slug, 'alpha-page');
+
+      // Attempt to access Beta's page directly -> must be rejected
+      const betaPages = await listPages(wsBetaId);
+      const betaPageId = betaPages[0].id;
+      assert.equal((await page.GET(request(), params(betaPageId))).status, 400);
+      assert.equal((await page.PUT(request({ title: 'Hacked' }), params(betaPageId))).status, 400);
+      assert.equal((await page.DELETE(request(), params(betaPageId))).status, 400);
+    });
+
+    // 12. Accept invitation for Beta Owner -> verify they only see Beta data and cannot access Alpha data
+    const betaAccepted = await acceptInvitation({
+      email: 'beta-owner@example.test',
+      password: 'BetaPassword123',
+      token: betaInviteToken,
+    });
+    assert.equal(betaAccepted.workspaceId, wsBetaId);
+
+    const betaToken = createSessionToken({ ...betaAccepted, scope: 'workspace' });
+    await withSession(betaToken, async () => {
+      const betaList = await (await pages.GET()).json() as { name: string; slug: string }[];
+      assert.equal(betaList.length, 1);
+      assert.equal(betaList[0].slug, 'beta-page');
+
+      // Attempt to access Alpha's page directly -> must be rejected
+      const alphaPages = await listPages(wsAlphaId);
+      const alphaPageId = alphaPages[0].id;
+      assert.equal((await page.GET(request(), params(alphaPageId))).status, 400);
+      assert.equal((await page.PUT(request({ title: 'Hacked' }), params(alphaPageId))).status, 400);
+      assert.equal((await page.DELETE(request(), params(alphaPageId))).status, 400);
     });
   } finally {
     if (oldEmail === undefined) delete process.env.MASTER_ADMIN_EMAIL; else process.env.MASTER_ADMIN_EMAIL = oldEmail;
