@@ -1,4 +1,4 @@
-import type { AnalyticsReport, SmartPage } from "./types";
+import type { AnalyticsReport, LinkClickLocation, LocationMetric, SmartPage } from "./types";
 
 export async function adminApi<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...init?.headers } });
@@ -13,25 +13,63 @@ export function editablePage(page: SmartPage) {
 }
 
 export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
-  const result: AnalyticsReport = { views: 0, uniqueVisitors: 0, clicks: 0, ctr: 0, daily: [], devices: [], referrers: [], topBlocks: [] };
+  const result: AnalyticsReport = {
+    views: 0,
+    uniqueVisitors: 0,
+    clicks: 0,
+    ctr: 0,
+    daily: [],
+    devices: [],
+    referrers: [],
+    locations: [],
+    linkLocations: [],
+    topBlocks: [],
+  };
   const daily = new Map<string, { date: string; views: number; clicks: number }>();
   const devices = new Map<string, number>();
   const referrers = new Map<string, number>();
+  const locations = new Map<string, LocationMetric>();
+  const linkLocations = new Map<string, LinkClickLocation>();
+
   for (const report of reports) {
     result.views += report.views;
     result.uniqueVisitors += report.uniqueVisitors;
     result.clicks += report.clicks;
     result.topBlocks.push(...report.topBlocks);
+    if (report.days) result.days = report.days;
+
     for (const day of report.daily) {
       const current = daily.get(day.date) || { date: day.date, views: 0, clicks: 0 };
       daily.set(day.date, { date: day.date, views: current.views + day.views, clicks: current.clicks + day.clicks });
     }
     for (const entry of report.devices) devices.set(entry.device, (devices.get(entry.device) || 0) + entry.count);
     for (const entry of report.referrers) referrers.set(entry.referrer, (referrers.get(entry.referrer) || 0) + entry.count);
+
+    for (const entry of report.locations || []) {
+      const locKey = entry.location || entry.country || 'Direct / Local';
+      const current = locations.get(locKey) || { location: locKey, country: entry.country || '', city: entry.city || '', views: 0, clicks: 0 };
+      locations.set(locKey, {
+        location: locKey,
+        country: current.country || entry.country || '',
+        city: current.city || entry.city || '',
+        views: current.views + entry.views,
+        clicks: current.clicks + entry.clicks,
+      });
+    }
+
+    for (const entry of report.linkLocations || []) {
+      const key = `${entry.blockId}:${entry.location}`;
+      const current = linkLocations.get(key) || { blockId: entry.blockId, blockTitle: entry.blockTitle, location: entry.location, country: entry.country, city: entry.city, clicks: 0 };
+      linkLocations.set(key, { ...current, clicks: current.clicks + entry.clicks });
+    }
   }
+
   result.daily = [...daily.values()].sort((a, b) => a.date.localeCompare(b.date));
   result.devices = [...devices].map(([device, count]) => ({ device, count }));
   result.referrers = [...referrers].map(([referrer, count]) => ({ referrer, count })).sort((a, b) => b.count - a.count);
+  result.locations = [...locations.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+  result.linkLocations = [...linkLocations.values()].sort((a, b) => b.clicks - a.clicks);
+
   result.topBlocks.sort((a, b) => b.clicks - a.clicks);
   result.topBlocks = result.topBlocks.slice(0, 5);
   result.ctr = result.views ? Number((result.clicks / result.views * 100).toFixed(1)) : 0;

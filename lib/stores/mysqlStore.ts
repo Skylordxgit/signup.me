@@ -606,7 +606,14 @@ export async function reorderBlocks(pageId: number, blockIds: number[]) {
   return loadPage(pageId);
 }
 
-export async function trackView(slug: string, userAgent: string, referrer: string | null, visitorKey: string) {
+export async function trackView(
+  slug: string,
+  userAgent: string,
+  referrer: string | null,
+  visitorKey: string,
+  country = '',
+  city = '',
+) {
   const rows = await mysqlQuery<{ id: number }[]>("SELECT id FROM pages WHERE slug = ? AND status = 'published'", [slug]);
   const pageId = rows[0]?.id;
   if (!pageId) return null;
@@ -620,70 +627,127 @@ export async function trackView(slug: string, userAgent: string, referrer: strin
     [isNewVisitor ? 1 : 0, pageId],
   );
   await mysqlQuery(
-    "INSERT INTO page_views (workspace_id, page_id, visitor_hash, device_type, referrer) SELECT workspace_id, id, ?, ?, ? FROM pages WHERE id = ?",
-    [hash, detectDevice(userAgent), safeReferrer(referrer), pageId],
+    "INSERT INTO page_views (workspace_id, page_id, visitor_hash, device_type, referrer, country, city) SELECT workspace_id, id, ?, ?, ?, ?, ? FROM pages WHERE id = ?",
+    [hash, detectDevice(userAgent), safeReferrer(referrer), country || null, city || null, pageId],
   );
 
   return { ok: true };
 }
 
-export async function trackClick(pageId: number, blockId: number, userAgent: string, referrer: string | null) {
+export async function trackClick(
+  pageId: number,
+  blockId: number,
+  userAgent: string,
+  referrer: string | null,
+  country = '',
+  city = '',
+) {
   const rows = await mysqlQuery<{ id: number }[]>("SELECT id FROM page_blocks WHERE id = ? AND page_id = ?", [blockId, pageId]);
   if (!rows.length) return null;
 
   await mysqlQuery("UPDATE page_blocks SET clicks = clicks + 1 WHERE id = ?", [blockId]);
   await mysqlQuery(
-    "INSERT INTO link_clicks (workspace_id, page_id, block_id, device_type, referrer) SELECT workspace_id, page_id, id, ?, ? FROM page_blocks WHERE id = ? AND page_id = ?",
-    [detectDevice(userAgent), safeReferrer(referrer), blockId, pageId],
+    "INSERT INTO link_clicks (workspace_id, page_id, block_id, device_type, referrer, country, city) SELECT workspace_id, page_id, id, ?, ?, ?, ? FROM page_blocks WHERE id = ? AND page_id = ?",
+    [detectDevice(userAgent), safeReferrer(referrer), country || null, city || null, blockId, pageId],
   );
 
   return { ok: true };
 }
 
-export async function analyticsForPage(pageId: number): Promise<AnalyticsReport | null> {
+export async function analyticsForPage(pageId: number, daysInput: number | string = 30): Promise<AnalyticsReport | null> {
   const page = await loadPage(pageId);
   if (!page) return null;
 
-  const clicks = page.blocks.reduce((sum, block) => sum + block.clicks, 0);
-  const days = Array.from({ length: 30 }, (_, index) => {
+  let numDays = 30;
+  if (daysInput === 'all') numDays = 365;
+  else if (typeof daysInput === 'number' && Number.isFinite(daysInput)) numDays = Math.max(1, Math.min(365, daysInput));
+  else if (typeof daysInput === 'string') {
+    const parsed = Number(daysInput);
+    if (Number.isFinite(parsed)) numDays = Math.max(1, Math.min(365, parsed));
+  }
+
+  const days = Array.from({ length: numDays }, (_, index) => {
     const date = new Date();
-    date.setDate(date.getDate() - (29 - index));
+    date.setDate(date.getDate() - (numDays - 1 - index));
     return date.toISOString().slice(0, 10);
   });
+  const startDate = days[0];
 
   const dailyViews = await mysqlQuery<{ date: string | Date; count: number }[]>(
     `SELECT DATE(created_at) AS date, COUNT(*) AS count FROM page_views
-     WHERE page_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)
+     WHERE page_id = ? AND created_at >= ?
      GROUP BY DATE(created_at)`,
-    [pageId],
+    [pageId, startDate],
   );
   const dailyClicks = await mysqlQuery<{ date: string | Date; count: number }[]>(
     `SELECT DATE(created_at) AS date, COUNT(*) AS count FROM link_clicks
-     WHERE page_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)
+     WHERE page_id = ? AND created_at >= ?
      GROUP BY DATE(created_at)`,
-    [pageId],
+    [pageId, startDate],
   );
   const deviceRows = await mysqlQuery<{ device_type: string; count: number }[]>(
-    "SELECT device_type, COUNT(*) AS count FROM page_views WHERE page_id = ? GROUP BY device_type",
-    [pageId],
+    `SELECT device_type, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? GROUP BY device_type`,
+    [pageId, startDate],
   );
   const referrerRows = await mysqlQuery<{ referrer: string; count: number }[]>(
-    "SELECT referrer, COUNT(*) AS count FROM page_views WHERE page_id = ? GROUP BY referrer",
-    [pageId],
+    `SELECT referrer, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? GROUP BY referrer`,
+    [pageId, startDate],
+  );
+  const viewLocationRows = await mysqlQuery<{ country: string | null; city: string | null; count: number }[]>(
+    `SELECT country, city, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? GROUP BY country, city`,
+    [pageId, startDate],
+  );
+  const clickLocationRows = await mysqlQuery<{ block_id: number; country: string | null; city: string | null; count: number }[]>(
+    `SELECT block_id, country, city, COUNT(*) AS count FROM link_clicks WHERE page_id = ? AND created_at >= ? GROUP BY block_id, country, city`,
+    [pageId, startDate],
+  );
+  const blockClickRows = await mysqlQuery<{ block_id: number; count: number }[]>(
+    `SELECT block_id, COUNT(*) AS count FROM link_clicks WHERE page_id = ? AND created_at >= ? GROUP BY block_id`,
+    [pageId, startDate],
   );
 
   const viewsByDate = new Map(dailyViews.map((row) => [toDateKey(row.date), Number(row.count)]));
   const clicksByDate = new Map(dailyClicks.map((row) => [toDateKey(row.date), Number(row.count)]));
+  const blockClicksMap = new Map(blockClickRows.map(row => [row.block_id, Number(row.count)]));
+
+  const totalViews = numDays >= 365 ? page.views : dailyViews.reduce((sum, r) => sum + Number(r.count), 0);
+  const totalClicks = numDays >= 365 ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : dailyClicks.reduce((sum, r) => sum + Number(r.count), 0);
+
+  // Group locations
+  const locationMap = new Map<string, { location: string; country: string; city: string; views: number; clicks: number }>();
+  for (const row of viewLocationRows) {
+    const loc = row.city && row.country ? `${row.city}, ${row.country}` : row.country || row.city || 'Direct / Local';
+    const current = locationMap.get(loc) || { location: loc, country: row.country || '', city: row.city || '', views: 0, clicks: 0 };
+    current.views += Number(row.count);
+    locationMap.set(loc, current);
+  }
+  for (const row of clickLocationRows) {
+    const loc = row.city && row.country ? `${row.city}, ${row.country}` : row.country || row.city || 'Direct / Local';
+    const current = locationMap.get(loc) || { location: loc, country: row.country || '', city: row.city || '', views: 0, clicks: 0 };
+    current.clicks += Number(row.count);
+    locationMap.set(loc, current);
+  }
+
+  const linkLocationsMap = new Map<string, { blockId: number; blockTitle: string; location: string; country: string; city: string; clicks: number }>();
+  for (const row of clickLocationRows) {
+    const block = page.blocks.find(b => b.id === row.block_id);
+    const blockTitle = block?.title || `Block #${row.block_id}`;
+    const loc = row.city && row.country ? `${row.city}, ${row.country}` : row.country || row.city || 'Direct / Local';
+    const key = `${row.block_id}:${loc}`;
+    const current = linkLocationsMap.get(key) || { blockId: row.block_id, blockTitle, location: loc, country: row.country || '', city: row.city || '', clicks: 0 };
+    current.clicks += Number(row.count);
+    linkLocationsMap.set(key, current);
+  }
 
   return {
-    views: page.views,
+    views: totalViews,
     uniqueVisitors: page.uniqueVisitors,
-    clicks,
-    ctr: page.views ? Number(((clicks / page.views) * 100).toFixed(1)) : 0,
+    clicks: totalClicks,
+    ctr: totalViews ? Number(((totalClicks / totalViews) * 100).toFixed(1)) : 0,
     topBlocks: [...page.blocks]
+      .map((block) => ({ id: block.id, title: block.title, clicks: blockClicksMap.get(block.id) ?? block.clicks }))
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 5)
-      .map((block) => ({ id: block.id, title: block.title, clicks: block.clicks })),
+      .slice(0, 5),
     daily: days.map((date) => ({
       date,
       views: viewsByDate.get(date) ?? 0,
@@ -693,7 +757,10 @@ export async function analyticsForPage(pageId: number): Promise<AnalyticsReport 
       device,
       count: Number(deviceRows.find((row) => row.device_type === device)?.count ?? 0),
     })),
-    referrers: referrerRows.map((row) => ({ referrer: row.referrer, count: Number(row.count) })),
+    referrers: referrerRows.map((row) => ({ referrer: row.referrer, count: Number(row.count) })).sort((a, b) => b.count - a.count),
+    locations: [...locationMap.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
+    linkLocations: [...linkLocationsMap.values()].sort((a, b) => b.clicks - a.clicks),
+    days: daysInput,
   };
 }
 

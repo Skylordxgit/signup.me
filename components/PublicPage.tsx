@@ -16,19 +16,23 @@ export function PublicPage({ page, preview = false }: { page: SmartPage; preview
     if (preview) return;
     const visitorKey = window.localStorage.getItem("smartlink_visitor") || crypto.randomUUID();
     window.localStorage.setItem("smartlink_visitor", visitorKey);
+    let timezone = "";
+    try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { /* Ignore */ }
     void fetch("/api/track/view", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ slug: page.slug, visitorKey }),
+      body: JSON.stringify({ slug: page.slug, visitorKey, timezone }),
     });
   }, [page.slug, preview]);
 
   async function track(block: PageBlock) {
     if (preview || ["heading", "text", "divider", "image", "video", "youtube"].includes(block.type)) return;
+    let timezone = "";
+    try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { /* Ignore */ }
     await fetch("/api/track/click", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pageId: page.id, blockId: block.id }),
+      body: JSON.stringify({ pageId: page.id, blockId: block.id, timezone }),
     });
   }
 

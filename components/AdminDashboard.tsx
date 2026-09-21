@@ -51,6 +51,7 @@ export function AdminDashboard() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [builderTab, setBuilderTab] = useState<BuilderTab>('profile');
   const [reportPageId, setReportPageId] = useState('all');
+  const [dateRange, setDateRange] = useState('30');
   const [report, setReport] = useState<AnalyticsReport | null>(null);
   const [themePageId, setThemePageId] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<PageSummary | null>(null);
@@ -140,11 +141,11 @@ export function AdminDashboard() {
     let cancelled = false;
     const ids = reportKey ? reportKey.split(',').map(item => Number(item.split(':')[0])) : [];
     const selected = view === 'analytics' && reportPageId !== 'all' ? ids.filter(id => id === Number(reportPageId)) : ids;
-    Promise.all(selected.map(id => adminApi<AnalyticsReport>('/api/pages/' + id + '/analytics'))).then(reports => {
+    Promise.all(selected.map(id => adminApi<AnalyticsReport>(`/api/pages/${id}/analytics?days=${dateRange}`))).then(reports => {
       if (!cancelled) setReport(combineAnalytics(reports));
     }).catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load analytics.'); });
     return () => { cancelled = true; };
-  }, [reportKey, loading, view, reportPageId, role, permissions, isMaster]);
+  }, [reportKey, loading, view, reportPageId, dateRange, role, permissions, isMaster]);
 
   function collapse(value: boolean) {
     setCollapsed(value);
@@ -307,7 +308,7 @@ export function AdminDashboard() {
       <main className={'admMain ' + (view === 'builder' ? 'admMainBuilder' : '')} aria-busy={busy || loading} inert={busy || undefined}>
         {(error || editor.error) && <div className="admError" role="alert"><span>{error || editor.error}</span><IconButton icon={X} label="Dismiss error" onClick={() => { setError(''); editor.clearError(); }} /></div>}
         {loading ? <LoadingState label="Loading workspace..." /> : <>
-          {view === 'dashboard' && <DashboardHome pages={pages} analytics={report} onOpen={openPage} onNavigate={navigate} />}
+          {view === 'dashboard' && <DashboardHome pages={pages} analytics={report} dateRange={dateRange} onDateRangeChange={setDateRange} onOpen={openPage} onNavigate={navigate} />}
           {view === 'pages' && <>
             <PageHeader title="Pages" description={`${pages.length} ${pages.length === 1 ? 'page' : 'pages'} in your workspace`}>
               <Button icon={Upload} disabled={busy} onClick={() => { setImportNotice(''); setImportOpen(true); }}>Import pages</Button>
@@ -323,7 +324,7 @@ export function AdminDashboard() {
           </>}
           {view === 'create' && <CreatePage key={createSlug || 'blank'} initialSlug={createSlug} busy={busy} onCreate={input => { void run(async () => { const page = await adminApi<SmartPage>('/api/pages', { method: 'POST', body: JSON.stringify(input) }); editor.adopt(page); setCreateSlug(''); window.history.replaceState({}, '', '/admin'); await refresh(); setBuilderTab('profile'); setView('builder'); }); }} />}
           {view === 'builder' && editor.page && <><div className="admBuilderHeading"><div><IconButton icon={ArrowLeft} label="Back to pages" onClick={() => navigate('pages')} /><span><h2>{editor.page.name}</h2><small>/{editor.page.slug}</small></span></div><div className="admActionRow"><select className={`admStatusSelect admBadge-${editor.page.status}`} aria-label="Publishing status" value={editor.page.status} onChange={event => editor.edit({ status: event.target.value as SmartPage['status'] })}><option value="published">Published</option><option value="draft">Draft</option><option value="disabled">Disabled</option></select></div></div><BuilderEditor key={editor.page.id} page={editor.page} tab={builderTab} onTab={setBuilderTab} onEdit={editor.edit} onBlock={editor.editBlock} onAdd={addBlock} onMove={moveBlock} onDelete={setDeleteBlockTarget} onDuplicate={block => void run(async () => mutateBlocks(() => adminApi('/api/blocks/' + block.id, { method: 'POST', body: JSON.stringify({ action: 'duplicate' }) })))} busy={busy} /></>}
-          {view === 'analytics' && <><PageHeader title="Analytics" description="Views, clicks and traffic sources across the last 30 days."><select aria-label="Analytics page" value={reportPageId} onChange={event => { setReportPageId(event.target.value); setReport(null); }}><option value="all">All pages</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></PageHeader><AnalyticsView report={report} /></>}
+          {view === 'analytics' && <><PageHeader title="Analytics" description={`Views, clicks and traffic sources for ${dateRange === 'all' ? 'all time' : `the last ${dateRange} days`}.`}><div className="admActionRow"><select aria-label="Date range" value={dateRange} onChange={event => setDateRange(event.target.value)}><option value="7">Last 7 days</option><option value="14">Last 14 days</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option></select><select aria-label="Analytics page" value={reportPageId} onChange={event => { setReportPageId(event.target.value); setReport(null); }}><option value="all">All pages</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></div></PageHeader><AnalyticsView report={report} dateRange={dateRange} onDateRangeChange={setDateRange} /></>}
           {view === 'media' && <MediaView />}
           {view === 'themes' && <><PageHeader title="Themes" description="Pick a look, then apply it to one of your pages." /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
           {view === 'notifications' && <NotificationsView pages={pages} />}

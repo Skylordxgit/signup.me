@@ -58,16 +58,61 @@ export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus,
   </div></>;
 }
 
-export function DashboardHome({ pages, analytics, onOpen, onNavigate }: { pages: PageSummary[]; analytics: AnalyticsReport | null; onOpen: (id: number) => void; onNavigate: (view: string) => void }) {
+export function DashboardHome({
+  pages,
+  analytics,
+  dateRange = '30',
+  onDateRangeChange,
+  onOpen,
+  onNavigate,
+}: {
+  pages: PageSummary[];
+  analytics: AnalyticsReport | null;
+  dateRange?: string;
+  onDateRangeChange?: (range: string) => void;
+  onOpen: (id: number) => void;
+  onNavigate: (view: string) => void;
+}) {
   const recent = [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
+  const rangeLabel = dateRange === 'all' ? 'All time' : `Last ${dateRange} days`;
+
   return <>
     <PageHeader title="Workspace overview" description="Your pages, traffic, and latest updates.">
-      <Button variant="primary" icon={Plus} onClick={() => onNavigate('create')}>Create page</Button>
+      <div className="admActionRow">
+        {onDateRangeChange && (
+          <select
+            aria-label="Filter date range"
+            value={dateRange}
+            onChange={event => onDateRangeChange(event.target.value)}
+          >
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="all">All time</option>
+          </select>
+        )}
+        <Button variant="primary" icon={Plus} onClick={() => onNavigate('create')}>Create page</Button>
+      </div>
     </PageHeader>
     <Metrics pages={pages} />
     <div className="admHomeGrid">
-      <SectionCard title="Traffic overview" actions={<span className="admMuted">Last 30 days</span>}><TrafficChart report={analytics} /></SectionCard>
+      <SectionCard title="Traffic overview" actions={<span className="admMuted">{rangeLabel}</span>}><TrafficChart report={analytics} rangeLabel={rangeLabel} /></SectionCard>
       <SectionCard title="Quick actions"><div className="admQuickActions">{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'Send notification', icon: Bell, view: 'notifications' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={17} aria-hidden="true" /><span>{action.label}</span><ArrowUpRight size={15} aria-hidden="true" /></button>)}</div></SectionCard>
+    </div>
+    <div className="admHomeGrid">
+      <SectionCard title="Link click locations" actions={<span className="admMuted">{analytics?.linkLocations?.length || analytics?.locations?.length || 0} locations</span>}>
+        <LocationDetailsCard report={analytics} />
+      </SectionCard>
+      <SectionCard title="Geographic reach">
+        <Distribution
+          title=""
+          items={(analytics?.locations || []).slice(0, 6).map(item => ({
+            label: item.location || item.country || 'Direct / Local',
+            count: item.clicks,
+          }))}
+        />
+      </SectionCard>
     </div>
     <div className="admHomeGrid">
       <SectionCard title="Recent pages" actions={<button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} aria-hidden="true" /></button>}><PagesTable pages={recent} onOpen={onOpen} onCreate={() => onNavigate('create')} /></SectionCard>
@@ -76,30 +121,104 @@ export function DashboardHome({ pages, analytics, onOpen, onNavigate }: { pages:
   </>;
 }
 
-export function TrafficChart({ report }: { report: AnalyticsReport | null }) {
+export function TrafficChart({ report, rangeLabel }: { report: AnalyticsReport | null; rangeLabel?: string }) {
   if (!report) return <div className="admChartLoading" role="status">Loading traffic...</div>;
   const peak = Math.max(2, ...report.daily.map(day => Math.max(day.views, day.clicks)));
   const views = report.daily.reduce((sum, day) => sum + day.views, 0);
   const clicks = report.daily.reduce((sum, day) => sum + day.clicks, 0);
+  const label = rangeLabel || (report.days === 'all' ? 'All time' : `Last ${report.days || 30} days`);
   return <div className="admTraffic"><div className="admChartLegend"><span><i />Views <strong>{number(views)}</strong></span><span><i />Clicks <strong>{number(clicks)}</strong></span></div>
-    <div className="admChart" role="img" aria-label={`Last 30 days: ${views} views and ${clicks} clicks`}>
+    <div className="admChart" role="img" aria-label={`${label}: ${views} views and ${clicks} clicks`}>
       <div className="admChartAxis"><span>{number(peak)}</span><span>{number(Math.round(peak / 2))}</span><span>0</span></div>
       <div className="admChartBars">{report.daily.map(day => <div key={day.date} title={`${day.date}: ${day.views} views, ${day.clicks} clicks`}><i style={{ height: `${day.views / peak * 100}%` }} /><b style={{ height: `${day.clicks / peak * 100}%` }} /></div>)}{!views && !clicks && <span className="admChartEmpty">No traffic in this period</span>}</div>
     </div><div className="admChartDates"><span>{report.daily[0]?.date}</span><span>{report.daily.at(-1)?.date}</span></div>
   </div>;
 }
 
-export function AnalyticsView({ report }: { report: AnalyticsReport | null }) {
+export function LocationDetailsCard({ report }: { report: AnalyticsReport | null }) {
+  if (!report) return <div className="admChartLoading" role="status">Loading location data...</div>;
+  const linkLocations = report.linkLocations || [];
+  if (!linkLocations.length) {
+    const locations = report.locations || [];
+    if (!locations.length) {
+      return <EmptyState icon={Globe2} title="No location data yet" description="Visitor geographic details will appear here as links are clicked." />;
+    }
+    const peak = Math.max(1, ...locations.map(l => l.clicks));
+    return (
+      <div className="admDistribution">
+        {locations.map((item, index) => (
+          <div key={`${item.location}-${index}`}>
+            <div>
+              <span><Globe2 size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6, opacity: 0.7 }} />{item.location || item.country || 'Direct / Local'}</span>
+              <strong>{number(item.clicks)} click{item.clicks === 1 ? '' : 's'}</strong>
+            </div>
+            <progress max={peak} value={item.clicks} aria-label={item.location} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="admLocationTable" role="table" aria-label="Link clicks by location">
+      <div className="admLocationTableHead" role="row">
+        <span role="columnheader">Link / Button</span>
+        <span role="columnheader">Location</span>
+        <span role="columnheader" style={{ textAlign: 'right' }}>Clicks</span>
+      </div>
+      <div className="admLocationTableBody">
+        {linkLocations.slice(0, 10).map((item, index) => (
+          <div className="admLocationRow" role="row" key={`${item.blockId}-${item.location}-${index}`}>
+            <span role="cell" className="admLocationLinkName">
+              <MousePointer2 size={14} aria-hidden="true" />
+              <strong>{item.blockTitle}</strong>
+            </span>
+            <span role="cell" className="admLocationPlace">
+              <Globe2 size={14} aria-hidden="true" />
+              {item.location || item.country || 'Direct / Local'}
+            </span>
+            <span role="cell" className="admLocationCount">
+              <strong>{number(item.clicks)}</strong>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function AnalyticsView({
+  report,
+  dateRange = '30',
+}: {
+  report: AnalyticsReport | null;
+  dateRange?: string;
+  onDateRangeChange?: (range: string) => void;
+}) {
   if (!report) return <LoadingState label="Loading analytics..." />;
-  return <><div className="admMetrics">{[['Views', report.views], ['Unique visitors', report.uniqueVisitors], ['Clicks', report.clicks], ['Click-through rate', `${report.ctr}%`]].map(([label, value]) => <article className="admMetric" key={label}><div><span>{label}</span><strong>{typeof value === 'number' ? number(value) : value}</strong></div></article>)}</div>
-    <SectionCard title="Traffic" actions={<span className="admMuted">Last 30 days</span>}><TrafficChart report={report} /></SectionCard>
-    <div className="admThreeColumns"><Distribution title="Devices" items={report.devices.map(item => ({ label: item.device, count: item.count }))} /><Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} /><Distribution title="Top links" items={report.topBlocks.map(item => ({ label: item.title, count: item.clicks }))} /></div>
+  const rangeLabel = dateRange === 'all' ? 'All time' : `Last ${dateRange} days`;
+  return <>
+    <div className="admMetrics">{[['Views', report.views], ['Unique visitors', report.uniqueVisitors], ['Clicks', report.clicks], ['Click-through rate', `${report.ctr}%`]].map(([label, value]) => <article className="admMetric" key={label}><div><span>{label}</span><strong>{typeof value === 'number' ? number(value) : value}</strong></div></article>)}</div>
+    <SectionCard title="Traffic" actions={<span className="admMuted">{rangeLabel}</span>}><TrafficChart report={report} rangeLabel={rangeLabel} /></SectionCard>
+    <div className="admThreeColumns">
+      <Distribution title="Click locations" items={(report.locations || []).slice(0, 8).map(item => ({ label: item.location || item.country || 'Direct / Local', count: item.clicks }))} />
+      <Distribution title="Top links" items={report.topBlocks.map(item => ({ label: item.title, count: item.clicks }))} />
+      <Distribution title="Devices" items={report.devices.map(item => ({ label: item.device, count: item.count }))} />
+    </div>
+    <div className="admHomeGrid">
+      <SectionCard title="Detailed link clicks by location" actions={<span className="admMuted">{report.linkLocations?.length || 0} link locations</span>}>
+        <LocationDetailsCard report={report} />
+      </SectionCard>
+      <Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
+    </div>
   </>;
 }
 
 function Distribution({ title, items }: { title: string; items: { label: string; count: number }[] }) {
   const peak = Math.max(1, ...items.map(item => item.count));
-  return <SectionCard title={title}>{!items.length ? <EmptyState title="No data yet" /> : <div className="admDistribution">{items.map((item, index) => <div key={`${item.label}-${index}`}><div><span>{item.label}</span><strong>{number(item.count)}</strong></div><progress max={peak} value={item.count} aria-label={item.label} /></div>)}</div>}</SectionCard>;
+  const content = !items.length ? <EmptyState title="No data yet" /> : <div className="admDistribution">{items.map((item, index) => <div key={`${item.label}-${index}`}><div><span>{item.label}</span><strong>{number(item.count)}</strong></div><progress max={peak} value={item.count} aria-label={item.label} /></div>)}</div>;
+  if (!title) return content;
+  return <SectionCard title={title}>{content}</SectionCard>;
 }
 
 export function MediaView() {

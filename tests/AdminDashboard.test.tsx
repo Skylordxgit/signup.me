@@ -94,12 +94,25 @@ test('public pages only render the notification prompt when the visitor prompt i
 });
 
 test("workspace analytics merge daily and device totals and weight the click rate", () => {
-  const base: AnalyticsReport = { views: 100, clicks: 10, uniqueVisitors: 30, ctr: 10, daily: [{ date: '2026-09-08', views: 20, clicks: 5 }], devices: [{ device: 'mobile', count: 20 }], referrers: [{ referrer: 'Direct', count: 20 }], topBlocks: [] };
+  const base: AnalyticsReport = {
+    views: 100,
+    clicks: 10,
+    uniqueVisitors: 30,
+    ctr: 10,
+    daily: [{ date: '2026-09-08', views: 20, clicks: 5 }],
+    devices: [{ device: 'mobile', count: 20 }],
+    referrers: [{ referrer: 'Direct', count: 20 }],
+    locations: [{ location: 'United States', country: 'United States', city: '', views: 20, clicks: 5 }],
+    linkLocations: [{ blockId: 1, blockTitle: 'Instagram', location: 'United States', country: 'United States', city: '', clicks: 5 }],
+    topBlocks: [],
+  };
   const result = combineAnalytics([base, { ...base, views: 300, clicks: 90, ctr: 30 }]);
   assert.equal(result.views, 400);
   assert.equal(result.ctr, 25);
   assert.deepEqual(result.daily, [{ date: '2026-09-08', views: 40, clicks: 10 }]);
   assert.deepEqual(result.devices, [{ device: 'mobile', count: 40 }]);
+  assert.equal(result.locations[0].clicks, 10);
+  assert.equal(result.linkLocations?.[0].clicks, 10);
 });
 
 test("slugs can be typed one hyphen at a time and still normalise before saving", () => {

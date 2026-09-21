@@ -11,8 +11,8 @@ import { DEFAULT_WORKSPACE_ID } from "../workspaces";
 
 type DatabaseShape = {
   pages: SmartPage[];
-  pageViews: { id: number; workspaceId: string; pageId: number; date: string; device: string; referrer: string; visitorKey: string }[];
-  linkClicks: { id: number; workspaceId: string; pageId: number; blockId: number; date: string; device: string; referrer: string }[];
+  pageViews: { id: number; workspaceId: string; pageId: number; date: string; device: string; referrer: string; visitorKey: string; country?: string; city?: string; location?: string }[];
+  linkClicks: { id: number; workspaceId: string; pageId: number; blockId: number; date: string; device: string; referrer: string; country?: string; city?: string; location?: string }[];
   pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
   notificationCampaigns: NotificationCampaign[];
 };
@@ -342,7 +342,15 @@ async function reorderBlocksUnlocked(pageId: number, blockIds: number[]) {
   return sortBlocks(page);
 }
 
-async function trackViewUnlocked(slug: string, userAgent: string, referrer: string | null, visitorKey: string) {
+async function trackViewUnlocked(
+  slug: string,
+  userAgent: string,
+  referrer: string | null,
+  visitorKey: string,
+  country = '',
+  city = '',
+  location = '',
+) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.slug === slug && item.status === "published");
   if (!page) return null;
@@ -359,12 +367,23 @@ async function trackViewUnlocked(slug: string, userAgent: string, referrer: stri
     device: detectDevice(userAgent),
     referrer: safeReferrer(referrer),
     visitorKey,
+    country,
+    city,
+    location,
   });
   await writeJsonDb(db);
   return { ok: true };
 }
 
-async function trackClickUnlocked(pageId: number, blockId: number, userAgent: string, referrer: string | null) {
+async function trackClickUnlocked(
+  pageId: number,
+  blockId: number,
+  userAgent: string,
+  referrer: string | null,
+  country = '',
+  city = '',
+  location = '',
+) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId);
   const block = page?.blocks.find((item) => item.id === blockId);
@@ -379,49 +398,102 @@ async function trackClickUnlocked(pageId: number, blockId: number, userAgent: st
     date: nowIso(),
     device: detectDevice(userAgent),
     referrer: safeReferrer(referrer),
+    country,
+    city,
+    location,
   });
   await writeJsonDb(db);
   return { ok: true };
 }
 
-export async function analyticsForPage(pageId: number): Promise<AnalyticsReport | null> {
+export async function analyticsForPage(pageId: number, daysInput: number | string = 30): Promise<AnalyticsReport | null> {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId);
   if (!page) return null;
 
-  const clicks = page.blocks.reduce((sum, block) => sum + block.clicks, 0);
-  const days = Array.from({ length: 30 }, (_, index) => {
+  let numDays = 30;
+  if (daysInput === 'all') numDays = 365;
+  else if (typeof daysInput === 'number' && Number.isFinite(daysInput)) numDays = Math.max(1, Math.min(365, daysInput));
+  else if (typeof daysInput === 'string') {
+    const parsed = Number(daysInput);
+    if (Number.isFinite(parsed)) numDays = Math.max(1, Math.min(365, parsed));
+  }
+
+  const days = Array.from({ length: numDays }, (_, index) => {
     const date = new Date();
-    date.setDate(date.getDate() - (29 - index));
+    date.setDate(date.getDate() - (numDays - 1 - index));
     return date.toISOString().slice(0, 10);
   });
+  const startDate = days[0];
+
+  const viewsInRange = db.pageViews.filter(v => v.pageId === pageId && v.date.slice(0, 10) >= startDate);
+  const clicksInRange = db.linkClicks.filter(c => c.pageId === pageId && c.date.slice(0, 10) >= startDate);
+
+  const totalViews = numDays >= 365 ? page.views : viewsInRange.length;
+  const totalClicks = numDays >= 365 ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : clicksInRange.length;
+
+  const uniqueVisitorsSet = new Set(viewsInRange.map(v => v.visitorKey));
+  const uniqueVisitors = numDays >= 365 ? page.uniqueVisitors : uniqueVisitorsSet.size;
+
+  const blockClicksMap = new Map<number, number>();
+  for (const click of clicksInRange) {
+    blockClicksMap.set(click.blockId, (blockClicksMap.get(click.blockId) || 0) + 1);
+  }
+
+  // Location aggregations for link clicks and views
+  const locationMap = new Map<string, { location: string; country: string; city: string; views: number; clicks: number }>();
+  for (const view of viewsInRange) {
+    const loc = view.location || view.country || 'Direct / Local';
+    const current = locationMap.get(loc) || { location: loc, country: view.country || '', city: view.city || '', views: 0, clicks: 0 };
+    current.views += 1;
+    locationMap.set(loc, current);
+  }
+  for (const click of clicksInRange) {
+    const loc = click.location || click.country || 'Direct / Local';
+    const current = locationMap.get(loc) || { location: loc, country: click.country || '', city: click.city || '', views: 0, clicks: 0 };
+    current.clicks += 1;
+    locationMap.set(loc, current);
+  }
+
+  // Link click details by block and location
+  const linkLocationsMap = new Map<string, { blockId: number; blockTitle: string; location: string; country: string; city: string; clicks: number }>();
+  for (const click of clicksInRange) {
+    const block = page.blocks.find(b => b.id === click.blockId);
+    const blockTitle = block?.title || `Block #${click.blockId}`;
+    const loc = click.location || click.country || 'Direct / Local';
+    const key = `${click.blockId}:${loc}`;
+    const current = linkLocationsMap.get(key) || { blockId: click.blockId, blockTitle, location: loc, country: click.country || '', city: click.city || '', clicks: 0 };
+    current.clicks += 1;
+    linkLocationsMap.set(key, current);
+  }
 
   return {
-    views: page.views,
-    uniqueVisitors: page.uniqueVisitors,
-    clicks,
-    ctr: page.views ? Number(((clicks / page.views) * 100).toFixed(1)) : 0,
+    views: totalViews,
+    uniqueVisitors,
+    clicks: totalClicks,
+    ctr: totalViews ? Number(((totalClicks / totalViews) * 100).toFixed(1)) : 0,
     topBlocks: [...page.blocks]
+      .map((block) => ({ id: block.id, title: block.title, clicks: blockClicksMap.get(block.id) ?? block.clicks }))
       .sort((a, b) => b.clicks - a.clicks)
-      .slice(0, 5)
-      .map((block) => ({ id: block.id, title: block.title, clicks: block.clicks })),
+      .slice(0, 5),
     daily: days.map((date) => ({
       date,
-      views: db.pageViews.filter((view) => view.pageId === pageId && view.date.startsWith(date)).length,
-      clicks: db.linkClicks.filter((click) => click.pageId === pageId && click.date.startsWith(date)).length,
+      views: viewsInRange.filter((view) => view.date.startsWith(date)).length,
+      clicks: clicksInRange.filter((click) => click.date.startsWith(date)).length,
     })),
     devices: ["mobile", "desktop", "tablet"].map((device) => ({
       device,
-      count: db.pageViews.filter((view) => view.pageId === pageId && view.device === device).length,
+      count: viewsInRange.filter((view) => view.device === device).length,
     })),
     referrers: Object.entries(
-      db.pageViews
-        .filter((view) => view.pageId === pageId)
-        .reduce<Record<string, number>>((acc, view) => {
-          acc[view.referrer] = (acc[view.referrer] ?? 0) + 1;
-          return acc;
-        }, {}),
-    ).map(([referrer, count]) => ({ referrer, count })),
+      viewsInRange.reduce<Record<string, number>>((acc, view) => {
+        acc[view.referrer] = (acc[view.referrer] ?? 0) + 1;
+        return acc;
+      }, {}),
+    ).map(([referrer, count]) => ({ referrer, count })).sort((a, b) => b.count - a.count),
+    locations: [...locationMap.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
+    linkLocations: [...linkLocationsMap.values()].sort((a, b) => b.clicks - a.clicks),
+    days: daysInput,
   };
 }
 

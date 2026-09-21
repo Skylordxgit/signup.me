@@ -91,6 +91,8 @@ const schemaStatements = [
     visitor_hash CHAR(64) NOT NULL,
     device_type VARCHAR(30) NOT NULL,
     referrer VARCHAR(255) NOT NULL DEFAULT 'Direct',
+    country VARCHAR(100) NULL,
+    city VARCHAR(100) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_views_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
     INDEX idx_views_page_date (page_id, created_at),
@@ -102,6 +104,8 @@ const schemaStatements = [
     block_id BIGINT UNSIGNED NOT NULL,
     device_type VARCHAR(30) NOT NULL,
     referrer VARCHAR(255) NOT NULL DEFAULT 'Direct',
+    country VARCHAR(100) NULL,
+    city VARCHAR(100) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_clicks_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
     CONSTRAINT fk_clicks_block FOREIGN KEY (block_id) REFERENCES page_blocks(id) ON DELETE CASCADE,
@@ -173,6 +177,10 @@ const migrationStatements = [
   // This table only holds platform settings. Page-specific settings live on
   // pages (workspace_id) and blocks (workspace_id), never in the global table.
   `ALTER TABLE settings ADD COLUMN workspace_id CHAR(36) NULL DEFAULT NULL`,
+  `ALTER TABLE page_views ADD COLUMN country VARCHAR(100) NULL`,
+  `ALTER TABLE page_views ADD COLUMN city VARCHAR(100) NULL`,
+  `ALTER TABLE link_clicks ADD COLUMN country VARCHAR(100) NULL`,
+  `ALTER TABLE link_clicks ADD COLUMN city VARCHAR(100) NULL`,
 ];
 
 /* Errors that mean "this migration already ran". */

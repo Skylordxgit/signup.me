@@ -31,6 +31,52 @@ export function subscriberDevice(userAgent: string, touchPoints = 0) {
   return { device, browser };
 }
 
+export function formatLocation(countryCodeOrName?: string, city?: string, timezone?: string): { country: string; city: string; location: string } {
+  let country = (countryCodeOrName || '').trim();
+  let rawCity = (city || '').trim();
+
+  if (!rawCity && timezone && timezone.includes('/')) {
+    const tzCity = timezone.split('/')[1]?.replace(/_/g, ' ') || '';
+    if (tzCity) rawCity = tzCity;
+  }
+
+  if (/^[A-Za-z]{2}$/.test(country)) {
+    try {
+      const displayNames = new Intl.DisplayNames(['en'], { type: 'region' });
+      const resolved = displayNames.of(country.toUpperCase());
+      if (resolved) country = resolved;
+    } catch {
+      country = country.toUpperCase();
+    }
+  }
+
+  if (!country && timezone && timezone.includes('/')) {
+    const tzRegion = timezone.split('/')[0];
+    const regionNames: Record<string, string> = {
+      'America': 'United States',
+      'Europe': 'Europe',
+      'Asia': 'Asia',
+      'Africa': 'Africa',
+      'Australia': 'Australia',
+      'Pacific': 'Pacific',
+    };
+    if (regionNames[tzRegion]) country = regionNames[tzRegion];
+  }
+
+  let location = '';
+  if (rawCity && country && rawCity !== country) {
+    location = `${rawCity}, ${country}`;
+  } else if (country) {
+    location = country;
+  } else if (rawCity) {
+    location = rawCity;
+  } else {
+    location = 'Direct / Local';
+  }
+
+  return { country: country || 'Direct / Local', city: rawCity, location };
+}
+
 export function collectSubscriberDetails(headers: Headers, hints: unknown): SubscriberDetails {
   const data = hints && typeof hints === 'object' ? hints as Record<string, unknown> : {};
   const touchPoints = typeof data.touchPoints === 'number' && data.touchPoints > 1 ? 2 : 0;

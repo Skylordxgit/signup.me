@@ -230,6 +230,85 @@ body:has(.admDialog[open]) { overflow: hidden; }
 .admShell progress::-webkit-progress-value { background: var(--c-accent); border-radius: var(--radius-pill); }
 .admShell progress::-moz-progress-bar { background: var(--c-accent); border-radius: var(--radius-pill); }
 
+/* ---------- Location Table ---------- */
+.admLocationTable {
+  width: 100%;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-lg);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+.admLocationTableHead {
+  display: grid;
+  grid-template-columns: minmax(130px, 1.2fr) minmax(130px, 1.2fr) 60px;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--c-surface-sunken);
+  border-bottom: 1px solid var(--c-line);
+  color: var(--c-muted);
+  font-size: var(--text-xs);
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.admLocationTableBody {
+  display: flex;
+  flex-direction: column;
+}
+.admLocationRow {
+  display: grid;
+  grid-template-columns: minmax(130px, 1.2fr) minmax(130px, 1.2fr) 60px;
+  gap: var(--sp-3);
+  align-items: center;
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--c-line);
+  font-size: var(--text-base);
+}
+.admLocationRow:last-child {
+  border-bottom: none;
+}
+.admLocationRow:hover {
+  background: var(--c-surface-sunken);
+}
+.admLocationLinkName {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  color: var(--c-ink);
+  font-weight: 550;
+}
+.admLocationLinkName svg {
+  flex: none;
+  color: var(--c-accent);
+}
+.admLocationLinkName strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admLocationPlace {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admLocationPlace svg {
+  flex: none;
+  color: var(--c-muted);
+}
+.admLocationCount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: var(--c-ink);
+}
+
 /* ---------- Spacer controls ---------- */
 .admSpacerControls {
   display: flex;

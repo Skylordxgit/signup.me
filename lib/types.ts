@@ -180,6 +180,23 @@ export type DailyMetric = {
   clicks: number;
 };
 
+export type LocationMetric = {
+  location: string;
+  country: string;
+  city: string;
+  views: number;
+  clicks: number;
+};
+
+export type LinkClickLocation = {
+  blockId: number;
+  blockTitle: string;
+  location: string;
+  country: string;
+  city: string;
+  clicks: number;
+};
+
 export type AnalyticsReport = {
   views: number;
   uniqueVisitors: number;
@@ -189,6 +206,9 @@ export type AnalyticsReport = {
   daily: DailyMetric[];
   devices: { device: string; count: number }[];
   referrers: { referrer: string; count: number }[];
+  locations: LocationMetric[];
+  linkLocations?: LinkClickLocation[];
+  days?: number | string;
 };
 
 export type PushSubscriptionKeys = {

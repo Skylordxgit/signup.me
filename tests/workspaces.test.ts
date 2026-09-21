@@ -189,3 +189,57 @@ test('notification campaigns are saved and count notification clicks', async t =
     }
   });
 });
+
+test('date range analytics and geographic location tracking for views and link clicks', async () => {
+  await withDataDirectory(async () => {
+    const owner = await signup.signUp({ email: 'geo@example.test', password: 'a-long-password' });
+    const page = await store.createPage({
+      name: 'Geo Page',
+      slug: 'geo-page',
+      title: 'Geo Page',
+      bio: 'Testing location analytics',
+      profileImage: '',
+      workspaceId: owner.workspaceId,
+    });
+    const block = (await store.createBlock(page.id, 'link'))!;
+    await store.updateBlock(block.id, { title: 'Special Link', url: 'https://example.com' });
+
+    // Track views from different locations
+    await store.trackView('geo-page', 'Mozilla/5.0 (iPhone)', 'https://google.com', 'visitor-1', 'United States', 'New York', 'New York, United States');
+    await store.trackView('geo-page', 'Mozilla/5.0 (Windows NT 10.0)', 'Direct', 'visitor-2', 'India', 'Mumbai', 'Mumbai, India');
+
+    // Track clicks on block from different locations
+    await store.trackClick(page.id, block.id, 'Mozilla/5.0 (Windows NT 10.0)', 'Direct', 'India', 'Mumbai', 'Mumbai, India');
+    await store.trackClick(page.id, block.id, 'Mozilla/5.0 (iPhone)', 'https://google.com', 'United States', 'New York', 'New York, United States');
+    await store.trackClick(page.id, block.id, 'Mozilla/5.0 (iPhone)', 'https://google.com', 'United States', 'New York', 'New York, United States');
+
+    // Check 7-day analytics
+    const report7 = await store.analyticsForPage(page.id, 7);
+    assert.ok(report7);
+    assert.equal(report7.daily.length, 7);
+    assert.equal(report7.clicks, 3);
+    assert.equal(report7.views, 2);
+
+    // Check locations and link locations breakdown
+    const ny = report7.locations.find(l => l.location === 'New York, United States');
+    assert.ok(ny);
+    assert.equal(ny.clicks, 2);
+    assert.equal(ny.views, 1);
+
+    const mumbai = report7.locations.find(l => l.location === 'Mumbai, India');
+    assert.ok(mumbai);
+    assert.equal(mumbai.clicks, 1);
+    assert.equal(mumbai.views, 1);
+
+    assert.ok(report7.linkLocations && report7.linkLocations.length >= 2);
+    const linkNY = report7.linkLocations.find(l => l.location === 'New York, United States');
+    assert.equal(linkNY?.blockTitle, 'Special Link');
+    assert.equal(linkNY?.clicks, 2);
+
+    // Check 90-day analytics
+    const report90 = await store.analyticsForPage(page.id, 90);
+    assert.ok(report90);
+    assert.equal(report90.daily.length, 90);
+    assert.equal(report90.clicks, 3);
+  });
+});

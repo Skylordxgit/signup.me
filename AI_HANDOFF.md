@@ -352,6 +352,12 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-21: Added Date Range filtering and Link Click Location analytics to the Workspace Overview Dashboard and Analytics screen.
+  - Implemented dynamic date range filtering (7 days, 14 days, 30 days, 90 days, all time) across the overview traffic chart, summary metric cards, and analytics reports.
+  - Added geographic tracking (country, city, readable location) on visitor views and link clicks with auto-resolution of ISO country codes via `Intl.DisplayNames`.
+  - Added "Link click locations" table and geographic reach distribution cards to Workspace Overview (`DashboardHome`) and Analytics (`AnalyticsView`).
+  - Added database migrations for `page_views` and `link_clicks` and updated JSON fallback store.
+  - Added comprehensive test coverage in `tests/workspaces.test.ts` and `tests/AdminDashboard.test.tsx` (71 passing tests).
 - 2026-09-21: Added "Create workspace" functionality to the Master Admin control center with complete multi-tenant data isolation.
   - Implemented `POST /api/master/workspaces` supporting custom workspace name and optional owner email with immediate password or 7-day single-use invite link.
   - Added "Create workspace" buttons to Master Admin Workspaces view, Overview hero/recent section, and EmptyState.
