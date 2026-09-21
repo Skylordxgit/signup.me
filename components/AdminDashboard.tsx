@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, BarChart3, Bell, Check, ChevronDown, ChevronRight, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Trash2, Upload, User, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Bell, Check, ChevronDown, ChevronRight, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Trash2, Upload, User, Users, X } from "lucide-react";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage, ThemeSettings } from "@/lib/types";
 import { adminApi, combineAnalytics } from "@/lib/admin";
 import { canAccess, type WorkspacePermission, type WorkspaceRole } from '@/lib/permissions';
@@ -18,14 +18,13 @@ import { fallbackBranding, fetchBranding, type ClientBranding } from "./AuthBran
 import { usePageEditor } from "./admin/usePageEditor";
 import "./admin/admin.css";
 
-type View = 'dashboard' | 'pages' | 'create' | 'analytics' | 'media' | 'themes' | 'notifications' | 'settings' | 'users' | 'builder';
+type View = 'dashboard' | 'pages' | 'create' | 'media' | 'themes' | 'notifications' | 'settings' | 'users' | 'builder';
 const navigation = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
   { id: 'pages', label: 'Pages', icon: FileText, group: 'Content' },
   { id: 'create', label: 'Create Page', icon: Plus, group: 'Content' },
   { id: 'media', label: 'Media', icon: ImageIcon, group: 'Content' },
   { id: 'themes', label: 'Themes', icon: Palette, group: 'Content' },
-  { id: 'analytics', label: 'Analytics', icon: BarChart3, group: 'Engagement' },
   { id: 'notifications', label: 'Notifications', icon: Bell, group: 'Engagement' },
   { id: 'users', label: 'Team', icon: Users, group: 'Workspace' },
   { id: 'settings', label: 'Settings', icon: Settings, group: 'Workspace' },
@@ -118,7 +117,7 @@ export function AdminDashboard() {
       setEmail(account.email);
       setRole(account.role);
       setPermissions(account.permissions ?? []);
-      if (!canAccess(account, 'pages')) setView(canAccess(account, 'analytics') ? 'analytics' : canAccess(account, 'media') ? 'media' : canAccess(account, 'notifications') ? 'notifications' : canAccess(account, 'team') ? 'users' : 'settings');
+      if (!canAccess(account, 'pages')) setView(canAccess(account, 'media') ? 'media' : canAccess(account, 'notifications') ? 'notifications' : canAccess(account, 'team') ? 'users' : 'settings');
       setIsMaster(account.isMaster ?? false);
       setWorkspace(account.workspaceName);
       setBranding(brand);
@@ -165,7 +164,7 @@ export function AdminDashboard() {
   }
 
   function allowedView(next: string) {
-    const permission = ({ dashboard: 'pages', pages: 'pages', create: 'pages', builder: 'pages', themes: 'pages', analytics: 'analytics', media: 'media', notifications: 'notifications', users: 'team' } as Record<string, WorkspacePermission>)[next];
+    const permission = ({ dashboard: 'pages', pages: 'pages', create: 'pages', builder: 'pages', themes: 'pages', media: 'media', notifications: 'notifications', users: 'team' } as Record<string, WorkspacePermission>)[next];
     return !permission || canAccess({ role, permissions, isMaster }, permission);
   }
 
@@ -320,7 +319,7 @@ export function AdminDashboard() {
       <main className={'admMain ' + (view === 'builder' ? 'admMainBuilder' : '')} aria-busy={busy || loading} inert={busy || undefined}>
         {(error || editor.error) && <div className="admError" role="alert"><span>{error || editor.error}</span><IconButton icon={X} label="Dismiss error" onClick={() => { setError(''); editor.clearError(); }} /></div>}
         {loading ? <LoadingState label="Loading workspace..." /> : <>
-          {(view === 'dashboard' || view === 'analytics') && (
+          {view === 'dashboard' && (
             <DashboardHome
               pages={pages}
               analytics={report}

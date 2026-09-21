@@ -229,7 +229,7 @@ export function DashboardHome({
     : `Last ${dateRange} days`;
 
   return <>
-    <PageHeader title="Workspace Dashboard & Analytics" description="Real-time traffic telemetry, geographic city intelligence, and workspace links.">
+    <PageHeader title="Dashboard" description="Real-time performance, geographic location intelligence, and page activity.">
       <div className="admActionRow admDashboardHeaderActions">
         {onPageChange && (
           <select
