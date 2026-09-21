@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicPage } from "@/components/PublicPage";
 import { publicPageMetadata, resolveCurrentHost, resolvePublicPage } from '@/lib/domainRouting';
+import { getCachedWorkspaceBranding } from '@/lib/workspaceBranding';
 
 export const revalidate = 60;
 
@@ -21,7 +22,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       };
     }
 
-    return publicPageMetadata(page, host);
+    const wsBranding = await getCachedWorkspaceBranding(page.workspaceId);
+    return publicPageMetadata(page, host, false, wsBranding);
   } catch {
     return {
       title: "Page not found",
@@ -40,5 +42,6 @@ export default async function SlugPage({ params }: Props) {
 
   if (!page) notFound();
 
-  return <PublicPage page={page} />;
+  const wsBranding = await getCachedWorkspaceBranding(page.workspaceId);
+  return <PublicPage page={page} workspaceBranding={wsBranding} />;
 }

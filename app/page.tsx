@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { notFound } from 'next/navigation';
 import { PublicPage } from '@/components/PublicPage';
 import { publicPageMetadata, resolveCurrentHost, resolveCustomDomainRoot } from '@/lib/domainRouting';
+import { getCachedWorkspaceBranding } from '@/lib/workspaceBranding';
 
 export const revalidate = 60;
 
@@ -10,7 +11,9 @@ export async function generateMetadata(): Promise<Metadata> {
   try {
     const host = await resolveCurrentHost();
     const page = await resolveCustomDomainRoot(host);
-    return page ? publicPageMetadata(page, host, true) : {};
+    if (!page) return {};
+    const wsBranding = await getCachedWorkspaceBranding(page.workspaceId);
+    return publicPageMetadata(page, host, true, wsBranding);
   } catch {
     return {};
   }
@@ -27,7 +30,8 @@ export default async function Home() {
   if (host.kind === 'custom') {
     const page = await resolveCustomDomainRoot(host);
     if (!page) notFound();
-    return <PublicPage page={page} />;
+    const wsBranding = await getCachedWorkspaceBranding(page.workspaceId);
+    return <PublicPage page={page} workspaceBranding={wsBranding} />;
   }
 
   if (host.kind === 'unknown') {

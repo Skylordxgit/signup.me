@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import type { SmartPage } from './types';
 import { getCachedPrimaryPublicPage, getCachedPublicHost, getCachedPublicPage } from './pageSnapshot';
+import { getCachedWorkspaceBranding, type WorkspaceBranding } from './workspaceBranding';
 
 export type PublicHost =
   | { kind: 'platform'; hostname: string }
@@ -75,17 +76,20 @@ export function canonicalPublicUrl(page: SmartPage, host: PublicHost, root = fal
   catch { return `/${page.slug}`; }
 }
 
-export function publicPageMetadata(page: SmartPage, host: PublicHost, root = false): Metadata {
-  const title = page.seo.seoTitle || page.title;
-  const description = page.seo.metaDescription || page.bio;
-  const image = page.seo.ogImage || page.profileImage;
+export function publicPageMetadata(page: SmartPage, host: PublicHost, root = false, workspaceBranding?: WorkspaceBranding | null): Metadata {
+  const ws = workspaceBranding;
+  const title = page.seo.seoTitle || page.title || ws?.siteTitle || page.name;
+  const description = page.seo.metaDescription || page.bio || ws?.metaDescription || '';
+  const image = page.seo.ogImage || page.profileImage || page.logoImage || ws?.logoUrl || '';
+  const favicon = page.seo.favicon || ws?.faviconUrl || '/favicon.ico';
   const canonical = canonicalPublicUrl(page, host, root);
   return {
     title,
     description,
+    icons: { icon: favicon },
     alternates: { canonical },
     manifest: `/api/manifest/${page.slug}`,
-    appleWebApp: { capable: true, title: page.title || page.name, statusBarStyle: 'default' },
+    appleWebApp: { capable: true, title: page.title || page.name || ws?.workspaceName || 'Page', statusBarStyle: 'default' },
     other: { 'apple-mobile-web-app-capable': 'yes' },
     openGraph: {
       title: page.seo.socialTitle || title,

@@ -46,12 +46,14 @@ export function useBranding() {
 }
 
 /** The brand row shared by the login and signup pages. */
-export function AuthBranding() {
+export function AuthBranding({ name, logo }: { name?: string; logo?: string }) {
   const branding = useBranding();
+  const displayName = name || branding.name;
+  const displayLogo = logo || branding.logo;
   return (
     <div className="authBrandRow">
-      <img className="authBrandLogo" src={branding.logo} alt="" width={42} height={42} />
-      <strong>{branding.name}</strong>
+      <img className="authBrandLogo" src={displayLogo} alt="" width={42} height={42} />
+      <strong>{displayName}</strong>
     </div>
   );
 }

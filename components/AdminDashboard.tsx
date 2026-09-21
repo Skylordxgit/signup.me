@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Bell, Check, ChevronDown, ChevronRight, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Trash2, Upload, User, Users, X } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Bell, Check, ChevronDown, ChevronRight, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Sparkles, Trash2, Upload, User, Users, X } from "lucide-react";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage, ThemeSettings } from "@/lib/types";
 import { adminApi, combineAnalytics } from "@/lib/admin";
 import { canAccess, type WorkspacePermission, type WorkspaceRole } from '@/lib/permissions';
@@ -12,13 +12,15 @@ import { defaultTheme } from "@/lib/defaults";
 import { ImageUploader } from "./ImageUploader";
 import { BuilderEditor, ThemeGallery, type BuilderTab } from "./admin/BuilderEditor";
 import { DashboardHome, MediaView, NotificationsView, PagesTable, SettingsView } from "./admin/DashboardViews";
+import { BrandingView } from "./admin/BrandingView";
 import { Button, Dialog, Field, IconButton, LoadingState, PageHeader } from "./admin/AdminUI";
 import { UsersView } from "./admin/UsersView";
 import { fallbackBranding, fetchBranding, type ClientBranding } from "./AuthBranding";
+import type { WorkspaceBranding } from "@/lib/workspaceBrandingConstants";
 import { usePageEditor } from "./admin/usePageEditor";
 import "./admin/admin.css";
 
-type View = 'dashboard' | 'pages' | 'create' | 'media' | 'themes' | 'notifications' | 'settings' | 'users' | 'builder';
+type View = 'dashboard' | 'pages' | 'create' | 'media' | 'themes' | 'notifications' | 'branding' | 'settings' | 'users' | 'builder';
 const navigation = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, group: 'Overview' },
   { id: 'pages', label: 'Pages', icon: FileText, group: 'Content' },
@@ -26,6 +28,7 @@ const navigation = [
   { id: 'media', label: 'Media', icon: ImageIcon, group: 'Content' },
   { id: 'themes', label: 'Themes', icon: Palette, group: 'Content' },
   { id: 'notifications', label: 'Notifications', icon: Bell, group: 'Engagement' },
+  { id: 'branding', label: 'Branding', icon: Sparkles, group: 'Workspace' },
   { id: 'users', label: 'Team', icon: Users, group: 'Workspace' },
   { id: 'settings', label: 'Settings', icon: Settings, group: 'Workspace' },
 ] as const;
@@ -112,7 +115,8 @@ export function AdminDashboard() {
     Promise.all([
       adminApi<{ email: string; role: WorkspaceRole; permissions: WorkspacePermission[]; isMaster?: boolean; workspaceName: string; customDomain: string | null; customDomainStatus: string | null }>('/api/auth/me'),
       fetchBranding(),
-    ]).then(async ([account, brand]) => {
+      adminApi<WorkspaceBranding>('/api/admin/branding').catch(() => null),
+    ]).then(async ([account, brand, wsBrand]) => {
       const items = canAccess(account, 'pages') || canAccess(account, 'analytics') || canAccess(account, 'notifications') ? await adminApi<PageSummary[]>('/api/pages') : [];
       if (cancelled) return;
       setPages(items);
@@ -121,10 +125,14 @@ export function AdminDashboard() {
       setPermissions(account.permissions ?? []);
       if (!canAccess(account, 'pages')) setView(canAccess(account, 'media') ? 'media' : canAccess(account, 'notifications') ? 'notifications' : canAccess(account, 'team') ? 'users' : 'settings');
       setIsMaster(account.isMaster ?? false);
-      setWorkspace(account.workspaceName);
+      setWorkspace(wsBrand?.workspaceName || account.workspaceName);
       setCustomDomain(account.customDomain);
       setCustomDomainStatus(account.customDomainStatus);
-      setBranding(brand);
+      if (wsBrand) {
+        setBranding({ name: wsBrand.workspaceName || brand.name, logo: wsBrand.logoUrl || brand.logo, signupEnabled: false });
+      } else {
+        setBranding(brand);
+      }
       try { setCollapsed(localStorage.getItem('smartlink_sidebar_collapsed') === 'true'); } catch { /* Use the expanded sidebar. */ }
       const cookieSlug = document.cookie.split('; ').find(value => value.startsWith('smartlink_claim='))?.split('=')[1];
       const requested = new URLSearchParams(window.location.search).get('slug') || cookieSlug || '';
@@ -168,7 +176,7 @@ export function AdminDashboard() {
   }
 
   function allowedView(next: string) {
-    const permission = ({ dashboard: 'pages', pages: 'pages', create: 'pages', builder: 'pages', themes: 'pages', media: 'media', notifications: 'notifications', users: 'team' } as Record<string, WorkspacePermission>)[next];
+    const permission = ({ dashboard: 'pages', pages: 'pages', create: 'pages', builder: 'pages', themes: 'pages', media: 'media', notifications: 'notifications', branding: 'pages', users: 'team' } as Record<string, WorkspacePermission>)[next];
     return !permission || canAccess({ role, permissions, isMaster }, permission);
   }
 
@@ -360,6 +368,7 @@ export function AdminDashboard() {
           {view === 'media' && <MediaView />}
           {view === 'themes' && <><PageHeader title="Themes" description="Pick a look, then apply it to one of your pages." /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
           {view === 'notifications' && <NotificationsView pages={pages} />}
+          {view === 'branding' && <BrandingView workspaceName={workspace} onUpdated={wb => setBranding({ name: wb.workspaceName, logo: wb.logoUrl, signupEnabled: false })} />}
           {view === 'users' && <UsersView role={role} permissions={permissions} isMaster={isMaster} />}
           {view === 'settings' && <SettingsView email={email} isMaster={isMaster} customDomain={customDomain} customDomainStatus={customDomainStatus} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
         </>}

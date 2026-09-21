@@ -3,7 +3,19 @@
 /* eslint-disable @next/next/no-html-link-for-pages -- Auth navigation must survive the production RSC Link failure. */
 import { useState } from "react";
 
-export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
+export function LoginForm({
+  signupEnabled,
+  title,
+  subtitle,
+  buttonColor,
+  primaryColor,
+}: {
+  signupEnabled: boolean;
+  title?: string;
+  subtitle?: string;
+  buttonColor?: string;
+  primaryColor?: string;
+}) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -43,8 +55,8 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
 
   return (
     <>
-      <h1>Sign in to dashboard</h1>
-      <p className="authIntro">Enter your administrator email and password.</p>
+      <h1>{title || "Sign in to dashboard"}</h1>
+      <p className="authIntro">{subtitle || "Enter your administrator email and password."}</p>
       <form className="authEmailForm" onSubmit={submit}>
         <label>
           <span>Email address</span>
@@ -55,7 +67,11 @@ export function LoginForm({ signupEnabled }: { signupEnabled: boolean }) {
           <input name="password" type="password" autoComplete="current-password" placeholder="Enter your password" required />
         </label>
         {error && <span className="formError" role="alert">{error}</span>}
-        <button type="submit" disabled={loading}>
+        <button
+          type="submit"
+          disabled={loading}
+          style={buttonColor || primaryColor ? { background: buttonColor || primaryColor } : undefined}
+        >
           {loading ? "Signing in..." : "Sign in"}
         </button>
         {signupEnabled && (

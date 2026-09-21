@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { getBranding } from '@/lib/branding';
+import { resolveCurrentHost } from '@/lib/domainRouting';
+import { getCachedWorkspaceBranding } from '@/lib/workspaceBranding';
 import './globals.css';
 
 const geistSans = Geist({
@@ -20,6 +22,23 @@ export const viewport: Viewport = {
 };
 
 export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const host = await resolveCurrentHost();
+    if (host.kind === 'custom' && host.workspaceId) {
+      const ws = await getCachedWorkspaceBranding(host.workspaceId);
+      return {
+        title: ws.siteTitle || ws.workspaceName,
+        description: ws.metaDescription,
+        icons: {
+          icon: [{ url: ws.faviconUrl || '/favicon.ico', sizes: 'any' }],
+          apple: ws.logoUrl || '/signup888-logo.png',
+        },
+      };
+    }
+  } catch {
+    // Fall back to global master branding
+  }
+
   const branding = await getBranding();
   return {
     title: branding.siteTitle,

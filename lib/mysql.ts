@@ -176,12 +176,54 @@ const schemaStatements = [
     INDEX idx_campaign_workspace_created (workspace_id, created_at),
     INDEX idx_campaign_page (page_id)
   )`,
+  `CREATE TABLE IF NOT EXISTS workspace_branding (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    workspace_id CHAR(36) NOT NULL UNIQUE,
+    workspace_name VARCHAR(120) NULL,
+    logo_url VARCHAR(700) NULL,
+    favicon_url VARCHAR(700) NULL,
+    site_title VARCHAR(200) NULL,
+    meta_description VARCHAR(500) NULL,
+    login_logo_url VARCHAR(700) NULL,
+    login_background_url VARCHAR(700) NULL,
+    login_title VARCHAR(160) NULL,
+    login_subtitle VARCHAR(300) NULL,
+    primary_color VARCHAR(30) NULL,
+    secondary_color VARCHAR(30) NULL,
+    button_color VARCHAR(30) NULL,
+    link_color VARCHAR(30) NULL,
+    footer_text VARCHAR(400) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_workspace_branding_workspace (workspace_id)
+  )`,
 ];
 
 /* Applied after the CREATE TABLE statements so an existing single-workspace
    database gains the multi-workspace columns in place. Each one is written to
    be safe to re-run: a column or index that is already there is ignored. */
 const migrationStatements = [
+  `CREATE TABLE IF NOT EXISTS workspace_branding (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    workspace_id CHAR(36) NOT NULL UNIQUE,
+    workspace_name VARCHAR(120) NULL,
+    logo_url VARCHAR(700) NULL,
+    favicon_url VARCHAR(700) NULL,
+    site_title VARCHAR(200) NULL,
+    meta_description VARCHAR(500) NULL,
+    login_logo_url VARCHAR(700) NULL,
+    login_background_url VARCHAR(700) NULL,
+    login_title VARCHAR(160) NULL,
+    login_subtitle VARCHAR(300) NULL,
+    primary_color VARCHAR(30) NULL,
+    secondary_color VARCHAR(30) NULL,
+    button_color VARCHAR(30) NULL,
+    link_color VARCHAR(30) NULL,
+    footer_text VARCHAR(400) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_workspace_branding_workspace (workspace_id)
+  )`,
   `ALTER TABLE workspace_users ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
   `ALTER TABLE workspace_users ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'`,
   `ALTER TABLE workspace_users ADD COLUMN permissions JSON NULL`,

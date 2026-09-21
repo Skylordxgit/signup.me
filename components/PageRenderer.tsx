@@ -58,6 +58,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { PageBlock, SmartPage } from "@/lib/types";
+import type { WorkspaceBranding } from "@/lib/workspaceBrandingConstants";
 import { buildSmartUrl, parseBlockIcon, publicPageUrl, readableTextColor } from "@/lib/utils";
 import { resolveAlignment, resolveButtonStyle, resolveProfileLayout, resolveSurface, themeCssVariables } from "@/lib/themes";
 
@@ -96,11 +97,13 @@ export function PageRenderer({
   onTrack,
   page,
   preview = false,
+  workspaceBranding,
 }: {
   edit?: PageEditHooks;
   onTrack?: (block: PageBlock) => void;
   page: SmartPage;
   preview?: boolean;
+  workspaceBranding?: WorkspaceBranding | null;
 }) {
   const theme = page.theme;
   const buttonStyle = resolveButtonStyle(theme);
@@ -109,7 +112,7 @@ export function PageRenderer({
   const align = resolveAlignment(theme);
   const layout = resolveProfileLayout(theme);
   const hasCover = Boolean(theme.backgroundImage) && layout !== "avatar" && layout !== "none";
-  const avatarImage = page.logoImage || page.profileImage;
+  const avatarImage = page.logoImage || page.profileImage || workspaceBranding?.logoUrl;
   const hasAvatar = Boolean(avatarImage) && layout !== "none";
   const hasProfile = hasAvatar || Boolean(page.title || page.bio);
   const isPreview = preview || Boolean(edit);
@@ -165,6 +168,11 @@ export function PageRenderer({
               <BlockRow block={group[0]} buttonAnimation={buttonAnimation} buttonStyle={buttonStyle} edit={edit} key={group[0].id} onTrack={onTrack} preview={isPreview} />
             ))}
           </div>
+        )}
+        {Boolean(workspaceBranding?.footerText) && (
+          <footer className="pageCustomFooter" style={{ textAlign: "center", marginTop: 24, fontSize: 13, opacity: 0.75, color: "var(--text)" }}>
+            {workspaceBranding?.footerText}
+          </footer>
         )}
       </div>
       </div>
