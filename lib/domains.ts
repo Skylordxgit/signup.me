@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
-import { resolve4, resolveCname } from 'node:dns/promises';
+import { resolve4, resolveCname, Resolver } from 'node:dns/promises';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getWorkspace } from './workspaces';
@@ -63,7 +63,29 @@ type DomainRow = {
   updatedAt: Date | string;
 };
 
-const resolver: DomainResolver = { resolveCname, resolve4 };
+const publicResolver = new Resolver();
+try {
+  publicResolver.setServers(['1.1.1.1', '8.8.8.8', '1.0.0.1', '8.8.4.4']);
+} catch {
+  // Use system servers if setting custom servers fails
+}
+
+const resolver: DomainResolver = {
+  async resolveCname(hostname: string) {
+    try {
+      return await publicResolver.resolveCname(hostname);
+    } catch {
+      return await resolveCname(hostname);
+    }
+  },
+  async resolve4(hostname: string) {
+    try {
+      return await publicResolver.resolve4(hostname);
+    } catch {
+      return await resolve4(hostname);
+    }
+  },
+};
 const internalSuffixes = ['.localhost', '.local', '.internal', '.lan', '.home', '.test', '.invalid', '.example'];
 let queue: Promise<unknown> = Promise.resolve();
 
