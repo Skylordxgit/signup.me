@@ -9,21 +9,32 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const host = await resolveCurrentHost();
-  const page = await resolvePublicPage(slug, host);
+  try {
+    const host = await resolveCurrentHost();
+    const page = await resolvePublicPage(slug, host);
 
-  if (!page) {
+    if (!page) {
+      return {
+        title: "Page not found",
+      };
+    }
+
+    return publicPageMetadata(page, host);
+  } catch {
     return {
       title: "Page not found",
     };
   }
-
-  return publicPageMetadata(page, host);
 }
 
 export default async function SlugPage({ params }: Props) {
   const { slug } = await params;
-  const page = await resolvePublicPage(slug);
+  let page = null;
+  try {
+    page = await resolvePublicPage(slug);
+  } catch {
+    page = null;
+  }
 
   if (!page) notFound();
 

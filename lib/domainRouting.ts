@@ -29,20 +29,36 @@ function configuredHostname(value: string | undefined) {
 export function isPlatformHostname(hostname: string) {
   if (!hostname) return true;
   if (hostname === 'localhost' || isIP(hostname) || hostname.endsWith('.localhost')) return true;
-  return [process.env.MASTER_ADMIN_DOMAIN, process.env.DEFAULT_APP_DOMAIN]
+  const configured = [
+    process.env.MASTER_ADMIN_DOMAIN,
+    process.env.DEFAULT_APP_DOMAIN,
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.APP_URL,
+    process.env.NEXTAUTH_URL,
+  ]
     .map(configuredHostname)
-    .filter(Boolean)
-    .includes(hostname);
+    .filter(Boolean);
+  if (configured.includes(hostname)) return true;
+  return false;
 }
 
 export async function resolvePublicHost(rawHost: string | null): Promise<PublicHost> {
   const hostname = requestHostname(rawHost);
-  if (hostname === null) return { kind: 'unknown', hostname: '' };
+  if (hostname === null || !hostname) return { kind: 'platform', hostname: '' };
   if (hostname && hostname === configuredHostname(process.env.MASTER_ADMIN_DOMAIN)) return { kind: 'master', hostname };
   if (isPlatformHostname(hostname)) return { kind: 'platform', hostname };
-  const domain = (await listDomains()).find(item => item.hostname === hostname && item.workspaceId && item.status === 'active');
-  if (!domain?.workspaceId || !(await isWorkspaceActive(domain.workspaceId))) return { kind: 'unknown', hostname };
-  return { kind: 'custom', hostname, workspaceId: domain.workspaceId };
+
+  try {
+    const domainList = await listDomains();
+    const domain = domainList.find(item => item.hostname === hostname && item.workspaceId && item.status === 'active');
+    if (domain?.workspaceId && (await isWorkspaceActive(domain.workspaceId))) {
+      return { kind: 'custom', hostname, workspaceId: domain.workspaceId };
+    }
+  } catch (error) {
+    console.error('Error resolving custom domain host:', error);
+  }
+
+  return { kind: 'unknown', hostname };
 }
 
 export async function resolveRequestHost(request: Request) {

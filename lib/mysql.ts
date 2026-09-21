@@ -24,7 +24,6 @@ const schemaStatements = [
     hostname VARCHAR(253) NOT NULL UNIQUE,
     workspace_id CHAR(36) NULL,
     is_primary BOOLEAN NOT NULL DEFAULT FALSE,
-    primary_workspace_id CHAR(36) GENERATED ALWAYS AS (CASE WHEN is_primary = 1 THEN workspace_id ELSE NULL END) STORED,
     status ENUM('pending_dns', 'verifying', 'verified', 'ssl_pending', 'active', 'error', 'disabled') NOT NULL DEFAULT 'pending_dns',
     ssl_status ENUM('pending', 'active', 'error', 'disabled') NOT NULL DEFAULT 'pending',
     last_checked_at DATETIME NULL,
@@ -33,7 +32,6 @@ const schemaStatements = [
     ssl_updated_at DATETIME NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uq_custom_domains_primary_workspace (primary_workspace_id),
     INDEX idx_custom_domains_workspace (workspace_id),
     INDEX idx_custom_domains_status (status)
   )`,
