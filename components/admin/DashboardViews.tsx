@@ -1598,10 +1598,8 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
 export function SettingsView({
   collapsed,
   email,
-  isMaster,
   customDomain,
   customDomainStatus,
-  onBrandingChanged,
   onCollapse,
   onLogout,
 }: {
@@ -1665,109 +1663,5 @@ export function SettingsView({
         </div>
       </SectionCard>
     </div>
-    {isMaster && <MasterSettings onBrandingChanged={onBrandingChanged} />}
   </div>;
-}
-type BrandingSettings = { name: string; siteTitle: string; logo: string; favicon: string };
-type SignupSettings = { enabled: boolean };
-
-const fallbackBranding: BrandingSettings = {
-  name: "signup888",
-  siteTitle: "signup888 - Your Link. Your World.",
-  logo: "/signup888-logo.png",
-  favicon: "/favicon.ico",
-};
-
-function MasterSettings({ onBrandingChanged }: { onBrandingChanged?: (branding: { name: string; logo: string }) => void }) {
-  const [branding, setBranding] = useState<BrandingSettings>(fallbackBranding);
-  const [signup, setSignup] = useState<SignupSettings>({ enabled: true });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      adminApi<BrandingSettings>('/api/master/branding'),
-      adminApi<SignupSettings>('/api/master/signup'),
-    ]).then(([brand, signupSettings]) => {
-      if (cancelled) return;
-      setBranding(brand);
-      setSignup(signupSettings);
-      onBrandingChanged?.({ name: brand.name, logo: brand.logo });
-    }).catch(cause => {
-      if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load master settings.');
-    }).finally(() => {
-      if (!cancelled) setLoading(false);
-    });
-    return () => { cancelled = true; };
-  }, [onBrandingChanged]);
-
-  async function saveBranding(next = branding) {
-    if (saving) return;
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      const saved = await adminApi<BrandingSettings>('/api/master/branding', { method: 'PATCH', body: JSON.stringify(next) });
-      setBranding(saved);
-      onBrandingChanged?.({ name: saved.name, logo: saved.logo });
-      setMessage('Branding saved.');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not save branding.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function updateBrandingImage(key: 'logo' | 'favicon', value: string) {
-    const next = { ...branding, [key]: value || fallbackBranding[key] };
-    setBranding(next);
-    await saveBranding(next);
-  }
-
-  async function updateSignup(enabled: boolean) {
-    if (saving) return;
-    setSaving(true);
-    setError('');
-    setMessage('');
-    try {
-      setSignup(await adminApi<SignupSettings>('/api/master/signup', { method: 'PATCH', body: JSON.stringify({ enabled }) }));
-      setMessage(`Signup turned ${enabled ? 'on' : 'off'}.`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Could not update signup.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return <section className="admMasterSettings" aria-busy={loading || saving}>
-    <SectionHeading title="Master controls" />
-    {error && <p className="admError" role="alert">{error}</p>}
-    {message && <p className="admSuccess" role="status">{message}</p>}
-    <div className="admSettingsGrid">
-      <SectionCard>
-        <div className="admSettingRow">
-          <div>
-            <span className={`admBadge admBadge-${signup.enabled ? 'published' : 'disabled'}`}><UserPlus size={12} aria-hidden="true" />Signup {signup.enabled ? 'on' : 'off'}</span>
-            <h2>Public account creation</h2>
-            <p className="admMuted">Turn signup off to block the create-account page and prevent new accounts from being created.</p>
-          </div>
-          <Button variant="primary" icon={Power} loading={saving} disabled={loading} onClick={() => void updateSignup(!signup.enabled)}>Turn {signup.enabled ? 'off' : 'on'}</Button>
-        </div>
-      </SectionCard>
-      <SectionCard title="Branding" description="Identity shown across authentication and admin screens.">
-        <div className="admFormGrid">
-          <Field label="Brand name"><input maxLength={80} value={branding.name} onChange={event => setBranding({ ...branding, name: event.target.value })} /></Field>
-          <Field label="Site title"><input maxLength={140} value={branding.siteTitle} onChange={event => setBranding({ ...branding, siteTitle: event.target.value })} /></Field>
-          <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="logo" label="Master logo" round value={branding.logo} onChange={logo => void updateBrandingImage('logo', logo)} /></div>
-          <div className="admSpanFull"><ImageUploader endpoint="/api/master/branding/upload" category="favicon" label="Master favicon" value={branding.favicon} onChange={favicon => void updateBrandingImage('favicon', favicon)} /></div>
-        </div>
-        <div className="admFormFooter">
-          <Button variant="primary" icon={Check} loading={saving} disabled={loading} onClick={() => void saveBranding()}>Save branding</Button>
-        </div>
-      </SectionCard>
-    </div>
-  </section>;
 }
