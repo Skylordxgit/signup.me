@@ -576,16 +576,25 @@ At minimum, add a short note under this section:
   `/api/master/branding` APIs. Verification passed: `npm run lint`,
   `./node_modules/.bin/tsc --noEmit --incremental false`, `npm test` (49
   passing), and `npm run build`.
-- 2026-09-12: Added notification campaign history. Every admin notification send
-  now creates a `NotificationCampaign` record in JSON fallback storage or the
-  MySQL `notification_campaigns` table. The Notifications page shows the latest
-  100 campaigns with date sent, title/body/link, audience, accepted/sent,
-  delivered, seen, clicked, and blocked counts. The service worker reports
-  `delivered` when the push event reaches it, `seen` after the browser displays
-  the notification, and `clicked` when the notification is opened. `Blocked` in
-  the UI is `failed + removed`; web push does not expose a cleaner per-device
-  browser-blocked metric. Public event writes go through
-  `/api/notifications/campaign-event`. Verification passed: `npm run lint`,
-  `./node_modules/.bin/tsc --noEmit --incremental false`, `npm test` (50
-  passing), and `npm run build`.
+- 2026-09-21: Unified Analytics and Workspace Dashboard into a single workspace
+  hub with granular regional intelligence and custom date filtering.
+  - Added custom date range filter control supporting presets (`today`,
+    `yesterday`, `7d`, `14d`, `30d`, `90d`, `month`, `all`) and custom start/end
+    date pickers with live API synchronization.
+  - Added detailed geographic drill-down (`CountryDrilldownView`) reporting
+    country totals (flags, views, clicks, CTR) and expanding into city-level
+    breakdowns (e.g. Bangladesh -> Dhaka, Chittagong) with top clicked links per
+    city.
+  - Added live recent activity feed (`RecentActivityFeed`) showing real-time
+    visitor page views and link clicks with location flags, device badges, and
+    timestamps.
+  - Extended JSON store (`lib/stores/jsonStore.ts`) and MySQL store
+    (`lib/stores/mysqlStore.ts`) analytics engines to support custom date
+    intervals (`from`/`to`), city grouping, and top clicked link tracking.
+  - Updated `combineAnalytics` in `lib/admin.ts` to aggregate multi-page
+    geographic metrics and activity streams.
+  - Added unit test coverage in `tests/AdminDashboard.test.tsx` (72 passing tests).
+  - Verified: `npm run lint`, `npx tsc --noEmit --incremental false`, `npm test`
+    (72 tests), and `npm run build`.
+
 

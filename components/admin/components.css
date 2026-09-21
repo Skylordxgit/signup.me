@@ -573,4 +573,507 @@ body:has(.admDialog[open]) { overflow: hidden; }
   white-space: nowrap;
 }
 
+/* ---------- Date Range Picker & Header Controls ---------- */
+.admDateRangeGroup {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.admDateRangeSelectWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.admDateRangeIcon {
+  position: absolute;
+  left: 10px;
+  pointer-events: none;
+  color: var(--c-muted);
+}
+
+.admDateRangeSelect {
+  padding-left: 30px !important;
+  font-weight: 500;
+  min-width: 140px;
+}
+
+.admCustomDateInputs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: var(--c-surface-sunken);
+  border: 1px solid var(--c-line);
+  padding: 3px 8px;
+  border-radius: var(--radius-md);
+}
+
+.admDateInputItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admDateInputItem label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--c-muted);
+}
+
+.admDateInputItem input[type="date"] {
+  padding: 3px 6px;
+  font-size: var(--text-xs);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
+  color: var(--c-ink);
+}
+
+.admDashboardHeaderActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.admPageSelectDropdown {
+  min-width: 130px;
+  font-weight: 500;
+}
+
+.admFlagSmall {
+  font-size: 15px;
+  line-height: 1;
+  display: inline-block;
+  margin-right: 2px;
+}
+
+/* ---------- Country & City Drill-Down View ---------- */
+.admCountryDrilldown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.admCountryDrilldownToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.admCountrySearch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 240px;
+  max-width: 440px;
+}
+
+.admCountrySearch svg {
+  position: absolute;
+  left: 10px;
+  color: var(--c-muted);
+  pointer-events: none;
+}
+
+.admCountrySearch input {
+  width: 100%;
+  padding-left: 32px;
+  height: 36px;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-md);
+}
+
+.admCountrySummaryStats {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  font-size: var(--text-xs);
+  color: var(--c-muted);
+}
+
+.admCountrySummaryStats strong {
+  color: var(--c-ink);
+}
+
+.admCountryList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.admCountryCard {
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-md);
+  background: var(--c-surface);
+  overflow: hidden;
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+}
+
+.admCountryCard:hover {
+  border-color: var(--c-line-strong);
+}
+
+.admCountryCard.isExpanded {
+  border-color: var(--c-accent-line);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.admCountryCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  cursor: pointer;
+  user-select: none;
+}
+
+.admCountryCardHeader:hover {
+  background: var(--c-surface-sunken);
+}
+
+.admCountryIdentity {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.admCountryFlag {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.admCountryTitles {
+  display: flex;
+  flex-direction: column;
+}
+
+.admCountryTitles strong {
+  font-size: var(--text-sm);
+  color: var(--c-ink);
+}
+
+.admCountryTitles small {
+  font-size: var(--text-xs);
+  color: var(--c-muted);
+}
+
+.admCountryStatsRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+
+.admCountryStatItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  color: var(--c-muted);
+}
+
+.admCountryStatItem.admViewsStat {
+  color: #3b82f6;
+}
+
+.admCountryStatItem.admClicksStat {
+  color: #10b981;
+}
+
+.admCountryStatItem strong {
+  font-weight: 700;
+}
+
+.admCountryToggleIcon {
+  display: flex;
+  align-items: center;
+  color: var(--c-muted);
+  margin-left: var(--sp-1);
+}
+
+.admRotate180 {
+  transform: rotate(180deg);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.admCountryShareBar {
+  width: 100%;
+  height: 3px;
+  background: var(--c-line);
+}
+
+.admCountryShareFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
+}
+
+/* City Breakdown List inside Country Card */
+.admCityList {
+  background: var(--c-surface-sunken);
+  border-top: 1px solid var(--c-line);
+  padding: var(--sp-2) var(--sp-4);
+  display: flex;
+  flex-direction: column;
+}
+
+.admCityListHead {
+  display: grid;
+  grid-template-columns: 2fr 80px 80px 70px 3fr;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--c-muted);
+  border-bottom: 1px solid var(--c-line);
+}
+
+.admCityRow {
+  display: grid;
+  grid-template-columns: 2fr 80px 80px 70px 3fr;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.admCityRow:last-child {
+  border-bottom: none;
+}
+
+.admCityName {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-ink);
+  font-size: var(--text-xs);
+}
+
+.admCityName svg {
+  color: var(--c-muted);
+  flex-shrink: 0;
+}
+
+.admCityName small {
+  display: block;
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.admCityMetric {
+  text-align: center;
+  font-size: var(--text-xs);
+}
+
+.admCityMetric.admViewsMetric strong {
+  color: #3b82f6;
+}
+
+.admCityMetric.admClicksMetric strong {
+  color: #10b981;
+}
+
+.admCityCtrBadge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--c-accent-soft);
+  color: var(--c-accent-ink);
+}
+
+.admCityTopLinks {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.admCityLinkPills {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.admCityLinkPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  color: var(--c-ink);
+  max-width: 160px;
+}
+
+.admCityLinkPill svg {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.admPillTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admPillCount {
+  font-weight: 700;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.admMutedSmall {
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.admNoResults {
+  padding: var(--sp-6);
+  text-align: center;
+  color: var(--c-muted);
+  font-size: var(--text-sm);
+  background: var(--c-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+/* ---------- Live Visitor & Click Activity Feed ---------- */
+.admRecentActivityFeed {
+  max-height: 440px;
+  overflow-y: auto;
+}
+
+.admActivityList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.admActivityFeedItem {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  background: var(--c-surface-sunken);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-fast);
+}
+
+.admActivityFeedItem:hover {
+  background: var(--c-surface);
+}
+
+.admActivityFeedItem.isClick .admActivityIcon {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.admActivityFeedItem.isView .admActivityIcon {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.admActivityIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admActivityDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.admActivityHeadline {
+  font-size: var(--text-xs);
+  color: var(--c-ink);
+}
+
+.admInlinePageLink {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  color: var(--c-accent-ink);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.admActivityMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  font-size: 11px;
+  color: var(--c-muted);
+}
+
+.admActivityGeo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.admActivityFlag {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.admActivityDevice,
+.admActivityReferrer {
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.admActivityTime {
+  margin-left: auto;
+  color: var(--c-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .admCityListHead,
+  .admCityRow {
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+  }
+  .admCityTopLinks {
+    grid-column: span 2;
+    justify-content: flex-start;
+  }
+}
+
+
 

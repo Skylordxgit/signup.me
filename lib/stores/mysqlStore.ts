@@ -654,64 +654,114 @@ export async function trackClick(
   return { ok: true };
 }
 
-export async function analyticsForPage(pageId: number, daysInput: number | string = 30): Promise<AnalyticsReport | null> {
+export async function analyticsForPage(
+  pageId: number,
+  daysInput: number | string = 30,
+  fromDate?: string,
+  toDate?: string,
+): Promise<AnalyticsReport | null> {
   const page = await loadPage(pageId);
   if (!page) return null;
 
-  let numDays = 30;
-  if (daysInput === 'all') numDays = 365;
-  else if (typeof daysInput === 'number' && Number.isFinite(daysInput)) numDays = Math.max(1, Math.min(365, daysInput));
-  else if (typeof daysInput === 'string') {
-    const parsed = Number(daysInput);
-    if (Number.isFinite(parsed)) numDays = Math.max(1, Math.min(365, parsed));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let days: string[] = [];
+  let startDate = '';
+  let endDate = todayStr;
+
+  if (fromDate && toDate) {
+    startDate = fromDate <= toDate ? fromDate : toDate;
+    endDate = fromDate <= toDate ? toDate : fromDate;
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const diffDays = Math.min(366, Math.max(1, Math.round((endObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1));
+    days = Array.from({ length: diffDays }, (_, index) => {
+      const d = new Date(startObj);
+      d.setDate(d.getDate() + index);
+      return d.toISOString().slice(0, 10);
+    });
+  } else if (daysInput === 'today') {
+    startDate = todayStr;
+    endDate = todayStr;
+    days = [todayStr];
+  } else if (daysInput === 'yesterday') {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = yesterday.toISOString().slice(0, 10);
+    startDate = yStr;
+    endDate = yStr;
+    days = [yStr];
+  } else if (daysInput === 'month') {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    startDate = firstDay;
+    endDate = todayStr;
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const diffDays = Math.max(1, Math.round((endObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    days = Array.from({ length: diffDays }, (_, index) => {
+      const d = new Date(startObj);
+      d.setDate(d.getDate() + index);
+      return d.toISOString().slice(0, 10);
+    });
+  } else {
+    let numDays = 30;
+    if (daysInput === 'all') numDays = 365;
+    else if (typeof daysInput === 'number' && Number.isFinite(daysInput)) numDays = Math.max(1, Math.min(365, daysInput));
+    else if (typeof daysInput === 'string') {
+      const parsed = Number(daysInput);
+      if (Number.isFinite(parsed)) numDays = Math.max(1, Math.min(365, parsed));
+    }
+
+    days = Array.from({ length: numDays }, (_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (numDays - 1 - index));
+      return date.toISOString().slice(0, 10);
+    });
+    startDate = days[0];
+    endDate = days[days.length - 1];
   }
 
-  const days = Array.from({ length: numDays }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (numDays - 1 - index));
-    return date.toISOString().slice(0, 10);
-  });
-  const startDate = days[0];
+  const endDateTime = `${endDate} 23:59:59`;
 
   const dailyViews = await mysqlQuery<{ date: string | Date; count: number }[]>(
     `SELECT DATE(created_at) AS date, COUNT(*) AS count FROM page_views
-     WHERE page_id = ? AND created_at >= ?
+     WHERE page_id = ? AND created_at >= ? AND created_at <= ?
      GROUP BY DATE(created_at)`,
-    [pageId, startDate],
+    [pageId, startDate, endDateTime],
   );
   const dailyClicks = await mysqlQuery<{ date: string | Date; count: number }[]>(
     `SELECT DATE(created_at) AS date, COUNT(*) AS count FROM link_clicks
-     WHERE page_id = ? AND created_at >= ?
+     WHERE page_id = ? AND created_at >= ? AND created_at <= ?
      GROUP BY DATE(created_at)`,
-    [pageId, startDate],
+    [pageId, startDate, endDateTime],
   );
   const deviceRows = await mysqlQuery<{ device_type: string; count: number }[]>(
-    `SELECT device_type, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? GROUP BY device_type`,
-    [pageId, startDate],
+    `SELECT device_type, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY device_type`,
+    [pageId, startDate, endDateTime],
   );
   const referrerRows = await mysqlQuery<{ referrer: string; count: number }[]>(
-    `SELECT referrer, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? GROUP BY referrer`,
-    [pageId, startDate],
+    `SELECT referrer, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY referrer`,
+    [pageId, startDate, endDateTime],
   );
   const viewLocationRows = await mysqlQuery<{ country: string | null; city: string | null; count: number }[]>(
-    `SELECT country, city, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? GROUP BY country, city`,
-    [pageId, startDate],
+    `SELECT country, city, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY country, city`,
+    [pageId, startDate, endDateTime],
   );
   const clickLocationRows = await mysqlQuery<{ block_id: number; country: string | null; city: string | null; count: number }[]>(
-    `SELECT block_id, country, city, COUNT(*) AS count FROM link_clicks WHERE page_id = ? AND created_at >= ? GROUP BY block_id, country, city`,
-    [pageId, startDate],
+    `SELECT block_id, country, city, COUNT(*) AS count FROM link_clicks WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY block_id, country, city`,
+    [pageId, startDate, endDateTime],
   );
   const blockClickRows = await mysqlQuery<{ block_id: number; count: number }[]>(
-    `SELECT block_id, COUNT(*) AS count FROM link_clicks WHERE page_id = ? AND created_at >= ? GROUP BY block_id`,
-    [pageId, startDate],
+    `SELECT block_id, COUNT(*) AS count FROM link_clicks WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY block_id`,
+    [pageId, startDate, endDateTime],
   );
 
   const viewsByDate = new Map(dailyViews.map((row) => [toDateKey(row.date), Number(row.count)]));
   const clicksByDate = new Map(dailyClicks.map((row) => [toDateKey(row.date), Number(row.count)]));
   const blockClicksMap = new Map(blockClickRows.map(row => [row.block_id, Number(row.count)]));
 
-  const totalViews = numDays >= 365 ? page.views : dailyViews.reduce((sum, r) => sum + Number(r.count), 0);
-  const totalClicks = numDays >= 365 ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : dailyClicks.reduce((sum, r) => sum + Number(r.count), 0);
+  const totalViews = daysInput === 'all' && !fromDate ? page.views : dailyViews.reduce((sum, r) => sum + Number(r.count), 0);
+  const totalClicks = daysInput === 'all' && !fromDate ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : dailyClicks.reduce((sum, r) => sum + Number(r.count), 0);
 
   // Group locations
   const locationMap = new Map<string, { location: string; country: string; city: string; views: number; clicks: number }>();
@@ -739,6 +789,74 @@ export async function analyticsForPage(pageId: number, daysInput: number | strin
     linkLocationsMap.set(key, current);
   }
 
+  // Country and City hierarchy
+  type CityAcc = {
+    city: string;
+    location: string;
+    views: number;
+    clicks: number;
+    links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
+  };
+  type CountryAcc = {
+    countryCode: string;
+    countryName: string;
+    views: number;
+    clicks: number;
+    cities: Map<string, CityAcc>;
+  };
+  const countriesAcc = new Map<string, CountryAcc>();
+
+  function getOrInitCountry(rawCountry: string | null, rawCity: string | null): { country: CountryAcc; city: CityAcc } {
+    const cName = rawCountry || 'Direct / Local';
+    let countryItem = countriesAcc.get(cName);
+    if (!countryItem) {
+      countryItem = { countryCode: cName, countryName: cName, views: 0, clicks: 0, cities: new Map() };
+      countriesAcc.set(cName, countryItem);
+    }
+    const cityName = rawCity || 'Direct';
+    let cityItem = countryItem.cities.get(cityName);
+    if (!cityItem) {
+      const locStr = rawCity && rawCountry && rawCity !== rawCountry ? `${rawCity}, ${rawCountry}` : (rawCity || rawCountry || 'Direct / Local');
+      cityItem = { city: cityName, location: locStr, views: 0, clicks: 0, links: new Map() };
+      countryItem.cities.set(cityName, cityItem);
+    }
+    return { country: countryItem, city: cityItem };
+  }
+
+  for (const row of viewLocationRows) {
+    const { country, city } = getOrInitCountry(row.country, row.city);
+    country.views += Number(row.count);
+    city.views += Number(row.count);
+  }
+
+  for (const row of clickLocationRows) {
+    const { country, city } = getOrInitCountry(row.country, row.city);
+    country.clicks += Number(row.count);
+    city.clicks += Number(row.count);
+
+    const block = page.blocks.find(b => b.id === row.block_id);
+    const blockTitle = block?.title || `Block #${row.block_id}`;
+    const linkItem = city.links.get(row.block_id) || { blockId: row.block_id, blockTitle, clicks: 0 };
+    linkItem.clicks += Number(row.count);
+    city.links.set(row.block_id, linkItem);
+  }
+
+  const countriesResult = [...countriesAcc.values()].map(c => ({
+    countryCode: c.countryCode,
+    countryName: c.countryName,
+    views: c.views,
+    clicks: c.clicks,
+    ctr: c.views > 0 ? Number(((c.clicks / c.views) * 100).toFixed(1)) : (c.clicks > 0 ? 100 : 0),
+    cities: [...c.cities.values()].map(ct => ({
+      city: ct.city,
+      location: ct.location,
+      views: ct.views,
+      clicks: ct.clicks,
+      ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+      topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+    })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
+  })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+
   return {
     views: totalViews,
     uniqueVisitors: page.uniqueVisitors,
@@ -760,7 +878,10 @@ export async function analyticsForPage(pageId: number, daysInput: number | strin
     referrers: referrerRows.map((row) => ({ referrer: row.referrer, count: Number(row.count) })).sort((a, b) => b.count - a.count),
     locations: [...locationMap.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
     linkLocations: [...linkLocationsMap.values()].sort((a, b) => b.clicks - a.clicks),
+    countries: countriesResult,
     days: daysInput,
+    startDate,
+    endDate,
   };
 }
 

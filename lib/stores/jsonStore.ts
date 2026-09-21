@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, BlockType, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, CityDetailMetric, CountryDetailMetric, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, SmartPage } from "../types";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
 import { defaultTheme, seedPages } from "../defaults";
@@ -406,34 +406,82 @@ async function trackClickUnlocked(
   return { ok: true };
 }
 
-export async function analyticsForPage(pageId: number, daysInput: number | string = 30): Promise<AnalyticsReport | null> {
+export async function analyticsForPage(
+  pageId: number,
+  daysInput: number | string = 30,
+  fromDate?: string,
+  toDate?: string,
+): Promise<AnalyticsReport | null> {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId);
   if (!page) return null;
 
-  let numDays = 30;
-  if (daysInput === 'all') numDays = 365;
-  else if (typeof daysInput === 'number' && Number.isFinite(daysInput)) numDays = Math.max(1, Math.min(365, daysInput));
-  else if (typeof daysInput === 'string') {
-    const parsed = Number(daysInput);
-    if (Number.isFinite(parsed)) numDays = Math.max(1, Math.min(365, parsed));
+  const todayStr = new Date().toISOString().slice(0, 10);
+  let days: string[] = [];
+  let startDate = '';
+  let endDate = todayStr;
+
+  if (fromDate && toDate) {
+    startDate = fromDate <= toDate ? fromDate : toDate;
+    endDate = fromDate <= toDate ? toDate : fromDate;
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const diffDays = Math.min(366, Math.max(1, Math.round((endObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1));
+    days = Array.from({ length: diffDays }, (_, index) => {
+      const d = new Date(startObj);
+      d.setDate(d.getDate() + index);
+      return d.toISOString().slice(0, 10);
+    });
+  } else if (daysInput === 'today') {
+    startDate = todayStr;
+    endDate = todayStr;
+    days = [todayStr];
+  } else if (daysInput === 'yesterday') {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yStr = yesterday.toISOString().slice(0, 10);
+    startDate = yStr;
+    endDate = yStr;
+    days = [yStr];
+  } else if (daysInput === 'month') {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+    startDate = firstDay;
+    endDate = todayStr;
+    const startObj = new Date(startDate);
+    const endObj = new Date(endDate);
+    const diffDays = Math.max(1, Math.round((endObj.getTime() - startObj.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    days = Array.from({ length: diffDays }, (_, index) => {
+      const d = new Date(startObj);
+      d.setDate(d.getDate() + index);
+      return d.toISOString().slice(0, 10);
+    });
+  } else {
+    let numDays = 30;
+    if (daysInput === 'all') numDays = 365;
+    else if (typeof daysInput === 'number' && Number.isFinite(daysInput)) numDays = Math.max(1, Math.min(365, daysInput));
+    else if (typeof daysInput === 'string') {
+      const parsed = Number(daysInput);
+      if (Number.isFinite(parsed)) numDays = Math.max(1, Math.min(365, parsed));
+    }
+
+    days = Array.from({ length: numDays }, (_, index) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (numDays - 1 - index));
+      return date.toISOString().slice(0, 10);
+    });
+    startDate = days[0];
+    endDate = days[days.length - 1];
   }
 
-  const days = Array.from({ length: numDays }, (_, index) => {
-    const date = new Date();
-    date.setDate(date.getDate() - (numDays - 1 - index));
-    return date.toISOString().slice(0, 10);
-  });
-  const startDate = days[0];
+  const viewsInRange = db.pageViews.filter(v => v.pageId === pageId && v.date.slice(0, 10) >= startDate && v.date.slice(0, 10) <= endDate);
+  const clicksInRange = db.linkClicks.filter(c => c.pageId === pageId && c.date.slice(0, 10) >= startDate && c.date.slice(0, 10) <= endDate);
 
-  const viewsInRange = db.pageViews.filter(v => v.pageId === pageId && v.date.slice(0, 10) >= startDate);
-  const clicksInRange = db.linkClicks.filter(c => c.pageId === pageId && c.date.slice(0, 10) >= startDate);
-
-  const totalViews = numDays >= 365 ? page.views : viewsInRange.length;
-  const totalClicks = numDays >= 365 ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : clicksInRange.length;
+  const totalViews = daysInput === 'all' && !fromDate ? page.views : viewsInRange.length;
+  const totalClicks = daysInput === 'all' && !fromDate ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : clicksInRange.length;
 
   const uniqueVisitorsSet = new Set(viewsInRange.map(v => v.visitorKey));
-  const uniqueVisitors = numDays >= 365 ? page.uniqueVisitors : uniqueVisitorsSet.size;
+  const uniqueVisitors = daysInput === 'all' && !fromDate ? page.uniqueVisitors : uniqueVisitorsSet.size;
 
   const blockClicksMap = new Map<number, number>();
   for (const click of clicksInRange) {
@@ -467,6 +515,131 @@ export async function analyticsForPage(pageId: number, daysInput: number | strin
     linkLocationsMap.set(key, current);
   }
 
+  // In-depth Country and City Hierarchy
+  type CityAcc = {
+    city: string;
+    location: string;
+    views: number;
+    clicks: number;
+    links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
+  };
+  type CountryAcc = {
+    countryCode: string;
+    countryName: string;
+    views: number;
+    clicks: number;
+    cities: Map<string, CityAcc>;
+  };
+
+  const countriesAcc = new Map<string, CountryAcc>();
+
+  function getOrInitCountry(rawCountry: string, rawCity: string): { country: CountryAcc; city: CityAcc } {
+    const cName = rawCountry || 'Direct / Local';
+    let countryItem = countriesAcc.get(cName);
+    if (!countryItem) {
+      countryItem = {
+        countryCode: cName,
+        countryName: cName,
+        views: 0,
+        clicks: 0,
+        cities: new Map<string, CityAcc>(),
+      };
+      countriesAcc.set(cName, countryItem);
+    }
+    const cityName = rawCity || 'Direct';
+    let cityItem = countryItem.cities.get(cityName);
+    if (!cityItem) {
+      const locStr = rawCity && rawCountry && rawCity !== rawCountry ? `${rawCity}, ${rawCountry}` : (rawCity || rawCountry || 'Direct / Local');
+      cityItem = {
+        city: cityName,
+        location: locStr,
+        views: 0,
+        clicks: 0,
+        links: new Map<number, { blockId: number; blockTitle: string; clicks: number }>(),
+      };
+      countryItem.cities.set(cityName, cityItem);
+    }
+    return { country: countryItem, city: cityItem };
+  }
+
+  for (const view of viewsInRange) {
+    const cName = view.country || (view.location && view.location.includes(',') ? view.location.split(',')[1].trim() : view.location) || 'Direct / Local';
+    const cityName = view.city || (view.location && view.location.includes(',') ? view.location.split(',')[0].trim() : '');
+    const { country, city } = getOrInitCountry(cName, cityName);
+    country.views += 1;
+    city.views += 1;
+  }
+
+  for (const click of clicksInRange) {
+    const cName = click.country || (click.location && click.location.includes(',') ? click.location.split(',')[1].trim() : click.location) || 'Direct / Local';
+    const cityName = click.city || (click.location && click.location.includes(',') ? click.location.split(',')[0].trim() : '');
+    const { country, city } = getOrInitCountry(cName, cityName);
+    country.clicks += 1;
+    city.clicks += 1;
+
+    const block = page.blocks.find(b => b.id === click.blockId);
+    const blockTitle = block?.title || `Block #${click.blockId}`;
+    const linkItem = city.links.get(click.blockId) || { blockId: click.blockId, blockTitle, clicks: 0 };
+    linkItem.clicks += 1;
+    city.links.set(click.blockId, linkItem);
+  }
+
+  const countriesResult: CountryDetailMetric[] = [...countriesAcc.values()].map(c => {
+    const citiesList: CityDetailMetric[] = [...c.cities.values()].map(ct => ({
+      city: ct.city,
+      location: ct.location,
+      views: ct.views,
+      clicks: ct.clicks,
+      ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+      topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+    })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+
+    return {
+      countryCode: c.countryCode,
+      countryName: c.countryName,
+      views: c.views,
+      clicks: c.clicks,
+      ctr: c.views > 0 ? Number(((c.clicks / c.views) * 100).toFixed(1)) : (c.clicks > 0 ? 100 : 0),
+      cities: citiesList,
+    };
+  }).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+
+  // Recent activity stream (top 30 newest events)
+  const recentEvents: RecentActivityItem[] = [];
+  for (const view of viewsInRange) {
+    recentEvents.push({
+      id: `v-${view.id}`,
+      type: 'view',
+      pageId: view.pageId,
+      pageName: page.name,
+      country: view.country || '',
+      city: view.city || '',
+      location: view.location || view.country || 'Direct / Local',
+      device: view.device || 'desktop',
+      referrer: view.referrer || 'Direct',
+      date: view.date,
+    });
+  }
+  for (const click of clicksInRange) {
+    const block = page.blocks.find(b => b.id === click.blockId);
+    recentEvents.push({
+      id: `c-${click.id}`,
+      type: 'click',
+      pageId: click.pageId,
+      pageName: page.name,
+      blockId: click.blockId,
+      blockTitle: block?.title || `Block #${click.blockId}`,
+      country: click.country || '',
+      city: click.city || '',
+      location: click.location || click.country || 'Direct / Local',
+      device: click.device || 'desktop',
+      referrer: click.referrer || 'Direct',
+      date: click.date,
+    });
+  }
+  recentEvents.sort((a, b) => b.date.localeCompare(a.date));
+  const recentActivity = recentEvents.slice(0, 30);
+
   return {
     views: totalViews,
     uniqueVisitors,
@@ -493,7 +666,11 @@ export async function analyticsForPage(pageId: number, daysInput: number | strin
     ).map(([referrer, count]) => ({ referrer, count })).sort((a, b) => b.count - a.count),
     locations: [...locationMap.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
     linkLocations: [...linkLocationsMap.values()].sort((a, b) => b.clicks - a.clicks),
+    countries: countriesResult,
+    recentActivity,
     days: daysInput,
+    startDate,
+    endDate,
   };
 }
 

@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Check, CheckCircle2, Clock3, Copy, Download, ExternalLink, Eye, FileText, FolderOpen, Globe2, History, ImageIcon, Inbox, LayoutGrid, Link2, List, Loader2, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Search, Send, Sparkles, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Calendar, Check, ChevronDown, Clock3, Copy, Download, ExternalLink, Eye, FileText, FolderOpen, Globe2, History, ImageIcon, Inbox, LayoutGrid, Link2, List, Loader2, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Search, Send, Sparkles, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
@@ -11,14 +11,146 @@ import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, PageHeader
 import type { MediaFile, UploadCategory } from "@/lib/uploads";
 
 const number = (value: number) => value.toLocaleString();
-export function Metrics({ pages }: { pages: PageSummary[] }) {
+
+export function getCountryFlag(countryNameOrCode: string): string {
+  if (!countryNameOrCode) return '🌐';
+  const name = countryNameOrCode.toLowerCase().trim();
+  if (name.includes('bangladesh') || name === 'bd') return '🇧🇩';
+  if (name.includes('united states') || name === 'us' || name === 'usa') return '🇺🇸';
+  if (name.includes('united kingdom') || name === 'uk' || name === 'gb') return '🇬🇧';
+  if (name.includes('india') || name === 'in') return '🇮🇳';
+  if (name.includes('pakistan') || name === 'pk') return '🇵🇰';
+  if (name.includes('canada') || name === 'ca') return '🇨🇦';
+  if (name.includes('australia') || name === 'au') return '🇦🇺';
+  if (name.includes('germany') || name === 'de') return '🇩🇪';
+  if (name.includes('france') || name === 'fr') return '🇫🇷';
+  if (name.includes('spain') || name === 'es') return '🇪🇸';
+  if (name.includes('italy') || name === 'it') return '🇮🇹';
+  if (name.includes('netherlands') || name === 'nl') return '🇳🇱';
+  if (name.includes('brazil') || name === 'br') return '🇧🇷';
+  if (name.includes('united arab emirates') || name.includes('uae') || name === 'ae') return '🇦🇪';
+  if (name.includes('saudi arabia') || name === 'sa') return '🇸🇦';
+  if (name.includes('japan') || name === 'jp') return '🇯🇵';
+  if (name.includes('china') || name === 'cn') return '🇨🇳';
+  if (name.includes('south korea') || name === 'kr') return '🇰🇷';
+  if (name.includes('singapore') || name === 'sg') return '🇸🇬';
+  if (name.includes('malaysia') || name === 'my') return '🇲🇾';
+  if (name.includes('indonesia') || name === 'id') return '🇮🇩';
+  if (name.includes('thailand') || name === 'th') return '🇹🇭';
+  if (name.includes('philippines') || name === 'ph') return '🇵🇭';
+  if (name.includes('vietnam') || name === 'vn') return '🇻🇳';
+  if (name.includes('turkey') || name === 'tr') return '🇹🇷';
+  if (name.includes('egypt') || name === 'eg') return '🇪🇬';
+  if (name.includes('nigeria') || name === 'ng') return '🇳🇬';
+  if (name.includes('south africa') || name === 'za') return '🇿🇦';
+  if (name.includes('sweden') || name === 'se') return '🇸🇪';
+  if (name.includes('norway') || name === 'no') return '🇳🇴';
+  if (name.includes('denmark') || name === 'dk') return '🇩🇰';
+  if (name.includes('finland') || name === 'fi') return '🇫🇮';
+  if (name.includes('ireland') || name === 'ie') return '🇮🇪';
+  if (name.includes('new zealand') || name === 'nz') return '🇳🇿';
+  if (name.includes('mexico') || name === 'mx') return '🇲🇽';
+  return '🌐';
+}
+
+export function DateRangeFilterControl({
+  dateRange,
+  startDate = '',
+  endDate = '',
+  onDateRangeChange,
+  onCustomDateChange,
+}: {
+  dateRange: string;
+  startDate?: string;
+  endDate?: string;
+  onDateRangeChange: (range: string) => void;
+  onCustomDateChange?: (start: string, end: string) => void;
+}) {
+  return (
+    <div className="admDateRangeGroup">
+      <div className="admDateRangeSelectWrapper">
+        <Calendar size={14} className="admDateRangeIcon" aria-hidden="true" />
+        <select
+          aria-label="Filter date range"
+          className="admDateRangeSelect"
+          value={dateRange}
+          onChange={event => {
+            const val = event.target.value;
+            onDateRangeChange(val);
+          }}
+        >
+          <option value="today">Today</option>
+          <option value="yesterday">Yesterday</option>
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30">Last 30 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="month">This month</option>
+          <option value="all">All time</option>
+          <option value="custom">Custom date range...</option>
+        </select>
+      </div>
+      {dateRange === 'custom' && (
+        <div className="admCustomDateInputs">
+          <div className="admDateInputItem">
+            <label htmlFor="adm-date-from">From</label>
+            <input
+              id="adm-date-from"
+              type="date"
+              value={startDate}
+              max={endDate || undefined}
+              onChange={e => onCustomDateChange?.(e.target.value, endDate || '')}
+            />
+          </div>
+          <div className="admDateInputItem">
+            <label htmlFor="adm-date-to">To</label>
+            <input
+              id="adm-date-to"
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={e => onCustomDateChange?.(startDate || '', e.target.value)}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Metrics({
+  pages,
+  analytics,
+}: {
+  pages: PageSummary[];
+  analytics?: AnalyticsReport | null;
+}) {
+  const totalViews = analytics?.views ?? pages.reduce((sum, page) => sum + page.views, 0);
+  const totalClicks = analytics?.clicks ?? pages.reduce((sum, page) => sum + page.clicks, 0);
+  const uniqueVisitors = analytics?.uniqueVisitors ?? pages.reduce((sum, page) => sum + page.uniqueVisitors, 0);
+  const ctr = analytics?.ctr ?? (totalViews ? Number(((totalClicks / totalViews) * 100).toFixed(1)) : 0);
+  const activeCountries = analytics?.countries?.length ?? (analytics?.locations?.length || 0);
+
   const values = [
-    { label: 'Total pages', value: pages.length, icon: FileText, tone: 'blue' },
-    { label: 'Published pages', value: pages.filter(page => page.status === 'published').length, icon: Globe2, tone: 'green' },
-    { label: 'Total views', value: pages.reduce((sum, page) => sum + page.views, 0), icon: Eye, tone: 'violet' },
-    { label: 'Total clicks', value: pages.reduce((sum, page) => sum + page.clicks, 0), icon: MousePointer2, tone: 'rose' },
+    { label: 'Total views', value: totalViews, icon: Eye, tone: 'violet' },
+    { label: 'Unique visitors', value: uniqueVisitors, icon: Globe2, tone: 'blue' },
+    { label: 'Total clicks', value: totalClicks, icon: MousePointer2, tone: 'rose' },
+    { label: 'Click rate (CTR)', value: `${ctr}%`, icon: BarChart3, tone: 'green', isRaw: true },
+    { label: 'Active regions', value: activeCountries, icon: Globe2, tone: 'blue' },
   ];
-  return <div className="admMetrics">{values.map(metric => <article className="admMetric" key={metric.label}><div><span>{metric.label}</span><strong>{number(metric.value)}</strong></div><span className={`admMetricIcon admTone-${metric.tone}`}><metric.icon size={21} /></span></article>)}</div>;
+  return (
+    <div className="admMetrics">
+      {values.map(metric => (
+        <article className="admMetric" key={metric.label}>
+          <div>
+            <span>{metric.label}</span>
+            <strong>{metric.isRaw ? metric.value : number(Number(metric.value))}</strong>
+          </div>
+          <span className={`admMetricIcon admTone-${metric.tone}`}><metric.icon size={21} /></span>
+        </article>
+      ))}
+    </div>
+  );
 }
 
 export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, onExport, onCreate, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; onExport?: (ids: number[]) => Promise<string>; onCreate?: () => void; busy?: boolean }) {
@@ -62,55 +194,124 @@ export function DashboardHome({
   pages,
   analytics,
   dateRange = '30',
+  startDate,
+  endDate,
+  reportPageId = 'all',
   onDateRangeChange,
+  onCustomDateChange,
+  onPageChange,
   onOpen,
   onNavigate,
 }: {
   pages: PageSummary[];
   analytics: AnalyticsReport | null;
   dateRange?: string;
+  startDate?: string;
+  endDate?: string;
+  reportPageId?: string;
   onDateRangeChange?: (range: string) => void;
+  onCustomDateChange?: (start: string, end: string) => void;
+  onPageChange?: (pageId: string) => void;
   onOpen: (id: number) => void;
   onNavigate: (view: string) => void;
 }) {
   const recent = [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
-  const rangeLabel = dateRange === 'all' ? 'All time' : `Last ${dateRange} days`;
+  const rangeLabel = dateRange === 'all'
+    ? 'All time'
+    : dateRange === 'today'
+    ? 'Today'
+    : dateRange === 'yesterday'
+    ? 'Yesterday'
+    : dateRange === 'month'
+    ? 'This month'
+    : dateRange === 'custom' && startDate && endDate
+    ? `${startDate} to ${endDate}`
+    : `Last ${dateRange} days`;
 
   return <>
-    <PageHeader title="Workspace overview" description="Your pages, traffic, and latest updates.">
-      <div className="admActionRow">
-        {onDateRangeChange && (
+    <PageHeader title="Workspace Dashboard & Analytics" description="Real-time traffic telemetry, geographic city intelligence, and workspace links.">
+      <div className="admActionRow admDashboardHeaderActions">
+        {onPageChange && (
           <select
-            aria-label="Filter date range"
-            value={dateRange}
-            onChange={event => onDateRangeChange(event.target.value)}
+            aria-label="Filter by page"
+            className="admPageSelectDropdown"
+            value={reportPageId}
+            onChange={e => onPageChange(e.target.value)}
           >
-            <option value="7">Last 7 days</option>
-            <option value="14">Last 14 days</option>
-            <option value="30">Last 30 days</option>
-            <option value="90">Last 90 days</option>
-            <option value="all">All time</option>
+            <option value="all">All pages</option>
+            {pages.map(page => (
+              <option key={page.id} value={page.id}>{page.name}</option>
+            ))}
           </select>
+        )}
+        {onDateRangeChange && (
+          <DateRangeFilterControl
+            dateRange={dateRange}
+            startDate={startDate}
+            endDate={endDate}
+            onDateRangeChange={onDateRangeChange}
+            onCustomDateChange={onCustomDateChange}
+          />
         )}
         <Button variant="primary" icon={Plus} onClick={() => onNavigate('create')}>Create page</Button>
       </div>
     </PageHeader>
-    <Metrics pages={pages} />
+
+    <Metrics pages={pages} analytics={analytics} />
+
     <div className="admHomeGrid">
-      <SectionCard title="Traffic overview" actions={<span className="admMuted">{rangeLabel}</span>}><TrafficChart report={analytics} rangeLabel={rangeLabel} /></SectionCard>
-      <SectionCard title="Quick actions"><div className="admQuickActions">{[{ label: 'Create a page', icon: Plus, view: 'create' }, { label: 'Manage pages', icon: FileText, view: 'pages' }, { label: 'Upload media', icon: ImageIcon, view: 'media' }, { label: 'Send notification', icon: Bell, view: 'notifications' }, { label: 'View analytics', icon: BarChart3, view: 'analytics' }].map(action => <button type="button" key={action.view} onClick={() => onNavigate(action.view)}><action.icon size={17} aria-hidden="true" /><span>{action.label}</span><ArrowUpRight size={15} aria-hidden="true" /></button>)}</div></SectionCard>
+      <SectionCard title="Traffic trend overview" actions={<span className="admMuted">{rangeLabel}</span>}>
+        <TrafficChart report={analytics} rangeLabel={rangeLabel} />
+      </SectionCard>
+      <SectionCard title="Quick actions">
+        <div className="admQuickActions">
+          {[
+            { label: 'Create a page', icon: Plus, view: 'create' },
+            { label: 'Manage pages', icon: FileText, view: 'pages' },
+            { label: 'Upload media', icon: ImageIcon, view: 'media' },
+            { label: 'Send notification', icon: Bell, view: 'notifications' },
+            { label: 'Explore themes', icon: Sparkles, view: 'themes' },
+          ].map(action => (
+            <button type="button" key={action.view} onClick={() => onNavigate(action.view)}>
+              <action.icon size={17} aria-hidden="true" />
+              <span>{action.label}</span>
+              <ArrowUpRight size={15} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </SectionCard>
     </div>
+
+    {/* In-depth Country and City Geographic Intelligence */}
+    <SectionCard
+      title="Geographic Intelligence & City Drill-Down"
+      actions={<span className="admMuted">{(analytics?.countries || []).length} countries recorded</span>}
+    >
+      <CountryDrilldownView report={analytics} />
+    </SectionCard>
+
     <div className="admHomeGrid">
-      <SectionCard title="Geographic location graph" actions={<span className="admMuted">{(analytics?.locations || []).length} active regions</span>}>
+      <SectionCard title="Geographic location graph (Views vs Clicks)" actions={<span className="admMuted">{(analytics?.locations || []).length} active regions</span>}>
         <LocationChart report={analytics} />
       </SectionCard>
-      <SectionCard title="Link clicks by location" actions={<span className="admMuted">{analytics?.linkLocations?.length || 0} links clicked</span>}>
+      <SectionCard title="Detailed link clicks by location" actions={<span className="admMuted">{analytics?.linkLocations?.length || 0} link placements</span>}>
         <LocationDetailsCard report={analytics} />
       </SectionCard>
     </div>
+
+    <div className="admThreeColumns">
+      <Distribution title="Top links" items={(analytics?.topBlocks || []).map(item => ({ label: item.title, count: item.clicks }))} />
+      <Distribution title="Devices" items={(analytics?.devices || []).map(item => ({ label: item.device, count: item.count }))} />
+      <Distribution title="Top referrers" items={(analytics?.referrers || []).slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
+    </div>
+
     <div className="admHomeGrid">
-      <SectionCard title="Recent pages" actions={<button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} aria-hidden="true" /></button>}><PagesTable pages={recent} onOpen={onOpen} onCreate={() => onNavigate('create')} /></SectionCard>
-      <SectionCard title="Recent activity">{!recent.length ? <EmptyState icon={Clock3} title="No activity yet" description="Page edits will show up here." /> : <ul className="admActivity">{recent.map(page => <li key={page.id}><span><Clock3 size={16} aria-hidden="true" /></span><div><button type="button" onClick={() => onOpen(page.id)}>{page.name}</button><small>Page updated</small><time dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</time></div></li>)}</ul>}</SectionCard>
+      <SectionCard title="Live Visitor & Click Activity" actions={<span className="admMuted">{analytics?.recentActivity?.length || 0} latest events</span>}>
+        <RecentActivityFeed report={analytics} onOpen={onOpen} />
+      </SectionCard>
+      <SectionCard title="Recent pages" actions={<button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} aria-hidden="true" /></button>}>
+        <PagesTable pages={recent} onOpen={onOpen} onCreate={() => onNavigate('create')} />
+      </SectionCard>
     </div>
   </>;
 }
@@ -127,6 +328,244 @@ export function TrafficChart({ report, rangeLabel }: { report: AnalyticsReport |
       <div className="admChartBars">{report.daily.map(day => <div key={day.date} title={`${day.date}: ${day.views} views, ${day.clicks} clicks`}><i style={{ height: `${day.views / peak * 100}%` }} /><b style={{ height: `${day.clicks / peak * 100}%` }} /></div>)}{!views && !clicks && <span className="admChartEmpty">No traffic in this period</span>}</div>
     </div><div className="admChartDates"><span>{report.daily[0]?.date}</span><span>{report.daily.at(-1)?.date}</span></div>
   </div>;
+}
+
+export function CountryDrilldownView({ report }: { report: AnalyticsReport | null }) {
+  const [search, setSearch] = useState('');
+  const [expandedCountries, setExpandedCountries] = useState<Record<string, boolean>>({});
+
+  if (!report) return <div className="admChartLoading" role="status">Loading geographic data...</div>;
+
+  const countries = report.countries || [];
+  if (!countries.length) {
+    return (
+      <EmptyState
+        icon={Globe2}
+        title="No country data yet"
+        description="Detailed country and city traffic reports will appear here as visitors interact with your pages."
+      />
+    );
+  }
+
+  const query = search.toLowerCase().trim();
+  const filtered = countries.filter(c => {
+    if (!query) return true;
+    const nameMatch = (c.countryName || '').toLowerCase().includes(query);
+    const codeMatch = (c.countryCode || '').toLowerCase().includes(query);
+    if (nameMatch || codeMatch) return true;
+    return c.cities.some(ct => (ct.city || '').toLowerCase().includes(query) || (ct.location || '').toLowerCase().includes(query));
+  });
+
+  const totalCountries = countries.length;
+  const totalCities = countries.reduce((sum, c) => sum + c.cities.length, 0);
+  const peakCountryViews = Math.max(1, ...countries.map(c => c.views));
+  const peakCountryClicks = Math.max(1, ...countries.map(c => c.clicks));
+
+  function toggleCountry(countryName: string) {
+    setExpandedCountries(prev => ({
+      ...prev,
+      [countryName]: !prev[countryName],
+    }));
+  }
+
+  return (
+    <div className="admCountryDrilldown">
+      <div className="admCountryDrilldownToolbar">
+        <div className="admCountrySearch">
+          <Search size={15} aria-hidden="true" />
+          <input
+            type="search"
+            placeholder="Search country or city (e.g. Bangladesh, Dhaka, New York)..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            aria-label="Filter countries or cities"
+          />
+        </div>
+        <div className="admCountrySummaryStats">
+          <span><strong>{totalCountries}</strong> {totalCountries === 1 ? 'country' : 'countries'}</span>
+          <span><strong>{totalCities}</strong> {totalCities === 1 ? 'city' : 'cities'}</span>
+        </div>
+      </div>
+
+      {!filtered.length ? (
+        <div className="admNoResults">No regions match &quot;{search}&quot;</div>
+      ) : (
+        <div className="admCountryList">
+          {filtered.map(country => {
+            const countryDisplayName = country.countryName || 'Unknown';
+            const isExpanded = expandedCountries[countryDisplayName] ?? (filtered.length === 1 || country.cities.length <= 2);
+            const flag = getCountryFlag(countryDisplayName || country.countryCode || '');
+            const countryShare = Math.max(4, Math.round(((country.clicks + country.views) / (peakCountryViews + peakCountryClicks)) * 100));
+
+            return (
+              <div className={`admCountryCard ${isExpanded ? 'isExpanded' : ''}`} key={countryDisplayName}>
+                <div
+                  className="admCountryCardHeader"
+                  onClick={() => toggleCountry(countryDisplayName)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') toggleCountry(countryDisplayName); }}
+                >
+                  <div className="admCountryIdentity">
+                    <span className="admCountryFlag" aria-hidden="true">{flag}</span>
+                    <div className="admCountryTitles">
+                      <strong>{countryDisplayName}</strong>
+                      <small>{country.cities.length} {country.cities.length === 1 ? 'city' : 'cities'}</small>
+                    </div>
+                  </div>
+
+                  <div className="admCountryStatsRow">
+                    <span className="admCountryStatItem admViewsStat">
+                      <Eye size={13} aria-hidden="true" />
+                      <strong>{number(country.views)}</strong> views
+                    </span>
+                    <span className="admCountryStatItem admClicksStat">
+                      <MousePointer2 size={13} aria-hidden="true" />
+                      <strong>{number(country.clicks)}</strong> clicks
+                    </span>
+                    <span className="admLocationCtrBadge">
+                      {country.ctr}% CTR
+                    </span>
+                    <span className="admCountryToggleIcon">
+                      <ChevronDown size={17} className={isExpanded ? 'admRotate180' : ''} aria-hidden="true" />
+                    </span>
+                  </div>
+                </div>
+
+                <div className="admCountryShareBar">
+                  <div className="admCountryShareFill" style={{ width: `${countryShare}%` }} />
+                </div>
+
+                {isExpanded && (
+                  <div className="admCityList">
+                    <div className="admCityListHead">
+                      <span>City / Location</span>
+                      <span style={{ textAlign: 'center' }}>Views</span>
+                      <span style={{ textAlign: 'center' }}>Clicks</span>
+                      <span style={{ textAlign: 'center' }}>CTR</span>
+                      <span style={{ textAlign: 'right' }}>Top Clicked Links</span>
+                    </div>
+
+                    {country.cities.map((city, cIdx) => (
+                      <div className="admCityRow" key={`${city.city}-${cIdx}`}>
+                        <div className="admCityName">
+                          <Globe2 size={14} aria-hidden="true" />
+                          <div>
+                            <strong>{city.city}</strong>
+                            {city.location && city.location !== city.city && (
+                              <small>{city.location}</small>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="admCityMetric admViewsMetric">
+                          <strong>{number(city.views)}</strong>
+                        </div>
+
+                        <div className="admCityMetric admClicksMetric">
+                          <strong>{number(city.clicks)}</strong>
+                        </div>
+
+                        <div className="admCityMetric">
+                          <span className="admCityCtrBadge">{city.ctr}%</span>
+                        </div>
+
+                        <div className="admCityTopLinks">
+                          {!city.topLinks.length ? (
+                            <span className="admMutedSmall">No link clicks</span>
+                          ) : (
+                            <div className="admCityLinkPills">
+                              {city.topLinks.map((link, lIdx) => {
+                                const linkLabel = link.blockTitle || link.url || `Link #${link.blockId || lIdx + 1}`;
+                                return (
+                                  <span className="admCityLinkPill" key={link.blockId || lIdx} title={`${linkLabel}: ${link.clicks} clicks`}>
+                                    <MousePointer2 size={11} aria-hidden="true" />
+                                    <span className="admPillTitle">{linkLabel}</span>
+                                    <span className="admPillCount">{link.clicks}</span>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function RecentActivityFeed({
+  report,
+  onOpen,
+}: {
+  report: AnalyticsReport | null;
+  onOpen?: (id: number) => void;
+}) {
+  if (!report) return <div className="admChartLoading" role="status">Loading recent activity...</div>;
+  const activity = report.recentActivity || [];
+
+  if (!activity.length) {
+    return <EmptyState icon={Clock3} title="No activity recorded" description="Live views and link clicks will appear in this feed as visitors engage." />;
+  }
+
+  return (
+    <div className="admRecentActivityFeed">
+      <ul className="admActivityList">
+        {activity.map((event) => {
+          const isClick = event.type === 'click';
+          const flag = getCountryFlag(event.country);
+          const locationLabel = event.city && event.country ? `${event.city}, ${event.country}` : (event.country || event.city || event.location || 'Direct');
+
+          return (
+            <li className={`admActivityFeedItem ${isClick ? 'isClick' : 'isView'}`} key={event.id}>
+              <div className="admActivityIcon">
+                {isClick ? <MousePointer2 size={15} /> : <Eye size={15} />}
+              </div>
+              <div className="admActivityDetails">
+                <div className="admActivityHeadline">
+                  {isClick ? (
+                    <span>
+                      Clicked <strong>{event.blockTitle || 'Link'}</strong> on {onOpen && event.pageId ? <button type="button" className="admInlinePageLink" onClick={() => onOpen(event.pageId)}>/{event.pageName || 'page'}</button> : <code>/{event.pageName || 'page'}</code>}
+                    </span>
+                  ) : (
+                    <span>
+                      Viewed {onOpen && event.pageId ? <button type="button" className="admInlinePageLink" onClick={() => onOpen(event.pageId)}>/{event.pageName || 'page'}</button> : <code>/{event.pageName || 'page'}</code>}
+                    </span>
+                  )}
+                </div>
+                <div className="admActivityMeta">
+                  <span className="admActivityGeo" title={locationLabel}>
+                    <span className="admActivityFlag">{flag}</span>
+                    {locationLabel}
+                  </span>
+                  {event.device && (
+                    <span className="admActivityDevice">
+                      {event.device}
+                    </span>
+                  )}
+                  {event.referrer && event.referrer !== 'Direct' && (
+                    <span className="admActivityReferrer" title={`From ${event.referrer}`}>
+                      via {event.referrer.replace(/^https?:\/\//, '').replace(/\/.*$/, '')}
+                    </span>
+                  )}
+                  <time dateTime={event.date} className="admActivityTime">
+                    {new Date(event.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </time>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 export function LocationChart({ report }: { report: AnalyticsReport | null }) {
@@ -158,12 +597,13 @@ export function LocationChart({ report }: { report: AnalyticsReport | null }) {
           const ctr = item.views > 0 ? ((item.clicks / item.views) * 100).toFixed(1) : (item.clicks > 0 ? '100' : '0');
           const clicksWidth = Math.max(4, Math.round((item.clicks / peakClicks) * 100));
           const viewsWidth = Math.max(4, Math.round((item.views / peakViews) * 100));
+          const flag = getCountryFlag(item.country || item.location);
 
           return (
             <div className="admLocationChartItem" key={`${item.location}-${index}`}>
               <div className="admLocationChartItemHead">
                 <div className="admLocationChartName">
-                  <Globe2 size={15} aria-hidden="true" />
+                  <span className="admFlagSmall">{flag}</span>
                   <span title={item.location || item.country || 'Direct / Local'}>
                     {item.location || item.country || 'Direct / Local'}
                   </span>
@@ -228,21 +668,24 @@ export function LocationDetailsCard({ report }: { report: AnalyticsReport | null
         <span role="columnheader" style={{ textAlign: 'right' }}>Clicks</span>
       </div>
       <div className="admLocationTableBody">
-        {linkLocations.slice(0, 10).map((item, index) => (
-          <div className="admLocationRow" role="row" key={`${item.blockId}-${item.location}-${index}`}>
-            <span role="cell" className="admLocationLinkName">
-              <MousePointer2 size={14} aria-hidden="true" />
-              <strong>{item.blockTitle}</strong>
-            </span>
-            <span role="cell" className="admLocationPlace">
-              <Globe2 size={14} aria-hidden="true" />
-              {item.location || item.country || 'Direct / Local'}
-            </span>
-            <span role="cell" className="admLocationCount">
-              <strong>{number(item.clicks)}</strong>
-            </span>
-          </div>
-        ))}
+        {linkLocations.slice(0, 10).map((item, index) => {
+          const flag = getCountryFlag(item.country || item.location);
+          return (
+            <div className="admLocationRow" role="row" key={`${item.blockId}-${item.location}-${index}`}>
+              <span role="cell" className="admLocationLinkName">
+                <MousePointer2 size={14} aria-hidden="true" />
+                <strong>{item.blockTitle}</strong>
+              </span>
+              <span role="cell" className="admLocationPlace">
+                <span className="admFlagSmall">{flag}</span>
+                {item.location || item.country || 'Direct / Local'}
+              </span>
+              <span role="cell" className="admLocationCount">
+                <strong>{number(item.clicks)}</strong>
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -251,21 +694,79 @@ export function LocationDetailsCard({ report }: { report: AnalyticsReport | null
 export function AnalyticsView({
   report,
   dateRange = '30',
+  startDate,
+  endDate,
+  onDateRangeChange,
+  onCustomDateChange,
 }: {
   report: AnalyticsReport | null;
   dateRange?: string;
+  startDate?: string;
+  endDate?: string;
   onDateRangeChange?: (range: string) => void;
+  onCustomDateChange?: (start: string, end: string) => void;
 }) {
   if (!report) return <LoadingState label="Loading analytics..." />;
-  const rangeLabel = dateRange === 'all' ? 'All time' : `Last ${dateRange} days`;
+  const rangeLabel = dateRange === 'all'
+    ? 'All time'
+    : dateRange === 'today'
+    ? 'Today'
+    : dateRange === 'yesterday'
+    ? 'Yesterday'
+    : dateRange === 'month'
+    ? 'This month'
+    : dateRange === 'custom' && startDate && endDate
+    ? `${startDate} to ${endDate}`
+    : `Last ${dateRange} days`;
+
   return <>
-    <div className="admMetrics">{[['Views', report.views], ['Unique visitors', report.uniqueVisitors], ['Clicks', report.clicks], ['Click-through rate', `${report.ctr}%`]].map(([label, value]) => <article className="admMetric" key={label}><div><span>{label}</span><strong>{typeof value === 'number' ? number(value) : value}</strong></div></article>)}</div>
-    <SectionCard title="Traffic" actions={<span className="admMuted">{rangeLabel}</span>}><TrafficChart report={report} rangeLabel={rangeLabel} /></SectionCard>
+    <div className="admMetrics">
+      {[
+        ['Views', report.views],
+        ['Unique visitors', report.uniqueVisitors],
+        ['Clicks', report.clicks],
+        ['Click-through rate', `${report.ctr}%`],
+        ['Active countries', report.countries?.length || 0],
+      ].map(([label, value]) => (
+        <article className="admMetric" key={label}>
+          <div>
+            <span>{label}</span>
+            <strong>{typeof value === 'number' ? number(value) : value}</strong>
+          </div>
+        </article>
+      ))}
+    </div>
+
+    {onDateRangeChange && (
+      <div className="admAnalyticsFilterBar">
+        <DateRangeFilterControl
+          dateRange={dateRange}
+          startDate={startDate}
+          endDate={endDate}
+          onDateRangeChange={onDateRangeChange}
+          onCustomDateChange={onCustomDateChange}
+        />
+      </div>
+    )}
+
+    <SectionCard title="Traffic trend" actions={<span className="admMuted">{rangeLabel}</span>}>
+      <TrafficChart report={report} rangeLabel={rangeLabel} />
+    </SectionCard>
+
+    {/* In-depth Country & City Drilldown */}
+    <SectionCard
+      title="Geographic Intelligence & City Drill-Down"
+      actions={<span className="admMuted">{(report.countries || []).length} countries recorded</span>}
+    >
+      <CountryDrilldownView report={report} />
+    </SectionCard>
+
     <div className="admThreeColumns">
       <Distribution title="Top links" items={report.topBlocks.map(item => ({ label: item.title, count: item.clicks }))} />
       <Distribution title="Devices" items={report.devices.map(item => ({ label: item.device, count: item.count }))} />
       <Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
     </div>
+
     <div className="admHomeGrid">
       <SectionCard title="Geographic locations graph (Views & Clicks)" actions={<span className="admMuted">{(report.locations || []).length} locations</span>}>
         <LocationChart report={report} />
@@ -274,6 +775,10 @@ export function AnalyticsView({
         <LocationDetailsCard report={report} />
       </SectionCard>
     </div>
+
+    <SectionCard title="Live Visitor & Click Activity" actions={<span className="admMuted">{report.recentActivity?.length || 0} events</span>}>
+      <RecentActivityFeed report={report} />
+    </SectionCard>
   </>;
 }
 
@@ -357,487 +862,396 @@ export function CampaignHistoryView({
 
   // Aggregate Performance Totals
   const totalCampaigns = campaigns.length;
-  const totalAttempted = campaigns.reduce((sum, c) => sum + c.attempted, 0);
   const totalSent = campaigns.reduce((sum, c) => sum + c.sent, 0);
   const totalDelivered = campaigns.reduce((sum, c) => sum + c.delivered, 0);
-  const totalSeen = campaigns.reduce((sum, c) => sum + c.seen, 0);
-  const totalClicked = campaigns.reduce((sum, c) => sum + c.clicked, 0);
-  const overallDeliveryRate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
-  const overallSeenRate = totalDelivered > 0 ? ((totalSeen / totalDelivered) * 100).toFixed(1) : '0.0';
-  const overallCtr = totalSeen > 0 ? ((totalClicked / totalSeen) * 100).toFixed(1) : totalDelivered > 0 ? ((totalClicked / totalDelivered) * 100).toFixed(1) : '0.0';
+  const totalClicks = campaigns.reduce((sum, c) => sum + (c.clicked || c.clicks || 0), 0);
+  const overallCtr = totalDelivered > 0 ? ((totalClicks / totalDelivered) * 100).toFixed(1) : '0';
 
-  // Filtered & Sorted campaigns
-  const filteredCampaigns = campaigns.filter(c => {
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      const matchesText = c.title.toLowerCase().includes(q) ||
-        c.body.toLowerCase().includes(q) ||
-        c.url.toLowerCase().includes(q) ||
-        c.audience.toLowerCase().includes(q) ||
-        (c.pageSlug && c.pageSlug.toLowerCase().includes(q));
-      if (!matchesText) return false;
-    }
-
-    if (audienceFilter !== 'all') {
-      if (audienceFilter === 'all_subscribers') {
-        if (c.pageId !== null) return false;
-      } else {
-        if (String(c.pageId) !== audienceFilter) return false;
+  const filtered = campaigns
+    .filter(c => {
+      if (audienceFilter !== 'all') {
+        if (audienceFilter === 'all-pages' && c.pageId !== null) return false;
+        if (audienceFilter.startsWith('page:') && String(c.pageId) !== audienceFilter.replace('page:', '')) return false;
       }
-    }
+      if (engagementFilter === 'has-clicks' && (c.clicked || c.clicks || 0) === 0) return false;
+      if (engagementFilter === 'no-clicks' && (c.clicked || c.clicks || 0) > 0) return false;
+      if (query.trim()) {
+        const q = query.toLowerCase();
+        const matchTitle = c.title.toLowerCase().includes(q);
+        const matchBody = c.body.toLowerCase().includes(q);
+        const matchUrl = c.url.toLowerCase().includes(q);
+        const matchPage = (c.pageSlug || '').toLowerCase().includes(q);
+        if (!matchTitle && !matchBody && !matchUrl && !matchPage) return false;
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sort === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (sort === 'clicks') return (b.clicked || b.clicks || 0) - (a.clicked || a.clicks || 0);
+      if (sort === 'delivered') return b.delivered - a.delivered;
+      if (sort === 'ctr') {
+        const ctrA = a.delivered > 0 ? (a.clicked || a.clicks || 0) / a.delivered : 0;
+        const ctrB = b.delivered > 0 ? (b.clicked || b.clicks || 0) / b.delivered : 0;
+        return ctrB - ctrA;
+      }
+      return 0;
+    });
 
-    if (engagementFilter === 'clicked' && c.clicked <= 0) return false;
-    if (engagementFilter === 'high_ctr') {
-      const ctrVal = c.seen > 0 ? (c.clicked / c.seen) * 100 : c.delivered > 0 ? (c.clicked / c.delivered) * 100 : 0;
-      if (ctrVal < 10) return false;
-    }
-    if (engagementFilter === 'failed' && c.failed === 0 && c.removed === 0) return false;
+  return (
+    <div className="admCampaignHistory">
+      <PageHeader
+        title="Push Campaign History"
+        description="Broadcast notifications sent to your audience with real-time delivery and click telemetry."
+      />
 
-    return true;
-  }).sort((a, b) => {
-    if (sort === 'newest') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    if (sort === 'oldest') return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-    if (sort === 'clicks') return b.clicked - a.clicked;
-    if (sort === 'delivered') return b.delivered - a.delivered;
-    if (sort === 'ctr') {
-      const ctrA = a.seen > 0 ? (a.clicked / a.seen) : a.delivered > 0 ? (a.clicked / a.delivered) : 0;
-      const ctrB = b.seen > 0 ? (b.clicked / b.seen) : b.delivered > 0 ? (b.clicked / b.delivered) : 0;
-      return ctrB - ctrA;
-    }
-    return 0;
-  });
-
-  function getCampaignCtr(c: NotificationCampaign) {
-    if (c.seen > 0) return ((c.clicked / c.seen) * 100).toFixed(1);
-    if (c.delivered > 0) return ((c.clicked / c.delivered) * 100).toFixed(1);
-    return '0.0';
-  }
-
-  function getCampaignDeliveredRate(c: NotificationCampaign) {
-    if (c.sent > 0) return Math.min(100, Math.round((c.delivered / c.sent) * 100));
-    return 0;
-  }
-
-  function getCampaignSeenRate(c: NotificationCampaign) {
-    if (c.delivered > 0) return Math.min(100, Math.round((c.seen / c.delivered) * 100));
-    return 0;
-  }
-
-  return <div className="admCampaignHub">
-    <div className="admCampaignHubHeader">
-      <div>
-        <h2>Push Campaign History</h2>
-        <p className="admMuted">Track delivery rates, impression reach, and subscriber click conversions across all broadcasts.</p>
-      </div>
-      <div className="admCampaignHubActions">
-        {onRefresh && <IconButton icon={RefreshCw} label="Refresh campaign metrics" disabled={loading} onClick={onRefresh} />}
-        {onGoToCompose && <Button variant="primary" icon={Send} onClick={onGoToCompose}>New campaign</Button>}
-      </div>
-    </div>
-
-    {/* Top Aggregate KPI Cards */}
-    <div className="admCampaignKpis">
-      <article className="admCampaignKpiCard">
-        <div className="admCampaignKpiHeader">
+      {/* Top Aggregate Summary Stats Bar */}
+      <div className="admCampaignStatsBar">
+        <div className="admCampaignStat">
           <span>Total Campaigns</span>
-          <span className="admCampaignKpiIcon admTone-blue"><History size={16} /></span>
+          <strong>{number(totalCampaigns)}</strong>
         </div>
-        <strong className="admCampaignKpiValue">{number(totalCampaigns)}</strong>
-        <small className="admCampaignKpiSub">{number(totalSent)} sent of {number(totalAttempted)} targeted</small>
-      </article>
-
-      <article className="admCampaignKpiCard">
-        <div className="admCampaignKpiHeader">
-          <span>Delivery Rate</span>
-          <span className="admCampaignKpiIcon admTone-green"><CheckCircle2 size={16} /></span>
+        <div className="admCampaignStat">
+          <span>Total Sent</span>
+          <strong>{number(totalSent)}</strong>
         </div>
-        <strong className="admCampaignKpiValue">{overallDeliveryRate}%</strong>
-        <small className="admCampaignKpiSub">{number(totalDelivered)} delivered of {number(totalSent)}</small>
-      </article>
-
-      <article className="admCampaignKpiCard">
-        <div className="admCampaignKpiHeader">
-          <span>Seen / Impressions</span>
-          <span className="admCampaignKpiIcon admTone-violet"><Eye size={16} /></span>
+        <div className="admCampaignStat">
+          <span>Delivered</span>
+          <strong>{number(totalDelivered)}</strong>
         </div>
-        <strong className="admCampaignKpiValue">{overallSeenRate}%</strong>
-        <small className="admCampaignKpiSub">{number(totalSeen)} displayed to users</small>
-      </article>
-
-      <article className="admCampaignKpiCard">
-        <div className="admCampaignKpiHeader">
-          <span>Total Clicks & CTR</span>
-          <span className="admCampaignKpiIcon admTone-rose"><MousePointer2 size={16} /></span>
+        <div className="admCampaignStat">
+          <span>Total Clicks</span>
+          <strong>{number(totalClicks)}</strong>
         </div>
-        <strong className="admCampaignKpiValue">{overallCtr}%</strong>
-        <small className="admCampaignKpiSub">{number(totalClicked)} total clicks generated</small>
-      </article>
-    </div>
+        <div className="admCampaignStat">
+          <span>Avg. Click Rate</span>
+          <strong className="admHighlightText">{overallCtr}%</strong>
+        </div>
+      </div>
 
-    {/* Filter, Search & Layout Toolbar */}
-    <div className="admCampaignToolbar">
-      <div className="admCampaignSearchGroup">
+      {/* Filter and Control Toolbar */}
+      <div className="admCampaignToolbar">
         <div className="admCampaignSearch">
-          <Search size={16} />
+          <Search size={16} aria-hidden="true" />
           <input
             type="search"
-            placeholder="Search campaigns by title, message, URL..."
+            placeholder="Search campaign title, body, url..."
             value={query}
             onChange={e => setQuery(e.target.value)}
+            aria-label="Search campaigns"
           />
         </div>
-        <select
-          aria-label="Filter by audience"
-          value={audienceFilter}
-          onChange={e => setAudienceFilter(e.target.value)}
-        >
-          <option value="all">All audiences</option>
-          <option value="all_subscribers">All subscribers broadcast</option>
-          {pages.map(page => <option key={page.id} value={String(page.id)}>/{page.slug}</option>)}
-        </select>
-        <select
-          aria-label="Filter by performance"
-          value={engagementFilter}
-          onChange={e => setEngagementFilter(e.target.value)}
-        >
-          <option value="all">All performance</option>
-          <option value="clicked">With clicks</option>
-          <option value="high_ctr">High CTR (≥10%)</option>
-          <option value="failed">With errors / expired</option>
-        </select>
-      </div>
 
-      <div className="admCampaignToolbarRight">
-        <select
-          aria-label="Sort campaigns"
-          value={sort}
-          onChange={e => setSort(e.target.value as typeof sort)}
-        >
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="clicks">Most clicked</option>
-          <option value="ctr">Highest CTR</option>
-          <option value="delivered">Most delivered</option>
-        </select>
+        <div className="admCampaignFilters">
+          <select
+            value={audienceFilter}
+            onChange={e => setAudienceFilter(e.target.value)}
+            aria-label="Filter by audience"
+          >
+            <option value="all">All Audiences</option>
+            <option value="all-pages">All pages broadcast</option>
+            {pages.map(p => (
+              <option key={p.id} value={`page:${p.id}`}>Page: {p.name}</option>
+            ))}
+          </select>
 
-        <div className="admCampaignViewToggle" role="group" aria-label="View mode">
-          <button
-            type="button"
-            className={viewMode === 'cards' ? 'active' : ''}
-            onClick={() => setViewMode('cards')}
-            title="Card grid view"
-            aria-label="Card grid view"
+          <select
+            value={engagementFilter}
+            onChange={e => setEngagementFilter(e.target.value)}
+            aria-label="Filter by engagement"
           >
-            <LayoutGrid size={16} />
-          </button>
-          <button
-            type="button"
-            className={viewMode === 'table' ? 'active' : ''}
-            onClick={() => setViewMode('table')}
-            title="Table view"
-            aria-label="Table view"
+            <option value="all">All Engagement</option>
+            <option value="has-clicks">With Clicks (&gt;0)</option>
+            <option value="no-clicks">No Clicks (0)</option>
+          </select>
+
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value as typeof sort)}
+            aria-label="Sort campaigns"
           >
-            <List size={16} />
-          </button>
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="clicks">Most clicks</option>
+            <option value="ctr">Highest CTR %</option>
+            <option value="delivered">Most delivered</option>
+          </select>
+
+          <div className="admViewModeToggle" role="group" aria-label="View mode">
+            <button
+              type="button"
+              className={viewMode === 'cards' ? 'isActive' : ''}
+              onClick={() => setViewMode('cards')}
+              title="Card grid view"
+              aria-label="Card grid view"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              type="button"
+              className={viewMode === 'table' ? 'isActive' : ''}
+              onClick={() => setViewMode('table')}
+              title="Table view"
+              aria-label="Table view"
+            >
+              <List size={16} />
+            </button>
+          </div>
+
+          {onRefresh && (
+            <IconButton icon={RefreshCw} label="Refresh campaign history" disabled={loading} onClick={onRefresh} />
+          )}
         </div>
       </div>
-    </div>
 
-    {/* Content Area: Cards or Table */}
-    {loading && !campaigns.length ? (
-      <LoadingState label="Loading campaign history..." />
-    ) : !campaigns.length ? (
-      <EmptyState icon={History} title="No notification campaigns sent yet" description="Send your first push update or special offer to your subscribers.">
-        {onGoToCompose && <Button variant="primary" icon={Send} onClick={onGoToCompose}>Compose your first campaign</Button>}
-      </EmptyState>
-    ) : !filteredCampaigns.length ? (
-      <EmptyState icon={Search} title="No campaigns match your filters" description="Try clearing the search query or adjusting the audience and performance filters.">
-        <Button onClick={() => { setQuery(''); setAudienceFilter('all'); setEngagementFilter('all'); }}>Reset filters</Button>
-      </EmptyState>
-    ) : viewMode === 'cards' ? (
-      <div className="admCampaignCards">
-        {filteredCampaigns.map(campaign => {
-          const ctr = getCampaignCtr(campaign);
-          const delRate = getCampaignDeliveredRate(campaign);
-          const seenRate = getCampaignSeenRate(campaign);
-          const hasIssues = campaign.failed > 0 || campaign.removed > 0;
-          const isHighCtr = parseFloat(ctr) >= 10 && campaign.clicked > 0;
+      {loading ? (
+        <LoadingState label="Loading campaign history..." />
+      ) : !filtered.length ? (
+        <EmptyState
+          icon={History}
+          title={campaigns.length === 0 ? "No campaigns sent yet" : "No campaigns match your filters"}
+          description={campaigns.length === 0 ? "Compose and send a push broadcast above to view delivery and click analytics." : "Try adjusting your search keywords or filter dropdowns."}
+        >
+          {campaigns.length === 0 && onGoToCompose && (
+            <Button variant="primary" icon={Send} onClick={onGoToCompose}>Compose notification</Button>
+          )}
+        </EmptyState>
+      ) : viewMode === 'table' ? (
+        /* Table Mode */
+        <div className="admCampaignTable" role="table" aria-label="Notification campaign history">
+          <div className="admCampaignTableHead" role="row">
+            <span role="columnheader">Campaign</span>
+            <span role="columnheader">Audience</span>
+            <span role="columnheader">Date</span>
+            <span role="columnheader" style={{ textAlign: 'right' }}>Sent</span>
+            <span role="columnheader" style={{ textAlign: 'right' }}>Delivered</span>
+            <span role="columnheader" style={{ textAlign: 'right' }}>Clicks</span>
+            <span role="columnheader" style={{ textAlign: 'right' }}>CTR</span>
+            <span role="columnheader"><span className="admSrOnly">Actions</span></span>
+          </div>
+          <div className="admCampaignTableBody">
+            {filtered.map(c => {
+              const clicks = c.clicked || c.clicks || 0;
+              const ctr = c.delivered > 0 ? ((clicks / c.delivered) * 100).toFixed(1) : '0';
+              const targetPage = c.pageId ? pages.find(p => p.id === c.pageId) : null;
+              const isPageScope = Boolean(c.pageId);
 
-          return <article key={campaign.id} className="admCampaignCard">
-            <div className="admCampaignCardTop">
-              <div className="admCampaignCardTitleArea">
-                <div className="admCampaignCardBadgeRow">
-                  <span className="admCampaignAudienceBadge">
-                    {campaign.pageId ? <FileText size={12} /> : <Globe2 size={12} />}
-                    {campaign.audience}
-                  </span>
-                  {isHighCtr ? (
-                    <span className="admCampaignStatusPill highCtr"><Sparkles size={12} />High CTR ({ctr}%)</span>
-                  ) : delRate === 100 && !hasIssues ? (
-                    <span className="admCampaignStatusPill completed"><Check size={12} />100% Delivered</span>
-                  ) : hasIssues ? (
-                    <span className="admCampaignStatusPill partial">Partial ({campaign.failed + campaign.removed} issue{campaign.failed + campaign.removed === 1 ? '' : 's'})</span>
-                  ) : (
-                    <span className="admCampaignStatusPill neutral">Sent</span>
-                  )}
-                </div>
-                <h3 className="admCampaignCardTitle">{campaign.title}</h3>
-                <div className="admCampaignCardMeta">
-                  <time dateTime={campaign.createdAt} title={campaign.createdAt}>
-                    <Clock3 size={13} />
-                    {new Date(campaign.createdAt).toLocaleString()}
-                  </time>
-                  <span>·</span>
-                  <span>ID #{campaign.id}</span>
-                </div>
-              </div>
-            </div>
-
-            <p className="admCampaignCardBody">{campaign.body}</p>
-
-            <div className="admCampaignLinkRow">
-              <span className="admMuted">Destination:</span>
-              <a
-                href={campaign.url}
-                target="_blank"
-                rel="noreferrer"
-                className="admCampaignLinkPill"
-                title={`Open ${campaign.url}`}
-              >
-                <span>{campaign.url}</span>
-                <ExternalLink size={12} />
-              </a>
-              <button
-                type="button"
-                className="admTextButton"
-                onClick={() => void copyLink(campaign.url)}
-                title="Copy destination link"
-              >
-                {copiedUrl === campaign.url ? <Check size={13} /> : <Copy size={13} />}
-                {copiedUrl === campaign.url ? 'Copied' : 'Copy link'}
-              </button>
-            </div>
-
-            {/* Visual Conversion Funnel */}
-            <div className="admCampaignFunnelGrid">
-              <div className="admCampaignFunnelStep">
-                <div className="admCampaignFunnelStepLabel">
-                  <span>Sent</span>
-                  <small>{campaign.attempted > campaign.sent ? `${number(campaign.sent)}/${number(campaign.attempted)}` : '100%'}</small>
-                </div>
-                <strong className="admCampaignFunnelStepValue">{number(campaign.sent)}</strong>
-                <div className="admCampaignFunnelBar">
-                  <div className="admCampaignFunnelBarFill sent" style={{ width: '100%' }} />
-                </div>
-              </div>
-
-              <div className="admCampaignFunnelStep">
-                <div className="admCampaignFunnelStepLabel">
-                  <span>Delivered</span>
-                  <span className="admCampaignFunnelStepRate">{delRate}%</span>
-                </div>
-                <strong className="admCampaignFunnelStepValue">{number(campaign.delivered)}</strong>
-                <div className="admCampaignFunnelBar">
-                  <div className="admCampaignFunnelBarFill delivered" style={{ width: `${delRate}%` }} />
-                </div>
-              </div>
-
-              <div className="admCampaignFunnelStep">
-                <div className="admCampaignFunnelStepLabel">
-                  <span>Seen / Screen</span>
-                  <span className="admCampaignFunnelStepRate">{seenRate}%</span>
-                </div>
-                <strong className="admCampaignFunnelStepValue">{number(campaign.seen)}</strong>
-                <div className="admCampaignFunnelBar">
-                  <div className="admCampaignFunnelBarFill seen" style={{ width: `${seenRate}%` }} />
-                </div>
-              </div>
-
-              <div className="admCampaignFunnelStep">
-                <div className="admCampaignFunnelStepLabel">
-                  <span>Clicked</span>
-                  <span className="admCampaignFunnelStepRate highlight">{ctr}% CTR</span>
-                </div>
-                <strong className="admCampaignFunnelStepValue">{number(campaign.clicked)}</strong>
-                <div className="admCampaignFunnelBar">
-                  <div className="admCampaignFunnelBarFill clicked" style={{ width: `${Math.min(100, (parseFloat(ctr) || 0) * 2)}%` }} />
-                </div>
-              </div>
-            </div>
-
-            {hasIssues && (
-              <div className="admCampaignIssuesNote">
-                <span className="admCampaignIssueBadge">{number(campaign.failed)} failed</span>
-                <span className="admCampaignIssueBadge">{number(campaign.removed)} expired / inactive</span>
-              </div>
-            )}
-
-            <div className="admCampaignCardActions">
-              <Button size="sm" icon={Eye} onClick={() => setSelectedCampaign(campaign)}>Inspect &amp; preview</Button>
-              {onComposeWith && <Button size="sm" icon={Copy} onClick={() => onComposeWith(campaign)}>Reuse in composer</Button>}
-            </div>
-          </article>;
-        })}
-      </div>
-    ) : (
-      <div className="admSubscriberScroll" tabIndex={0} role="region" aria-label="Campaign history table">
-        <table className="admSubscriberTable admCampaignDetailedTable">
-          <thead>
-            <tr>
-              <th scope="col">Date sent</th>
-              <th scope="col">Campaign &amp; message</th>
-              <th scope="col">Audience</th>
-              <th scope="col">Sent</th>
-              <th scope="col">Delivered</th>
-              <th scope="col">Seen</th>
-              <th scope="col">Clicks (CTR)</th>
-              <th scope="col">Status</th>
-              <th scope="col"><span className="admSrOnly">Actions</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredCampaigns.map(campaign => {
-              const ctr = getCampaignCtr(campaign);
-              const delRate = getCampaignDeliveredRate(campaign);
-              return <tr key={campaign.id}>
-                <td>
-                  <time dateTime={campaign.createdAt}>
-                    {new Date(campaign.createdAt).toLocaleDateString()}
-                    <small>{new Date(campaign.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
-                  </time>
-                </td>
-                <td>
-                  <strong>{campaign.title}</strong>
-                  <p className="admCampaignTableBody">{campaign.body}</p>
-                  <a href={campaign.url} target="_blank" rel="noreferrer" className="admTableLink">
-                    {campaign.url} <ExternalLink size={10} />
-                  </a>
-                </td>
-                <td><span className="admCampaignAudienceBadge">{campaign.audience}</span></td>
-                <td>
-                  <strong>{number(campaign.sent)}</strong>
-                  {campaign.attempted > campaign.sent && <small>of {number(campaign.attempted)}</small>}
-                </td>
-                <td>
-                  <strong>{number(campaign.delivered)}</strong>
-                  <small>{delRate}%</small>
-                </td>
-                <td>
-                  <strong>{number(campaign.seen)}</strong>
-                </td>
-                <td>
-                  <strong className="admHighlightClicks">{number(campaign.clicked)}</strong>
-                  <small className="admHighlightCtr">{ctr}% CTR</small>
-                </td>
-                <td>
-                  {campaign.failed > 0 || campaign.removed > 0 ? (
-                    <span className="admCampaignStatusPill partial">{number(campaign.failed + campaign.removed)} err</span>
-                  ) : (
-                    <span className="admCampaignStatusPill completed">OK</span>
-                  )}
-                </td>
-                <td>
-                  <div className="admTableActions">
-                    <IconButton icon={Eye} label={`Inspect ${campaign.title}`} onClick={() => setSelectedCampaign(campaign)} />
-                    {onComposeWith && <IconButton icon={Copy} label={`Reuse ${campaign.title} in composer`} onClick={() => onComposeWith(campaign)} />}
+              return (
+                <div className="admCampaignTableRow" role="row" key={c.id}>
+                  <div role="cell" className="admCampaignCellTitle">
+                    <strong>{c.title}</strong>
+                    <small title={c.body}>{c.body}</small>
                   </div>
-                </td>
-              </tr>;
+                  <div role="cell">
+                    <span className={`admAudienceBadge ${isPageScope ? 'isPage' : 'isAll'}`}>
+                      {isPageScope ? (targetPage ? `/${targetPage.slug}` : c.pageSlug ? `/${c.pageSlug}` : 'Specific page') : 'All pages'}
+                    </span>
+                  </div>
+                  <div role="cell" className="admCampaignCellDate">
+                    <time dateTime={c.createdAt}>{new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</time>
+                  </div>
+                  <div role="cell" className="admCampaignCellNum">{number(c.sent)}</div>
+                  <div role="cell" className="admCampaignCellNum">{number(c.delivered)}</div>
+                  <div role="cell" className="admCampaignCellNum">
+                    <span className="admClickCountTag">{number(clicks)}</span>
+                  </div>
+                  <div role="cell" className="admCampaignCellNum">
+                    <span className={`admCtrTag ${Number(ctr) > 0 ? 'hasCtr' : ''}`}>{ctr}%</span>
+                  </div>
+                  <div role="cell" className="admCampaignCellActions">
+                    <button
+                      type="button"
+                      className="admCampaignViewBtn"
+                      onClick={() => setSelectedCampaign(c)}
+                      title="View campaign details"
+                    >
+                      Details
+                    </button>
+                    {onComposeWith && (
+                      <button
+                        type="button"
+                        className="admCampaignReuseBtn"
+                        onClick={() => onComposeWith(c)}
+                        title="Reuse this notification as template"
+                      >
+                        Reuse
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
             })}
-          </tbody>
-        </table>
-      </div>
-    )}
-
-    {/* Campaign Detail Modal */}
-    {selectedCampaign && (
-      <Dialog title={`Campaign #${selectedCampaign.id} Breakdown`} onClose={() => setSelectedCampaign(null)}>
-        <div className="admCampaignDetailModal">
-          <SectionHeading title="Push notification preview" />
-          <div className="admPushModalPreview">
-            <div className="admPushModalHeader">
-              <img src="/favicon.ico" alt="" width={22} height={22} />
-              <div>
-                <strong>signup888</strong>
-                <small> · push notification</small>
-              </div>
-              <time>now</time>
-            </div>
-            <h4 className="admPushModalTitle">{selectedCampaign.title}</h4>
-            <p className="admPushModalBody">{selectedCampaign.body}</p>
-            <div className="admPushModalUrl">
-              <ExternalLink size={13} />
-              <span>{selectedCampaign.url}</span>
-            </div>
-          </div>
-
-          <SectionHeading title="Delivery & conversion analytics" />
-          <div className="admCampaignFunnelGrid">
-            <div className="admCampaignFunnelStep">
-              <div className="admCampaignFunnelStepLabel"><span>Sent</span></div>
-              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.sent)}</strong>
-              <small className="admMuted">of {number(selectedCampaign.attempted)} attempted</small>
-            </div>
-            <div className="admCampaignFunnelStep">
-              <div className="admCampaignFunnelStepLabel"><span>Delivered</span></div>
-              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.delivered)}</strong>
-              <small className="admCampaignFunnelStepRate">{getCampaignDeliveredRate(selectedCampaign)}% rate</small>
-            </div>
-            <div className="admCampaignFunnelStep">
-              <div className="admCampaignFunnelStepLabel"><span>Seen</span></div>
-              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.seen)}</strong>
-              <small className="admCampaignFunnelStepRate">{getCampaignSeenRate(selectedCampaign)}% seen</small>
-            </div>
-            <div className="admCampaignFunnelStep">
-              <div className="admCampaignFunnelStepLabel"><span>Clicked</span></div>
-              <strong className="admCampaignFunnelStepValue">{number(selectedCampaign.clicked)}</strong>
-              <small className="admCampaignFunnelStepRate highlight">{getCampaignCtr(selectedCampaign)}% CTR</small>
-            </div>
-          </div>
-
-          <div className="admCampaignDetailMetadata">
-            <div className="admCampaignDetailMetaItem">
-              <span>Audience Target</span>
-              <strong>{selectedCampaign.audience}</strong>
-            </div>
-            <div className="admCampaignDetailMetaItem">
-              <span>Broadcast Timestamp</span>
-              <strong>{new Date(selectedCampaign.createdAt).toLocaleString()}</strong>
-            </div>
-            <div className="admCampaignDetailMetaItem">
-              <span>Failed Deliveries</span>
-              <strong>{number(selectedCampaign.failed)}</strong>
-            </div>
-            <div className="admCampaignDetailMetaItem">
-              <span>Expired / Removed</span>
-              <strong>{number(selectedCampaign.removed)}</strong>
-            </div>
-          </div>
-
-          <div className="admDialogActions">
-            <a href={selectedCampaign.url} target="_blank" rel="noreferrer" className="admButton">
-              <ExternalLink size={16} aria-hidden="true" />Test destination link
-            </a>
-            {onComposeWith && (
-              <Button
-                variant="primary"
-                icon={Send}
-                onClick={() => {
-                  const target = selectedCampaign;
-                  setSelectedCampaign(null);
-                  onComposeWith(target);
-                }}
-              >
-                Reuse in composer
-              </Button>
-            )}
           </div>
         </div>
-      </Dialog>
-    )}
-  </div>;
-}
+      ) : (
+        /* Cards Mode */
+        <div className="admCampaignCardsGrid">
+          {filtered.map(c => {
+            const clicks = c.clicked || c.clicks || 0;
+            const ctr = c.delivered > 0 ? ((clicks / c.delivered) * 100).toFixed(1) : '0';
+            const targetPage = c.pageId ? pages.find(p => p.id === c.pageId) : null;
+            const isPageScope = Boolean(c.pageId);
+            const deliveryRate = c.attempted > 0 ? Math.round((c.delivered / c.attempted) * 100) : 100;
 
+            return (
+              <article className="admCampaignCard" key={c.id}>
+                <div className="admCampaignCardHead">
+                  <span className={`admAudienceBadge ${isPageScope ? 'isPage' : 'isAll'}`}>
+                    {isPageScope ? (targetPage ? `/${targetPage.slug}` : c.pageSlug ? `/${c.pageSlug}` : 'Specific page') : 'All pages'}
+                  </span>
+                  <time dateTime={c.createdAt}>
+                    <Clock3 size={13} aria-hidden="true" />
+                    {new Date(c.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </time>
+                </div>
+
+                <div className="admCampaignCardContent">
+                  <h4>{c.title}</h4>
+                  <p>{c.body}</p>
+                  <div className="admCampaignCardUrl">
+                    <ExternalLink size={13} aria-hidden="true" />
+                    <span title={c.url}>{c.url}</span>
+                  </div>
+                </div>
+
+                {/* Progress / Delivery Visual Metric */}
+                <div className="admCampaignFunnelGrid">
+                  <div className="admMetricBox">
+                    <span>Sent</span>
+                    <strong>{number(c.sent)}</strong>
+                  </div>
+                  <div className="admMetricBox">
+                    <span>Delivered</span>
+                    <strong>{number(c.delivered)} ({deliveryRate}%)</strong>
+                  </div>
+                  <div className="admMetricBox">
+                    <span>Clicks</span>
+                    <strong className="admClickValue">{number(clicks)}</strong>
+                  </div>
+                  <div className="admMetricBox">
+                    <span>CTR</span>
+                    <strong className="admCtrValue">{ctr}%</strong>
+                  </div>
+                </div>
+
+                {c.failed > 0 && (
+                  <div className="admCampaignFailureNote">
+                    <span>{c.failed} failed ({c.removed} inactive removed)</span>
+                  </div>
+                )}
+
+                <div className="admCampaignCardFooter">
+                  <button
+                    type="button"
+                    className="admButton admButtonSm"
+                    onClick={() => setSelectedCampaign(c)}
+                  >
+                    Inspect &amp; preview
+                  </button>
+                  {onComposeWith && (
+                    <button
+                      type="button"
+                      className="admButton admButtonSm admPrimary"
+                      onClick={() => onComposeWith(c)}
+                    >
+                      Reuse in composer
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Campaign Details Drill-down Dialog */}
+      {selectedCampaign && (
+        <Dialog title="Campaign report & details" onClose={() => setSelectedCampaign(null)}>
+          <div className="admCampaignDetailModal">
+            <div className="admDetailSection">
+              <span className="admDetailLabel">Notification preview</span>
+              <div className="admNotificationPreviewCard">
+                <div className="admNotificationPreviewHeader">
+                  <Bell size={15} aria-hidden="true" />
+                  <strong>{selectedCampaign.title}</strong>
+                </div>
+                <p>{selectedCampaign.body}</p>
+                <div className="admNotificationPreviewLink">
+                  <span>Destination:</span> <code>{selectedCampaign.url}</code>
+                  <button
+                    type="button"
+                    className="admCopyBtnInline"
+                    onClick={() => void copyLink(selectedCampaign.url)}
+                  >
+                    {copiedUrl === selectedCampaign.url ? <Check size={13} /> : <Copy size={13} />}
+                    {copiedUrl === selectedCampaign.url ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="admDetailSection">
+              <span className="admDetailLabel">Delivery & Click Metrics</span>
+              <div className="admDetailMetricsGrid">
+                <div className="admDetailMetricItem">
+                  <span>Audience targeted</span>
+                  <strong>{selectedCampaign.audience || (selectedCampaign.pageId ? `Page subscribers` : `All workspace subscribers`)}</strong>
+                </div>
+                <div className="admDetailMetricItem">
+                  <span>Subscribers attempted</span>
+                  <strong>{number(selectedCampaign.attempted)}</strong>
+                </div>
+                <div className="admDetailMetricItem">
+                  <span>Successfully sent</span>
+                  <strong>{number(selectedCampaign.sent)}</strong>
+                </div>
+                <div className="admDetailMetricItem">
+                  <span>Delivered on devices</span>
+                  <strong>{number(selectedCampaign.delivered)}</strong>
+                </div>
+                <div className="admDetailMetricItem">
+                  <span>Confirmed link clicks</span>
+                  <strong className="admAccentClick">{number(selectedCampaign.clicked || selectedCampaign.clicks || 0)}</strong>
+                </div>
+                <div className="admDetailMetricItem">
+                  <span>Click-through rate (CTR)</span>
+                  <strong className="admAccentCtr">
+                    {selectedCampaign.delivered > 0 ? (((selectedCampaign.clicked || selectedCampaign.clicks || 0) / selectedCampaign.delivered) * 100).toFixed(1) : '0'}%
+                  </strong>
+                </div>
+                <div className="admDetailMetricItem">
+                  <span>Unsubscribed / Invalid</span>
+                  <strong>{number(selectedCampaign.removed)}</strong>
+                </div>
+                <div className="admDetailMetricItem">
+                  <span>Delivery failures</span>
+                  <strong>{number(selectedCampaign.failed)}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="admDialogActions">
+              {onComposeWith && (
+                <Button
+                  variant="primary"
+                  icon={Send}
+                  onClick={() => {
+                    const c = selectedCampaign;
+                    setSelectedCampaign(null);
+                    onComposeWith(c);
+                  }}
+                >
+                  Reuse as template
+                </Button>
+              )}
+              <Button onClick={() => setSelectedCampaign(null)}>Close</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+    </div>
+  );
+}
 export function NotificationsView({ pages, initialTab = 'composer' }: { pages: PageSummary[]; initialTab?: 'composer' | 'campaigns' | 'subscribers' }) {
   const [tab, setTab] = useState<'composer' | 'campaigns' | 'subscribers'>(initialTab);
   const [summary, setSummary] = useState<NotificationSubscriberSummary>({ total: 0, inactive: 0, byPage: [] });

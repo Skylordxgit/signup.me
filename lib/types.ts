@@ -197,6 +197,39 @@ export type LinkClickLocation = {
   clicks: number;
 };
 
+export type CityDetailMetric = {
+  city: string;
+  location: string;
+  views: number;
+  clicks: number;
+  ctr: number;
+  topLinks: { blockId: number; blockTitle: string; url?: string; clicks: number }[];
+};
+
+export type CountryDetailMetric = {
+  countryCode: string;
+  countryName: string;
+  views: number;
+  clicks: number;
+  ctr: number;
+  cities: CityDetailMetric[];
+};
+
+export type RecentActivityItem = {
+  id: string | number;
+  type: 'view' | 'click';
+  pageId: number;
+  pageName?: string;
+  blockId?: number;
+  blockTitle?: string;
+  country: string;
+  city: string;
+  location: string;
+  device: string;
+  referrer: string;
+  date: string;
+};
+
 export type AnalyticsReport = {
   views: number;
   uniqueVisitors: number;
@@ -208,7 +241,11 @@ export type AnalyticsReport = {
   referrers: { referrer: string; count: number }[];
   locations: LocationMetric[];
   linkLocations?: LinkClickLocation[];
+  countries?: CountryDetailMetric[];
+  recentActivity?: RecentActivityItem[];
   days?: number | string;
+  startDate?: string;
+  endDate?: string;
 };
 
 export type PushSubscriptionKeys = {

@@ -4,7 +4,7 @@ import path from "node:path";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AdminDashboard } from "../components/AdminDashboard";
-import { CampaignHistoryView, NotificationsView, PagesTable } from "../components/admin/DashboardViews";
+import { CampaignHistoryView, CountryDrilldownView, DateRangeFilterControl, NotificationsView, PagesTable, RecentActivityFeed } from "../components/admin/DashboardViews";
 import { BuilderEditor } from "../components/admin/BuilderEditor";
 import { ProfileFields } from "../components/admin/BuilderEditor";
 import { NotificationPromptFields, NotificationPromptPreview } from '../components/admin/BuilderEditor';
@@ -196,5 +196,101 @@ test("campaign history renders KPI metrics, visual funnel cards, and tabs correc
   assert.match(notifHtml, /Compose notification/);
   assert.match(notifHtml, /Campaign history/);
   assert.match(notifHtml, /Subscribers/);
+});
+
+test("dashboard provides custom date picker, detailed country/city breakdown, and live activity stream", () => {
+  const customPickerHtml = renderToStaticMarkup(
+    <DateRangeFilterControl
+      dateRange="custom"
+      startDate="2026-09-01"
+      endDate="2026-09-21"
+      onDateRangeChange={() => {}}
+      onCustomDateChange={() => {}}
+    />
+  );
+  assert.match(customPickerHtml, /admCustomDateInputs/);
+  assert.match(customPickerHtml, /2026-09-01/);
+  assert.match(customPickerHtml, /2026-09-21/);
+
+  const sampleReport: AnalyticsReport = {
+    views: 120,
+    uniqueVisitors: 90,
+    clicks: 45,
+    ctr: 37.5,
+    topBlocks: [{ id: 1, title: 'Promo Link', clicks: 18 }],
+    daily: [{ date: '2026-09-20', views: 50, clicks: 20 }],
+    devices: [{ device: 'mobile', count: 80 }],
+    referrers: [{ referrer: 'direct', count: 60 }],
+    locations: [
+      { location: 'Dhaka, Bangladesh', country: 'Bangladesh', city: 'Dhaka', views: 70, clicks: 30 },
+      { location: 'New York, United States', country: 'United States', city: 'New York', views: 50, clicks: 15 },
+    ],
+    countries: [
+      {
+        countryName: 'Bangladesh',
+        countryCode: 'BD',
+        views: 70,
+        clicks: 30,
+        ctr: 42.9,
+        cities: [
+          {
+            city: 'Dhaka',
+            location: 'Dhaka, Bangladesh',
+            views: 55,
+            clicks: 25,
+            ctr: 45.5,
+            topLinks: [{ blockId: 1, blockTitle: 'Promo Link', clicks: 18 }],
+          },
+          {
+            city: 'Chittagong',
+            location: 'Chittagong, Bangladesh',
+            views: 15,
+            clicks: 5,
+            ctr: 33.3,
+            topLinks: [{ blockId: 2, blockTitle: 'Shop Link', clicks: 5 }],
+          },
+        ],
+      },
+    ],
+    recentActivity: [
+      {
+        id: 'evt-1',
+        type: 'click',
+        pageId: 1,
+        pageName: 'Launch Page',
+        blockTitle: 'Promo Link',
+        location: 'Dhaka, Bangladesh',
+        country: 'Bangladesh',
+        city: 'Dhaka',
+        device: 'mobile',
+        referrer: 'direct',
+        date: '2026-09-21T10:00:00.000Z',
+      },
+      {
+        id: 'evt-2',
+        type: 'view',
+        pageId: 1,
+        pageName: 'Launch Page',
+        location: 'New York, United States',
+        country: 'United States',
+        city: 'New York',
+        device: 'desktop',
+        referrer: 'direct',
+        date: '2026-09-21T09:45:00.000Z',
+      },
+    ],
+  };
+
+  const drilldownHtml = renderToStaticMarkup(<CountryDrilldownView report={sampleReport} />);
+  assert.match(drilldownHtml, /Bangladesh/);
+  assert.match(drilldownHtml, /🇧🇩/);
+  assert.match(drilldownHtml, /Dhaka/);
+  assert.match(drilldownHtml, /Chittagong/);
+  assert.match(drilldownHtml, /42\.9% CTR/);
+
+  const feedHtml = renderToStaticMarkup(<RecentActivityFeed report={sampleReport} />);
+  assert.match(feedHtml, /Clicked/);
+  assert.match(feedHtml, /Viewed/);
+  assert.match(feedHtml, /Dhaka, Bangladesh/);
 });
 

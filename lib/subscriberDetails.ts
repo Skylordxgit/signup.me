@@ -31,9 +31,52 @@ export function subscriberDevice(userAgent: string, touchPoints = 0) {
   return { device, browser };
 }
 
+const timezoneCountryMap: Record<string, { country: string; city?: string }> = {
+  'Asia/Dhaka': { country: 'Bangladesh', city: 'Dhaka' },
+  'Asia/Kolkata': { country: 'India', city: 'Kolkata' },
+  'Asia/Calcutta': { country: 'India', city: 'Kolkata' },
+  'Asia/Karachi': { country: 'Pakistan', city: 'Karachi' },
+  'Asia/Dubai': { country: 'United Arab Emirates', city: 'Dubai' },
+  'Asia/Riyadh': { country: 'Saudi Arabia', city: 'Riyadh' },
+  'Asia/Singapore': { country: 'Singapore', city: 'Singapore' },
+  'Asia/Bangkok': { country: 'Thailand', city: 'Bangkok' },
+  'Asia/Tokyo': { country: 'Japan', city: 'Tokyo' },
+  'Asia/Seoul': { country: 'South Korea', city: 'Seoul' },
+  'Asia/Hong_Kong': { country: 'Hong Kong', city: 'Hong Kong' },
+  'Asia/Shanghai': { country: 'China', city: 'Shanghai' },
+  'Asia/Kuala_Lumpur': { country: 'Malaysia', city: 'Kuala Lumpur' },
+  'Asia/Jakarta': { country: 'Indonesia', city: 'Jakarta' },
+  'Europe/London': { country: 'United Kingdom', city: 'London' },
+  'Europe/Paris': { country: 'France', city: 'Paris' },
+  'Europe/Berlin': { country: 'Germany', city: 'Berlin' },
+  'Europe/Amsterdam': { country: 'Netherlands', city: 'Amsterdam' },
+  'Europe/Rome': { country: 'Italy', city: 'Rome' },
+  'Europe/Madrid': { country: 'Spain', city: 'Madrid' },
+  'Europe/Dublin': { country: 'Ireland', city: 'Dublin' },
+  'Europe/Stockholm': { country: 'Sweden', city: 'Stockholm' },
+  'America/New_York': { country: 'United States', city: 'New York' },
+  'America/Chicago': { country: 'United States', city: 'Chicago' },
+  'America/Los_Angeles': { country: 'United States', city: 'Los Angeles' },
+  'America/Toronto': { country: 'Canada', city: 'Toronto' },
+  'America/Vancouver': { country: 'Canada', city: 'Vancouver' },
+  'America/Sao_Paulo': { country: 'Brazil', city: 'Sao Paulo' },
+  'Australia/Sydney': { country: 'Australia', city: 'Sydney' },
+  'Australia/Melbourne': { country: 'Australia', city: 'Melbourne' },
+  'Pacific/Auckland': { country: 'New Zealand', city: 'Auckland' },
+  'Africa/Cairo': { country: 'Egypt', city: 'Cairo' },
+  'Africa/Johannesburg': { country: 'South Africa', city: 'Johannesburg' },
+  'Africa/Lagos': { country: 'Nigeria', city: 'Lagos' },
+};
+
 export function formatLocation(countryCodeOrName?: string, city?: string, timezone?: string): { country: string; city: string; location: string } {
   let country = (countryCodeOrName || '').trim();
   let rawCity = (city || '').trim();
+
+  if (timezone && timezoneCountryMap[timezone]) {
+    const tzMatch = timezoneCountryMap[timezone];
+    if (!country) country = tzMatch.country;
+    if (!rawCity && tzMatch.city) rawCity = tzMatch.city;
+  }
 
   if (!rawCity && timezone && timezone.includes('/')) {
     const tzCity = timezone.split('/')[1]?.replace(/_/g, ' ') || '';

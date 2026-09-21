@@ -1,4 +1,4 @@
-import type { AnalyticsReport, LinkClickLocation, LocationMetric, SmartPage } from "./types";
+import type { AnalyticsReport, CityDetailMetric, LinkClickLocation, LocationMetric, RecentActivityItem, SmartPage } from "./types";
 
 export async function adminApi<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...init?.headers } });
@@ -23,6 +23,8 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
     referrers: [],
     locations: [],
     linkLocations: [],
+    countries: [],
+    recentActivity: [],
     topBlocks: [],
   };
   const daily = new Map<string, { date: string; views: number; clicks: number }>();
@@ -30,6 +32,20 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
   const referrers = new Map<string, number>();
   const locations = new Map<string, LocationMetric>();
   const linkLocations = new Map<string, LinkClickLocation>();
+  const countryMap = new Map<string, {
+    countryCode: string;
+    countryName: string;
+    views: number;
+    clicks: number;
+    cities: Map<string, {
+      city: string;
+      location: string;
+      views: number;
+      clicks: number;
+      links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
+    }>;
+  }>();
+  const recentList: RecentActivityItem[] = [];
 
   for (const report of reports) {
     result.views += report.views;
@@ -37,6 +53,8 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
     result.clicks += report.clicks;
     result.topBlocks.push(...report.topBlocks);
     if (report.days) result.days = report.days;
+    if (report.startDate) result.startDate = report.startDate;
+    if (report.endDate) result.endDate = report.endDate;
 
     for (const day of report.daily) {
       const current = daily.get(day.date) || { date: day.date, views: 0, clicks: 0 };
@@ -62,6 +80,51 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
       const current = linkLocations.get(key) || { blockId: entry.blockId, blockTitle: entry.blockTitle, location: entry.location, country: entry.country, city: entry.city, clicks: 0 };
       linkLocations.set(key, { ...current, clicks: current.clicks + entry.clicks });
     }
+
+    for (const country of report.countries || []) {
+      const cKey = country.countryName || country.countryCode || 'Direct / Local';
+      let cAcc = countryMap.get(cKey);
+      if (!cAcc) {
+        cAcc = {
+          countryCode: country.countryCode || '',
+          countryName: country.countryName || cKey,
+          views: 0,
+          clicks: 0,
+          cities: new Map(),
+        };
+        countryMap.set(cKey, cAcc);
+      }
+      cAcc.views += country.views;
+      cAcc.clicks += country.clicks;
+
+      for (const city of country.cities || []) {
+        const ctKey = city.city || 'Direct';
+        let ctAcc = cAcc.cities.get(ctKey);
+        if (!ctAcc) {
+          ctAcc = {
+            city: city.city || ctKey,
+            location: city.location || ctKey,
+            views: 0,
+            clicks: 0,
+            links: new Map(),
+          };
+          cAcc.cities.set(ctKey, ctAcc);
+        }
+        ctAcc.views += city.views;
+        ctAcc.clicks += city.clicks;
+
+        for (const link of city.topLinks || []) {
+          const lKey = link.blockId || 0;
+          const lAcc = ctAcc.links.get(lKey) || { blockId: lKey, blockTitle: link.blockTitle || 'Link', clicks: 0 };
+          lAcc.clicks += link.clicks;
+          ctAcc.links.set(lKey, lAcc);
+        }
+      }
+    }
+
+    if (report.recentActivity) {
+      recentList.push(...report.recentActivity);
+    }
   }
 
   result.daily = [...daily.values()].sort((a, b) => a.date.localeCompare(b.date));
@@ -69,6 +132,29 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
   result.referrers = [...referrers].map(([referrer, count]) => ({ referrer, count })).sort((a, b) => b.count - a.count);
   result.locations = [...locations.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
   result.linkLocations = [...linkLocations.values()].sort((a, b) => b.clicks - a.clicks);
+
+  result.countries = [...countryMap.values()].map(c => {
+    const cities: CityDetailMetric[] = [...c.cities.values()].map(ct => ({
+      city: ct.city,
+      location: ct.location,
+      views: ct.views,
+      clicks: ct.clicks,
+      ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+      topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+    })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+
+    return {
+      countryCode: c.countryCode,
+      countryName: c.countryName,
+      views: c.views,
+      clicks: c.clicks,
+      ctr: c.views > 0 ? Number(((c.clicks / c.views) * 100).toFixed(1)) : (c.clicks > 0 ? 100 : 0),
+      cities,
+    };
+  }).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+
+  recentList.sort((a, b) => b.date.localeCompare(a.date));
+  result.recentActivity = recentList.slice(0, 30);
 
   result.topBlocks.sort((a, b) => b.clicks - a.clicks);
   result.topBlocks = result.topBlocks.slice(0, 5);
