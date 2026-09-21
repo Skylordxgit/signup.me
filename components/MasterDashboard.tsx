@@ -807,10 +807,12 @@ export function MasterDashboard({ email }: { email: string }) {
               )}
             </>}</>}
 
-            <Field label="Assign domain" hint="Only active, unassigned domains are available. Use the default domain to remove a custom assignment.">
+            <Field label="Assign domain" hint="Select a custom domain for this workspace. Use the default domain to remove a custom assignment.">
               <select value={wsDomainId} onChange={event => setWsDomainId(event.target.value)}>
                 <option value="">Use Default Domain</option>
-                {domains.filter(domain => domain.id === (workspaceModal === "create" ? null : workspaceModal.domainId) || domain.status === "active" && !domain.workspaceId).map(domain => <option key={domain.id} value={domain.id}>{domain.hostname}</option>)}
+                {domains
+                  .filter(domain => !domain.workspaceId || domain.workspaceId === (workspaceModal === "create" ? null : workspaceModal.id) || domain.id === (workspaceModal === "create" ? null : workspaceModal.domainId))
+                  .map(domain => <option key={domain.id} value={domain.id}>{domain.hostname}</option>)}
               </select>
             </Field>
 
