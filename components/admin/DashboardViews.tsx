@@ -1599,6 +1599,8 @@ export function SettingsView({
   collapsed,
   email,
   isMaster,
+  customDomain,
+  customDomainStatus,
   onBrandingChanged,
   onCollapse,
   onLogout,
@@ -1606,6 +1608,8 @@ export function SettingsView({
   collapsed: boolean;
   email: string;
   isMaster?: boolean;
+  customDomain?: string | null;
+  customDomainStatus?: string | null;
   onBrandingChanged?: (branding: { name: string; logo: string }) => void;
   onCollapse: (collapsed: boolean) => void;
   onLogout: () => void;
@@ -1639,6 +1643,17 @@ export function SettingsView({
         </form>
       </SectionCard>
       <SectionCard title="Workspace" description="Preferences stored in this browser.">
+        <div className="admWorkspaceDomain">
+          <div>
+            <span>Custom domain</span>
+            <strong>{customDomain || 'No active custom domain'}</strong>
+            <small>Status: {customDomain ? 'Active' : customDomainStatus || 'Default domain'}</small>
+          </div>
+          {customDomain && <div className="admActionRow">
+            <a className="admButton" href={`https://${customDomain}`} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden="true" />Open domain</a>
+            <Button icon={Copy} onClick={() => void navigator.clipboard.writeText(`https://${customDomain}`)}>Copy URL</Button>
+          </div>}
+        </div>
         <label className="admSwitchRow">
           <span><strong>Compact sidebar</strong><small>Collapse the navigation to icons only.</small></span>
           <input type="checkbox" checked={collapsed} onChange={event => onCollapse(event.target.checked)} />

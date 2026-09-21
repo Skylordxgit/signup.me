@@ -49,6 +49,7 @@ type MasterWorkspace = {
   subscribers: number;
   domainId: string | null;
   domain: string | null;
+  domainStatus: string | null;
 };
 
 type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
@@ -220,9 +221,9 @@ export function MasterDashboard({ email }: { email: string }) {
     void adminApi("/api/auth/logout", { method: "POST" }).then(() => window.location.assign("/admin/login"));
   }
 
-  async function openWorkspace(workspaceId: string) {
-    await adminApi("/api/master/context", { method: "POST", body: JSON.stringify({ workspaceId }) });
-    window.location.assign("/admin");
+  async function openWorkspace(workspace: MasterWorkspace) {
+    const result = await adminApi<{ launchUrl: string }>("/api/master/context", { method: "POST", body: JSON.stringify({ workspaceId: workspace.id }) });
+    window.location.assign(result.launchUrl);
   }
 
   function openCreateWorkspaceModal() {
@@ -483,7 +484,7 @@ export function MasterDashboard({ email }: { email: string }) {
                   <button type="button" className="masterTextButton" onClick={() => navigate("workspaces")}>View all <ArrowRight size={14} /></button>
                 </div>
               </SectionHeading>
-              <WorkspaceList workspaces={workspaces.slice(0, 5)} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onEdit={openEditWorkspaceModal} onCreate={openCreateWorkspaceModal} />
+              <WorkspaceList workspaces={workspaces.slice(0, 5)} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace))} onEdit={openEditWorkspaceModal} onCreate={openCreateWorkspaceModal} />
             </section>
           </div>}
 
@@ -492,7 +493,7 @@ export function MasterDashboard({ email }: { email: string }) {
               <div><span>{workspaces.length} total</span><h2>Workspace management</h2><p>Inspect, enter, enable or disable every tenant from one place.</p></div>
               <Button variant="primary" icon={Plus} disabled={busy} onClick={openCreateWorkspaceModal}>Create workspace</Button>
             </div>
-            <section className="masterPanel"><WorkspaceList workspaces={workspaces} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace.id))} onEdit={openEditWorkspaceModal} onToggle={workspace => void run(() => adminApi("/api/master/workspaces", { method: "PATCH", body: JSON.stringify({ id: workspace.id, status: workspace.status === "active" ? "disabled" : "active" }) }))} onCreate={openCreateWorkspaceModal} /></section>
+            <section className="masterPanel"><WorkspaceList workspaces={workspaces} busy={busy} onInspect={setInspect} onOpen={workspace => void run(() => openWorkspace(workspace))} onEdit={openEditWorkspaceModal} onToggle={workspace => void run(() => adminApi("/api/master/workspaces", { method: "PATCH", body: JSON.stringify({ id: workspace.id, status: workspace.status === "active" ? "disabled" : "active" }) }))} onCreate={openCreateWorkspaceModal} /></section>
           </div>}
 
           {view === "domains" && <div className="masterView">
@@ -555,7 +556,7 @@ export function MasterDashboard({ email }: { email: string }) {
                   {!user.pending && <IconButton icon={KeyRound} label={`Reset password for ${user.email}`} disabled={busy} onClick={() => openEditUserModal(user, "password")} />}
                   <IconButton icon={user.active ? UserX : UserCheck} label={`${user.active ? "Disable" : "Enable"} ${user.email}`} disabled={busy} onClick={() => void run(() => adminApi("/api/master/users", { method: "PATCH", body: JSON.stringify({ id: user.id, action: "access", active: !user.active }) }))} />
                   <IconButton icon={Trash2} tone="danger" label={`Delete ${user.email}`} disabled={busy} onClick={() => void run(() => adminApi("/api/master/users", { method: "DELETE", body: JSON.stringify({ id: user.id }) }))} />
-                  <IconButton icon={ArrowUpRight} label={`Open workspace for ${user.email}`} onClick={() => void run(() => openWorkspace(user.workspaceId))} />
+                  <IconButton icon={ArrowUpRight} label={`Open workspace for ${user.email}`} onClick={() => { const workspace = workspaces.find(item => item.id === user.workspaceId); if (workspace) void run(() => openWorkspace(workspace)); }} />
                 </div>
               </article>)}</div>}
             </section>
@@ -603,7 +604,7 @@ export function MasterDashboard({ email }: { email: string }) {
         <div><dt>Pages</dt><dd>{inspect.pages}</dd></div>
         <div><dt>Admins</dt><dd>{inspect.admins}</dd></div>
         <div><dt>Subscribers</dt><dd>{inspect.subscribers}</dd></div>
-        <div><dt>Custom domain</dt><dd>{inspect.domain || "Use Default Domain"}</dd></div>
+        <div><dt>Custom domain</dt><dd>{inspect.domain || "Use Default Domain"}{inspect.domain && <small className="masterDomainState">{inspect.domainStatus === "active" ? "Active" : inspect.domainStatus || "Pending"}</small>}</dd></div>
       </dl>
       <div className="admDialogActions"><Button icon={FilePenLine} onClick={() => openEditWorkspaceModal(inspect)}>Edit workspace</Button></div>
     </Dialog>}

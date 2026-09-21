@@ -40,6 +40,8 @@ export function AdminDashboard() {
   const [isMaster, setIsMaster] = useState(false);
   const [email, setEmail] = useState('');
   const [workspace, setWorkspace] = useState('');
+  const [customDomain, setCustomDomain] = useState<string | null>(null);
+  const [customDomainStatus, setCustomDomainStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -108,7 +110,7 @@ export function AdminDashboard() {
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      adminApi<{ email: string; role: WorkspaceRole; permissions: WorkspacePermission[]; isMaster?: boolean; workspaceName: string }>('/api/auth/me'),
+      adminApi<{ email: string; role: WorkspaceRole; permissions: WorkspacePermission[]; isMaster?: boolean; workspaceName: string; customDomain: string | null; customDomainStatus: string | null }>('/api/auth/me'),
       fetchBranding(),
     ]).then(async ([account, brand]) => {
       const items = canAccess(account, 'pages') || canAccess(account, 'analytics') || canAccess(account, 'notifications') ? await adminApi<PageSummary[]>('/api/pages') : [];
@@ -120,6 +122,8 @@ export function AdminDashboard() {
       if (!canAccess(account, 'pages')) setView(canAccess(account, 'media') ? 'media' : canAccess(account, 'notifications') ? 'notifications' : canAccess(account, 'team') ? 'users' : 'settings');
       setIsMaster(account.isMaster ?? false);
       setWorkspace(account.workspaceName);
+      setCustomDomain(account.customDomain);
+      setCustomDomainStatus(account.customDomainStatus);
       setBranding(brand);
       try { setCollapsed(localStorage.getItem('smartlink_sidebar_collapsed') === 'true'); } catch { /* Use the expanded sidebar. */ }
       const cookieSlug = document.cookie.split('; ').find(value => value.startsWith('smartlink_claim='))?.split('=')[1];
@@ -357,7 +361,7 @@ export function AdminDashboard() {
           {view === 'themes' && <><PageHeader title="Themes" description="Pick a look, then apply it to one of your pages." /><div className="admThemeApply"><Field label="Apply to page"><select value={themePageId} onChange={event => setThemePageId(event.target.value)}><option value="">Select a page</option>{pages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select></Field><button type="button" className="admButton admPrimary" disabled={!themePageId || busy} onClick={() => void run(async () => { await editor.save(); const page = await adminApi<SmartPage>('/api/pages/' + themePageId); const nextTheme = { ...themeSelection, backgroundImage: page.theme.backgroundImage, profileLayout: page.theme.profileLayout, profileAlignment: page.theme.profileAlignment, showShareButton: page.theme.showShareButton }; editor.adopt(await adminApi<SmartPage>('/api/pages/' + page.id, { method: 'PUT', body: JSON.stringify({ theme: nextTheme }) })); await refresh(); setBuilderTab('design'); setView('builder'); })}><Check size={16} />Apply theme</button></div><ThemeGallery current={themeSelection} onSelect={setThemeSelection} /></>}
           {view === 'notifications' && <NotificationsView pages={pages} />}
           {view === 'users' && <UsersView role={role} permissions={permissions} isMaster={isMaster} />}
-          {view === 'settings' && <SettingsView email={email} isMaster={isMaster} onBrandingChanged={brand => setBranding(current => ({ ...current, ...brand }))} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
+          {view === 'settings' && <SettingsView email={email} isMaster={isMaster} customDomain={customDomain} customDomainStatus={customDomainStatus} onBrandingChanged={brand => setBranding(current => ({ ...current, ...brand }))} collapsed={collapsed} onCollapse={collapse} onLogout={logout} />}
         </>}
       </main>
     </div>

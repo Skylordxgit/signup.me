@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { masterJson } from '@/lib/auth';
-import { addDomain, deleteDomain, domainVerificationConfig, listDomainAuditEvents, listDomains, moveDomain, setDomainDisabled, updateDomainHostname, verifyDomainDns } from '@/lib/domains';
+import { addDomain, deleteDomain, domainVerificationConfig, listDomainAuditEvents, listDomains, moveDomain, setDomainDisabled, updateDomainHostname, updateDomainSslStatus, verifyDomainDns } from '@/lib/domains';
 
 export async function GET() {
   return masterJson(async () => ({

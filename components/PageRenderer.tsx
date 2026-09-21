@@ -262,7 +262,7 @@ function ShareAction({ page, preview }: { page: SmartPage; preview: boolean }) {
   const [copied, setCopied] = useState(false);
 
   async function share() {
-    const url = publicPageUrl(page.slug);
+    const url = publicPageUrl(page.slug, window.location.origin);
     if (navigator.share) {
       try {
         await navigator.share({ title: page.title || page.name, url });

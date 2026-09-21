@@ -11,6 +11,10 @@ export async function GET() {
   }
 
   const [workspace, domains] = await Promise.all([getWorkspace(session.workspaceId), listDomains()]);
+  const domain = workspace?.status === 'active'
+    ? domains.find(item => item.workspaceId === session.workspaceId && item.isPrimary)
+    : undefined;
+  const customDomain = domain?.status === 'active' ? domain.hostname : null;
   return NextResponse.json({
     email: session.email,
     role: session.role,
@@ -20,6 +24,7 @@ export async function GET() {
     isMaster: session.isMaster ?? false,
     workspaceId: session.workspaceId,
     workspaceName: workspace?.name || 'Main workspace',
-    customDomain: workspace?.status === 'active' ? domains.find(domain => domain.workspaceId === session.workspaceId && domain.status === 'active')?.hostname ?? null : null,
+    customDomain,
+    customDomainStatus: domain?.status ?? null,
   });
 }

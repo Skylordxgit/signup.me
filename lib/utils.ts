@@ -125,8 +125,8 @@ export function buildSmartUrl(block: PageBlock) {
   return "#";
 }
 
-export function publicPageUrl(slug: string) {
-  const base = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+export function publicPageUrl(slug: string, origin?: string) {
+  const base = origin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   try {
     const url = new URL(base);

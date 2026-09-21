@@ -48,6 +48,12 @@ export function createSessionToken(input: string | SessionDescriptor, version?: 
   return `${payload}.${sign(payload)}`;
 }
 
+/** A cross-origin workspace launch must expire quickly because it travels in a URL. */
+export function createWorkspaceLaunchToken(input: SessionDescriptor) {
+  const payload = Buffer.from(JSON.stringify({ ...input, expiresAt: Date.now() + 60 * 1000 })).toString("base64url");
+  return `${payload}.${sign(payload)}`;
+}
+
 export function readSessionToken(token?: string) {
   if (!token) return null;
   const [payload, signature, extra] = token.split(".");

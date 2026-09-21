@@ -21,6 +21,7 @@ export type MasterWorkspace = {
   subscribers: number;
   domainId: string | null;
   domain: string | null;
+  domainStatus: string | null;
 };
 
 export async function GET() {
@@ -58,6 +59,7 @@ export async function GET() {
         subscribers: subscriberCounts.get(workspace.id) ?? 0,
         domainId: domain?.id ?? null,
         domain: domain?.hostname ?? null,
+        domainStatus: domain?.status ?? null,
       };
     });
 

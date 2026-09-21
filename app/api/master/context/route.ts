@@ -1,7 +1,8 @@
 import { NextRequest } from 'next/server';
-import { masterJson, ownerEmail, setSessionCookie } from '@/lib/auth';
+import { createWorkspaceLaunchToken, masterJson, ownerEmail, setSessionCookie } from '@/lib/auth';
 import { masterCredentialVersion, provisionMaster, storedMaster } from '@/lib/master';
 import { DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, getWorkspace } from '@/lib/workspaces';
+import { listDomains } from '@/lib/domains';
 
 export async function POST(request: NextRequest) {
   return masterJson(async session => {
@@ -13,7 +14,15 @@ export async function POST(request: NextRequest) {
     if (!(await getWorkspace(workspaceId))) throw new Error('Workspace not found.');
     const account = (await storedMaster()) ?? (await provisionMaster());
     if (!account) throw new Error('Master admin is not configured.');
-    await setSessionCookie({ email: session.email, scope: 'master', workspaceId, version: account.version, credentialVersion: masterCredentialVersion() });
-    return { ok: true };
+    const descriptor = { email: session.email, scope: 'master' as const, workspaceId, version: account.version, credentialVersion: masterCredentialVersion() };
+    // Keep the master-origin cookie intact so the control center is never moved
+    // onto a tenant domain. A short-lived token starts the selected workspace on
+    // its own custom origin instead.
+    await setSessionCookie(descriptor);
+    const domain = (await listDomains()).find(item => item.workspaceId === workspaceId && item.isPrimary && item.status === 'active');
+    const launchUrl = domain
+      ? `https://${domain.hostname}/admin/transfer?token=${encodeURIComponent(createWorkspaceLaunchToken(descriptor))}`
+      : '/admin';
+    return { ok: true, launchUrl };
   });
 }
