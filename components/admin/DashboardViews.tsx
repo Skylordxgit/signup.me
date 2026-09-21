@@ -8,7 +8,10 @@ import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
 import { ImageUploader } from "../ImageUploader";
 import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, PageHeader, SectionCard, SectionHeading, StatusBadge } from "./AdminUI";
+import { ReportingDashboard } from "./ReportingDashboard";
 import type { MediaFile, UploadCategory } from "@/lib/uploads";
+
+export { ReportingDashboard };
 
 const number = (value: number) => value.toLocaleString();
 
@@ -20,6 +23,8 @@ export function getCountryFlag(countryNameOrCode: string): string {
   if (name.includes('united kingdom') || name === 'uk' || name === 'gb') return '🇬🇧';
   if (name.includes('india') || name === 'in') return '🇮🇳';
   if (name.includes('pakistan') || name === 'pk') return '🇵🇰';
+  if (name.includes('nepal') || name === 'np') return '🇳🇵';
+  if (name.includes('sri lanka') || name === 'lk') return '🇱🇰';
   if (name.includes('canada') || name === 'ca') return '🇨🇦';
   if (name.includes('australia') || name === 'au') return '🇦🇺';
   if (name.includes('germany') || name === 'de') return '🇩🇪';
@@ -190,19 +195,7 @@ export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus,
   </div></>;
 }
 
-export function DashboardHome({
-  pages,
-  analytics,
-  dateRange = '30',
-  startDate,
-  endDate,
-  reportPageId = 'all',
-  onDateRangeChange,
-  onCustomDateChange,
-  onPageChange,
-  onOpen,
-  onNavigate,
-}: {
+export function DashboardHome(props: {
   pages: PageSummary[];
   analytics: AnalyticsReport | null;
   dateRange?: string;
@@ -215,105 +208,7 @@ export function DashboardHome({
   onOpen: (id: number) => void;
   onNavigate: (view: string) => void;
 }) {
-  const recent = [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
-  const rangeLabel = dateRange === 'all'
-    ? 'All time'
-    : dateRange === 'today'
-    ? 'Today'
-    : dateRange === 'yesterday'
-    ? 'Yesterday'
-    : dateRange === 'month'
-    ? 'This month'
-    : dateRange === 'custom' && startDate && endDate
-    ? `${startDate} to ${endDate}`
-    : `Last ${dateRange} days`;
-
-  return <>
-    <PageHeader title="Dashboard" description="Real-time performance, geographic location intelligence, and page activity.">
-      <div className="admActionRow admDashboardHeaderActions">
-        {onPageChange && (
-          <select
-            aria-label="Filter by page"
-            className="admPageSelectDropdown"
-            value={reportPageId}
-            onChange={e => onPageChange(e.target.value)}
-          >
-            <option value="all">All pages</option>
-            {pages.map(page => (
-              <option key={page.id} value={page.id}>{page.name}</option>
-            ))}
-          </select>
-        )}
-        {onDateRangeChange && (
-          <DateRangeFilterControl
-            dateRange={dateRange}
-            startDate={startDate}
-            endDate={endDate}
-            onDateRangeChange={onDateRangeChange}
-            onCustomDateChange={onCustomDateChange}
-          />
-        )}
-        <Button variant="primary" icon={Plus} onClick={() => onNavigate('create')}>Create page</Button>
-      </div>
-    </PageHeader>
-
-    <Metrics pages={pages} analytics={analytics} />
-
-    <div className="admHomeGrid">
-      <SectionCard title="Traffic trend overview" actions={<span className="admMuted">{rangeLabel}</span>}>
-        <TrafficChart report={analytics} rangeLabel={rangeLabel} />
-      </SectionCard>
-      <SectionCard title="Quick actions">
-        <div className="admQuickActions">
-          {[
-            { label: 'Create a page', icon: Plus, view: 'create' },
-            { label: 'Manage pages', icon: FileText, view: 'pages' },
-            { label: 'Upload media', icon: ImageIcon, view: 'media' },
-            { label: 'Send notification', icon: Bell, view: 'notifications' },
-            { label: 'Explore themes', icon: Sparkles, view: 'themes' },
-          ].map(action => (
-            <button type="button" key={action.view} onClick={() => onNavigate(action.view)}>
-              <action.icon size={17} aria-hidden="true" />
-              <span>{action.label}</span>
-              <ArrowUpRight size={15} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      </SectionCard>
-    </div>
-
-    {/* In-depth Country and City Geographic Intelligence */}
-    <SectionCard
-      title="Geographic Intelligence & City Drill-Down"
-      actions={<span className="admMuted">{(analytics?.countries || []).length} countries recorded</span>}
-    >
-      <CountryDrilldownView report={analytics} />
-    </SectionCard>
-
-    <div className="admHomeGrid">
-      <SectionCard title="Geographic location graph (Views vs Clicks)" actions={<span className="admMuted">{(analytics?.locations || []).length} active regions</span>}>
-        <LocationChart report={analytics} />
-      </SectionCard>
-      <SectionCard title="Detailed link clicks by location" actions={<span className="admMuted">{analytics?.linkLocations?.length || 0} link placements</span>}>
-        <LocationDetailsCard report={analytics} />
-      </SectionCard>
-    </div>
-
-    <div className="admThreeColumns">
-      <Distribution title="Top links" items={(analytics?.topBlocks || []).map(item => ({ label: item.title, count: item.clicks }))} />
-      <Distribution title="Devices" items={(analytics?.devices || []).map(item => ({ label: item.device, count: item.count }))} />
-      <Distribution title="Top referrers" items={(analytics?.referrers || []).slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
-    </div>
-
-    <div className="admHomeGrid">
-      <SectionCard title="Live Visitor & Click Activity" actions={<span className="admMuted">{analytics?.recentActivity?.length || 0} latest events</span>}>
-        <RecentActivityFeed report={analytics} onOpen={onOpen} />
-      </SectionCard>
-      <SectionCard title="Recent pages" actions={<button type="button" className="admTextButton" onClick={() => onNavigate('pages')}>View all<ArrowUpRight size={15} aria-hidden="true" /></button>}>
-        <PagesTable pages={recent} onOpen={onOpen} onCreate={() => onNavigate('create')} />
-      </SectionCard>
-    </div>
-  </>;
+  return <ReportingDashboard {...props} />;
 }
 
 export function TrafficChart({ report, rangeLabel }: { report: AnalyticsReport | null; rangeLabel?: string }) {

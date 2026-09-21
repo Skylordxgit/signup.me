@@ -9,7 +9,14 @@ await build({
   configFile: false,
   root,
   logLevel: "error",
-  resolve: { alias: { "@": root, "next/image": fileURLToPath(new URL("./next-image.tsx", import.meta.url)), "next/headers": fileURLToPath(new URL('./requestContext.ts', import.meta.url)) } },
+  resolve: {
+    alias: {
+      "@": root,
+      "next/image": fileURLToPath(new URL("./next-image.tsx", import.meta.url)),
+      "next/headers": fileURLToPath(new URL('./requestContext.ts', import.meta.url)),
+      "next/navigation": fileURLToPath(new URL('./next-navigation.ts', import.meta.url)),
+    },
+  },
   build: {
     ssr: fileURLToPath(new URL("./index.test.ts", import.meta.url)),
     outDir: output,

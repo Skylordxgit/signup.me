@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, Bell, Check, ChevronDown, ChevronRight, FileText, ImageIcon, LayoutDashboard, Loader2, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Palette, Plus, RefreshCw, Save, Search, Settings, Sparkles, Trash2, Upload, User, Users, X } from "lucide-react";
 import type { AnalyticsReport, BlockType, PageBlock, PageSummary, SmartPage, ThemeSettings } from "@/lib/types";
 import { adminApi, combineAnalytics } from "@/lib/admin";
@@ -34,8 +35,10 @@ const navigation = [
 ] as const;
 const navigationGroups = ['Overview', 'Content', 'Engagement', 'Workspace'] as const;
 
-export function AdminDashboard() {
-  const [view, setView] = useState<View>('dashboard');
+export function AdminDashboard({ initialView }: { initialView?: View } = {}) {
+  const router = useRouter();
+  const rawPathname = usePathname();
+  const [view, setView] = useState<View>(initialView || 'dashboard');
   const [branding, setBranding] = useState<ClientBranding>(fallbackBranding);
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [role, setRole] = useState<WorkspaceRole>('member');
@@ -170,6 +173,34 @@ export function AdminDashboard() {
     return () => { cancelled = true; };
   }, [reportKey, loading, reportPageId, dateRange, customStartDate, customEndDate, role, permissions, isMaster]);
 
+  useEffect(() => {
+    if (initialView) {
+      setView(initialView);
+    } else if (rawPathname) {
+      if (rawPathname.includes('/pages/') && rawPathname.endsWith('/edit')) {
+        setView('builder');
+      } else if (rawPathname === '/admin/pages/new' || rawPathname === '/admin/create' || rawPathname === '/workspace/pages/new') {
+        setView('create');
+      } else if (rawPathname.startsWith('/admin/pages') || rawPathname.startsWith('/workspace/pages')) {
+        setView('pages');
+      } else if (rawPathname.startsWith('/admin/dashboard') || rawPathname.startsWith('/admin/analytics') || rawPathname.startsWith('/workspace/dashboard') || rawPathname.startsWith('/workspace/analytics') || rawPathname === '/admin' || rawPathname === '/workspace') {
+        setView('dashboard');
+      } else if (rawPathname.startsWith('/admin/media') || rawPathname.startsWith('/workspace/media')) {
+        setView('media');
+      } else if (rawPathname.startsWith('/admin/themes') || rawPathname.startsWith('/workspace/themes')) {
+        setView('themes');
+      } else if (rawPathname.startsWith('/admin/notifications') || rawPathname.startsWith('/workspace/notifications')) {
+        setView('notifications');
+      } else if (rawPathname.startsWith('/admin/branding') || rawPathname.startsWith('/workspace/branding')) {
+        setView('branding');
+      } else if (rawPathname.startsWith('/admin/users') || rawPathname.startsWith('/admin/team') || rawPathname.startsWith('/workspace/users')) {
+        setView('users');
+      } else if (rawPathname.startsWith('/admin/settings') || rawPathname.startsWith('/workspace/settings')) {
+        setView('settings');
+      }
+    }
+  }, [initialView, rawPathname]);
+
   function collapse(value: boolean) {
     setCollapsed(value);
     try { localStorage.setItem('smartlink_sidebar_collapsed', String(value)); } catch { /* Sidebar remains usable without storage. */ }
@@ -187,6 +218,17 @@ export function AdminDashboard() {
       setView(next as View);
       setDrawerOpen(false);
       if (accountMenu.current) accountMenu.current.open = false;
+      if (router) {
+        if (next === 'dashboard') router.push('/admin/dashboard');
+        else if (next === 'create') router.push('/admin/pages/new');
+        else if (next === 'pages') router.push('/admin/pages');
+        else if (next === 'media') router.push('/admin/media');
+        else if (next === 'themes') router.push('/admin/themes');
+        else if (next === 'notifications') router.push('/admin/notifications');
+        else if (next === 'branding') router.push('/admin/branding');
+        else if (next === 'users') router.push('/admin/users');
+        else if (next === 'settings') router.push('/admin/settings');
+      }
     });
   }
 
@@ -197,6 +239,9 @@ export function AdminDashboard() {
       setBuilderTab(tab);
       setView('builder');
       setDrawerOpen(false);
+      if (router) {
+        router.push(`/admin/pages/${id}/edit?tab=${tab}`);
+      }
     });
   }
 
@@ -277,7 +322,7 @@ export function AdminDashboard() {
   }
 
   function logout() {
-    void run(async () => { await editor.save(); await adminApi('/api/auth/logout', { method: 'POST' }); window.location.assign('/admin/login'); });
+    void run(async () => { await editor.save(); await adminApi('/api/auth/logout', { method: 'POST' }); window.location.replace('/admin/login'); });
   }
 
   const filtered = pages.filter(page => (statusFilter === 'all' || page.status === statusFilter) && (page.name + ' ' + page.slug).toLowerCase().includes(query.toLowerCase())).sort((a, b) => sort === 'name' ? a.name.localeCompare(b.name) : sort === 'views' ? b.views - a.views : b.updatedAt.localeCompare(a.updatedAt));

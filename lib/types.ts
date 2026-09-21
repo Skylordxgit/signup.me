@@ -230,19 +230,50 @@ export type RecentActivityItem = {
   date: string;
 };
 
+export type HourlyMetric = {
+  hour: number;
+  views: number;
+  clicks: number;
+};
+
+export type LinkPerformanceItem = {
+  blockId: number;
+  title: string;
+  type: string;
+  pageId: number;
+  pageName: string;
+  pageSlug: string;
+  views: number;
+  clicks: number;
+  uniqueClicks: number;
+  ctr: number;
+  subscribers: number;
+  conversion: number;
+};
+
 export type AnalyticsReport = {
   views: number;
   uniqueVisitors: number;
+  returningVisitors?: number;
   clicks: number;
   ctr: number;
+  subscribers?: number;
+  subscriptionRate?: number;
   topBlocks: { id: number; title: string; clicks: number }[];
   daily: DailyMetric[];
-  devices: { device: string; count: number }[];
-  referrers: { referrer: string; count: number }[];
+  hourly?: HourlyMetric[];
+  devices: { device: string; count: number; percentage?: number }[];
+  osBreakdown?: { os: string; count: number; percentage: number }[];
+  browserBreakdown?: { browser: string; count: number; percentage: number }[];
+  referrers: { referrer: string; count: number; percentage?: number }[];
+  trafficSources?: { source: string; views: number; clicks: number; ctr: number; percentage?: number }[];
   locations: LocationMetric[];
   linkLocations?: LinkClickLocation[];
+  linkStats?: LinkPerformanceItem[];
   countries?: CountryDetailMetric[];
   recentActivity?: RecentActivityItem[];
+  previousPeriod?: { views: number; clicks: number; uniqueVisitors: number; ctr: number; subscribers: number };
+  deltas?: { views: number; clicks: number; visitors: number; ctr: number; subscribers: number };
   days?: number | string;
   startDate?: string;
   endDate?: string;

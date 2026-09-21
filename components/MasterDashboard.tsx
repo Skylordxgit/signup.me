@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -67,8 +68,35 @@ const views = [
   { id: "signup", label: "Signup access", description: "Registration control", icon: UserPlus },
 ] as const;
 
-export function MasterDashboard({ email }: { email: string }) {
-  const [view, setView] = useState<MasterView>("overview");
+export function MasterDashboard({ email, initialView }: { email: string; initialView?: MasterView }) {
+  const router = useRouter();
+  const rawPathname = usePathname();
+
+  const getComputedView = (): MasterView => {
+    if (initialView) return initialView;
+    if (!rawPathname) return "overview";
+    if (rawPathname.includes("/workspaces")) return "workspaces";
+    if (rawPathname.includes("/domains")) return "domains";
+    if (rawPathname.includes("/users")) return "users";
+    if (rawPathname.includes("/branding")) return "branding";
+    if (rawPathname.includes("/signup")) return "signup";
+    return "overview";
+  };
+
+  const [view, setView] = useState<MasterView>(getComputedView);
+
+  useEffect(() => {
+    if (initialView) {
+      setView(initialView);
+    } else if (rawPathname) {
+      if (rawPathname.includes("/workspaces")) setView("workspaces");
+      else if (rawPathname.includes("/domains")) setView("domains");
+      else if (rawPathname.includes("/users")) setView("users");
+      else if (rawPathname.includes("/branding")) setView("branding");
+      else if (rawPathname.includes("/signup")) setView("signup");
+      else if (rawPathname === "/admin/master" || rawPathname.includes("/master/overview")) setView("overview");
+    }
+  }, [initialView, rawPathname]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
   const [domains, setDomains] = useState<CustomDomain[]>([]);
@@ -215,10 +243,17 @@ export function MasterDashboard({ email }: { email: string }) {
     setView(next);
     setMenuOpen(false);
     setMessage("");
+    if (next === "overview") {
+      router.push("/admin/master");
+    } else {
+      router.push(`/admin/master/${next}`);
+    }
   }
 
   function logout() {
-    void adminApi("/api/auth/logout", { method: "POST" }).then(() => window.location.assign("/admin/login"));
+    void adminApi("/api/auth/logout", { method: "POST" }).then(() => {
+      window.location.replace("/admin/login");
+    });
   }
 
   async function openWorkspace(workspace: MasterWorkspace) {

@@ -15,3 +15,4 @@ import './domainRouting.test';
 import './MasterDashboard.test';
 import './concurrencyCache.test';
 import './workspaceBranding.test';
+import './ReportingDashboard.test';

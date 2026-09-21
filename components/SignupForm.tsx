@@ -21,8 +21,8 @@ export function SignupForm({ invitationToken, invitedEmail = '' }: { invitationT
         name: form.get("name"),
         ...(invitationToken !== undefined ? { token: invitationToken } : {}),
       });
-      // The signup response already set the session, so go straight in.
-      window.location.href = "/admin";
+      // The signup response already set the session, so go straight in replacing login in history.
+      window.location.replace("/admin/dashboard");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Could not create the account. Please try again.");
     } finally {

@@ -37,14 +37,15 @@ export function LoginForm({
       // A master admin session has no workspace, so it goes to its own area.
       const { redirect } = (await response.json()) as { redirect?: string };
       if (redirect === "/admin/master") {
-        window.location.href = redirect;
+        window.location.replace(redirect);
         return;
       }
       const cookieSlug = document.cookie.split("; ").find(value => value.startsWith("smartlink_claim="))?.split("=")[1];
       const slug = new URLSearchParams(window.location.search).get("slug") || cookieSlug || "";
-      window.location.href = slug && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug)
-        ? `/admin?slug=${encodeURIComponent(slug)}`
-        : "/admin";
+      const target = slug && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(slug)
+        ? `/admin/pages/new?slug=${encodeURIComponent(slug)}`
+        : "/admin/dashboard";
+      window.location.replace(target);
       return;
     }
 
