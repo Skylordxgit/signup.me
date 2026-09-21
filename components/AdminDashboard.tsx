@@ -35,10 +35,26 @@ const navigation = [
 ] as const;
 const navigationGroups = ['Overview', 'Content', 'Engagement', 'Workspace'] as const;
 
+function computeView(initialView?: View, rawPathname?: string | null): View {
+  if (initialView) return initialView;
+  if (!rawPathname) return 'dashboard';
+  if (rawPathname.includes('/pages/') && rawPathname.endsWith('/edit')) return 'builder';
+  if (rawPathname === '/admin/pages/new' || rawPathname === '/admin/create' || rawPathname === '/workspace/pages/new') return 'create';
+  if (rawPathname.startsWith('/admin/pages') || rawPathname.startsWith('/workspace/pages')) return 'pages';
+  if (rawPathname.startsWith('/admin/dashboard') || rawPathname.startsWith('/admin/analytics') || rawPathname.startsWith('/workspace/dashboard') || rawPathname.startsWith('/workspace/analytics') || rawPathname === '/admin' || rawPathname === '/workspace') return 'dashboard';
+  if (rawPathname.startsWith('/admin/media') || rawPathname.startsWith('/workspace/media')) return 'media';
+  if (rawPathname.startsWith('/admin/themes') || rawPathname.startsWith('/workspace/themes')) return 'themes';
+  if (rawPathname.startsWith('/admin/notifications') || rawPathname.startsWith('/workspace/notifications')) return 'notifications';
+  if (rawPathname.startsWith('/admin/branding') || rawPathname.startsWith('/workspace/branding')) return 'branding';
+  if (rawPathname.startsWith('/admin/users') || rawPathname.startsWith('/admin/team') || rawPathname.startsWith('/workspace/users')) return 'users';
+  if (rawPathname.startsWith('/admin/settings') || rawPathname.startsWith('/workspace/settings')) return 'settings';
+  return 'dashboard';
+}
+
 export function AdminDashboard({ initialView }: { initialView?: View } = {}) {
   const router = useRouter();
   const rawPathname = usePathname();
-  const [view, setView] = useState<View>(initialView || 'dashboard');
+  const [view, setView] = useState<View>(() => computeView(initialView, rawPathname));
   const [branding, setBranding] = useState<ClientBranding>(fallbackBranding);
   const [pages, setPages] = useState<PageSummary[]>([]);
   const [role, setRole] = useState<WorkspaceRole>('member');
@@ -172,34 +188,6 @@ export function AdminDashboard({ initialView }: { initialView?: View } = {}) {
     }).catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load analytics.'); });
     return () => { cancelled = true; };
   }, [reportKey, loading, reportPageId, dateRange, customStartDate, customEndDate, role, permissions, isMaster]);
-
-  useEffect(() => {
-    if (initialView) {
-      setView(initialView);
-    } else if (rawPathname) {
-      if (rawPathname.includes('/pages/') && rawPathname.endsWith('/edit')) {
-        setView('builder');
-      } else if (rawPathname === '/admin/pages/new' || rawPathname === '/admin/create' || rawPathname === '/workspace/pages/new') {
-        setView('create');
-      } else if (rawPathname.startsWith('/admin/pages') || rawPathname.startsWith('/workspace/pages')) {
-        setView('pages');
-      } else if (rawPathname.startsWith('/admin/dashboard') || rawPathname.startsWith('/admin/analytics') || rawPathname.startsWith('/workspace/dashboard') || rawPathname.startsWith('/workspace/analytics') || rawPathname === '/admin' || rawPathname === '/workspace') {
-        setView('dashboard');
-      } else if (rawPathname.startsWith('/admin/media') || rawPathname.startsWith('/workspace/media')) {
-        setView('media');
-      } else if (rawPathname.startsWith('/admin/themes') || rawPathname.startsWith('/workspace/themes')) {
-        setView('themes');
-      } else if (rawPathname.startsWith('/admin/notifications') || rawPathname.startsWith('/workspace/notifications')) {
-        setView('notifications');
-      } else if (rawPathname.startsWith('/admin/branding') || rawPathname.startsWith('/workspace/branding')) {
-        setView('branding');
-      } else if (rawPathname.startsWith('/admin/users') || rawPathname.startsWith('/admin/team') || rawPathname.startsWith('/workspace/users')) {
-        setView('users');
-      } else if (rawPathname.startsWith('/admin/settings') || rawPathname.startsWith('/workspace/settings')) {
-        setView('settings');
-      }
-    }
-  }, [initialView, rawPathname]);
 
   function collapse(value: boolean) {
     setCollapsed(value);

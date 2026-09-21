@@ -1,19 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   ArrowLeft,
   ArrowUpRight,
   Bell,
-  Building2,
   Check,
   ChevronDown,
   ChevronRight,
   FileText,
-  Globe2,
   ImageIcon,
   LayoutDashboard,
   Loader2,
@@ -26,7 +24,6 @@ import {
   Save,
   Search,
   Settings,
-  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -36,7 +33,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { AdminProvider, useAdmin } from "./AdminContext";
-import { Button, Dialog, Field, IconButton, LoadingState } from "./AdminUI";
+import { Button, Dialog, Field, IconButton } from "./AdminUI";
 import { ImageUploader } from "../ImageUploader";
 import { adminApi } from "@/lib/admin";
 import { slugify, slugifyDraft } from "@/lib/utils";
@@ -155,7 +152,6 @@ export function getRouteInfo(pathname: string): { heading: string; isBuilder: bo
 }
 
 function AdminShell({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const rawPathname = usePathname();
   const pathname = rawPathname || "/admin/dashboard";
   const {
@@ -381,7 +377,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
               />
             </div>
           )}
-          {loading ? <LoadingState label="Loading workspace..." /> : children}
+          {children}
         </main>
       </div>
 

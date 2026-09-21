@@ -45,14 +45,15 @@ export default function EditPageBuilderRoute() {
     };
   }, [editor, registerEditor, unregisterEditor]);
 
+  const adoptPage = editor.adopt;
+
   useEffect(() => {
     if (!pageId || isNaN(pageId)) return;
     let cancelled = false;
-    setLoadingPage(true);
     adminApi<SmartPage>(`/api/pages/${pageId}`)
       .then((page) => {
         if (!cancelled) {
-          editor.adopt(page);
+          adoptPage(page);
           setLoadingPage(false);
         }
       })
@@ -65,7 +66,7 @@ export default function EditPageBuilderRoute() {
     return () => {
       cancelled = true;
     };
-  }, [pageId, setError]);
+  }, [pageId, adoptPage, setError]);
 
   async function mutateBlocks(action: () => Promise<unknown>) {
     if (!editor.page) return;

@@ -90,7 +90,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sort, setSort] = useState("updated");
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        return localStorage.getItem("smartlink_sidebar_collapsed") === "true";
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<PageSummary | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -98,43 +107,42 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [activeEditor, setActiveEditor] = useState<ActiveEditorHandle | null>(null);
   const actionBusy = useRef(false);
 
-  const loadData = useCallback(async () => {
-    try {
-      const [acc, brand, wsBrand] = await Promise.all([
-        adminApi<AdminAccount>("/api/auth/me"),
-        fetchBranding(),
-        adminApi<WorkspaceBranding>("/api/admin/branding").catch(() => null),
-      ]);
-      setAccount(acc);
-      if (wsBrand) {
-        setBranding({
-          name: wsBrand.workspaceName || brand.name,
-          logo: wsBrand.logoUrl || brand.logo,
-          signupEnabled: false,
-        });
-      } else {
-        setBranding(brand);
-      }
-
-      if (canAccess(acc, "pages") || canAccess(acc, "analytics") || canAccess(acc, "notifications")) {
-        const items = await adminApi<PageSummary[]>("/api/pages");
-        setPages(items);
-      }
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not load the workspace.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    try {
-      setCollapsed(localStorage.getItem("smartlink_sidebar_collapsed") === "true");
-    } catch {
-      // Use default expanded sidebar
-    }
-    void loadData();
-  }, [loadData]);
+    let cancelled = false;
+    Promise.all([
+      adminApi<AdminAccount>("/api/auth/me"),
+      fetchBranding(),
+      adminApi<WorkspaceBranding>("/api/admin/branding").catch(() => null),
+    ])
+      .then(async ([acc, brand, wsBrand]) => {
+        if (cancelled) return;
+        setAccount(acc);
+        if (wsBrand) {
+          setBranding({
+            name: wsBrand.workspaceName || brand.name,
+            logo: wsBrand.logoUrl || brand.logo,
+            signupEnabled: false,
+          });
+        } else {
+          setBranding(brand);
+        }
+
+        if (canAccess(acc, "pages") || canAccess(acc, "analytics") || canAccess(acc, "notifications")) {
+          const items = await adminApi<PageSummary[]>("/api/pages");
+          if (!cancelled) setPages(items);
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load the workspace.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const collapse = useCallback((value: boolean) => {
     setCollapsed(value);

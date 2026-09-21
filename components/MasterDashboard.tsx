@@ -84,19 +84,6 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
   };
 
   const [view, setView] = useState<MasterView>(getComputedView);
-
-  useEffect(() => {
-    if (initialView) {
-      setView(initialView);
-    } else if (rawPathname) {
-      if (rawPathname.includes("/workspaces")) setView("workspaces");
-      else if (rawPathname.includes("/domains")) setView("domains");
-      else if (rawPathname.includes("/users")) setView("users");
-      else if (rawPathname.includes("/branding")) setView("branding");
-      else if (rawPathname.includes("/signup")) setView("signup");
-      else if (rawPathname === "/admin/master" || rawPathname.includes("/master/overview")) setView("overview");
-    }
-  }, [initialView, rawPathname]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
   const [domains, setDomains] = useState<CustomDomain[]>([]);
