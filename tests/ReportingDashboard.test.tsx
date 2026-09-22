@@ -200,7 +200,7 @@ test('ReportingDashboard renders geographic locations with Mumbai, Dhaka, Kathma
     />,
   );
 
-  assert.match(html, /Geographic Location Intelligence/);
+  assert.match(html, /Approximate Location Intelligence/);
   assert.match(html, /Mumbai/);
   assert.match(html, /Dhaka/);
   assert.match(html, /Kathmandu/);

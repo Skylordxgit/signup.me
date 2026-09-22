@@ -183,6 +183,9 @@ export type DailyMetric = {
 export type LocationMetric = {
   location: string;
   country: string;
+  countryCode?: string;
+  region?: string;
+  regionCode?: string;
   city: string;
   views: number;
   clicks: number;
@@ -193,17 +196,33 @@ export type LinkClickLocation = {
   blockTitle: string;
   location: string;
   country: string;
+  region?: string;
   city: string;
   clicks: number;
 };
 
 export type CityDetailMetric = {
   city: string;
+  region?: string;
+  regionCode?: string;
+  country?: string;
+  countryCode?: string;
   location: string;
   views: number;
   clicks: number;
   ctr: number;
   topLinks: { blockId: number; blockTitle: string; url?: string; clicks: number }[];
+};
+
+export type RegionDetailMetric = {
+  regionCode: string;
+  regionName: string;
+  countryCode: string;
+  countryName: string;
+  views: number;
+  clicks: number;
+  ctr: number;
+  cities: CityDetailMetric[];
 };
 
 export type CountryDetailMetric = {
@@ -212,6 +231,7 @@ export type CountryDetailMetric = {
   views: number;
   clicks: number;
   ctr: number;
+  regions: RegionDetailMetric[];
   cities: CityDetailMetric[];
 };
 

@@ -12,17 +12,23 @@ export async function POST(request: NextRequest) {
   const host = await resolvePublicHost(request.headers.get('host'));
   if (host.kind === 'unknown' || host.kind === 'master') return NextResponse.json({ ok: false }, { status: 404 });
 
-  const { country, city, location } = await resolveClientLocation(request.headers, body);
+  const geo = await resolveClientLocation(request.headers, body);
 
   const result = await trackClick(
     Number(pageId),
     Number(blockId),
     request.headers.get("user-agent") || "",
     request.headers.get("referer"),
-    country,
-    city,
-    location,
+    geo.countryName,
+    geo.city,
+    geo.location,
     host.kind === 'custom' ? host.workspaceId : undefined,
+    {
+      countryCode: geo.countryCode,
+      regionCode: geo.regionCode,
+      region: geo.regionName,
+      timezone: geo.timezone,
+    },
   );
   return NextResponse.json(result ?? { ok: false }, result ? undefined : { status: 404 });
 }

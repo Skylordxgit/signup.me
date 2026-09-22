@@ -11,8 +11,38 @@ import { DEFAULT_WORKSPACE_ID } from "../workspaces";
 
 type DatabaseShape = {
   pages: SmartPage[];
-  pageViews: { id: number; workspaceId: string; pageId: number; date: string; device: string; referrer: string; visitorKey: string; country?: string; city?: string; location?: string }[];
-  linkClicks: { id: number; workspaceId: string; pageId: number; blockId: number; date: string; device: string; referrer: string; country?: string; city?: string; location?: string }[];
+  pageViews: {
+    id: number;
+    workspaceId: string;
+    pageId: number;
+    date: string;
+    device: string;
+    referrer: string;
+    visitorKey: string;
+    countryCode?: string;
+    country?: string;
+    regionCode?: string;
+    region?: string;
+    city?: string;
+    timezone?: string;
+    location?: string;
+  }[];
+  linkClicks: {
+    id: number;
+    workspaceId: string;
+    pageId: number;
+    blockId: number;
+    date: string;
+    device: string;
+    referrer: string;
+    countryCode?: string;
+    country?: string;
+    regionCode?: string;
+    region?: string;
+    city?: string;
+    timezone?: string;
+    location?: string;
+  }[];
   pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
   notificationCampaigns: NotificationCampaign[];
 };
@@ -359,6 +389,7 @@ async function trackViewUnlocked(
   city = '',
   location = '',
   workspaceId?: string,
+  geoDetails?: { countryCode?: string; regionCode?: string; region?: string; timezone?: string },
 ) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.slug === slug && item.status === "published" && inWorkspace(item, workspaceId));
@@ -376,8 +407,12 @@ async function trackViewUnlocked(
     device: detectDevice(userAgent),
     referrer: safeReferrer(referrer),
     visitorKey,
+    countryCode: geoDetails?.countryCode || '',
     country,
+    regionCode: geoDetails?.regionCode || '',
+    region: geoDetails?.region || '',
     city,
+    timezone: geoDetails?.timezone || '',
     location,
   });
   await writeJsonDb(db);
@@ -393,6 +428,7 @@ async function trackClickUnlocked(
   city = '',
   location = '',
   workspaceId?: string,
+  geoDetails?: { countryCode?: string; regionCode?: string; region?: string; timezone?: string },
 ) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId && item.status === 'published' && inWorkspace(item, workspaceId));
@@ -408,8 +444,12 @@ async function trackClickUnlocked(
     date: nowIso(),
     device: detectDevice(userAgent),
     referrer: safeReferrer(referrer),
+    countryCode: geoDetails?.countryCode || '',
     country,
+    regionCode: geoDetails?.regionCode || '',
+    region: geoDetails?.region || '',
     city,
+    timezone: geoDetails?.timezone || '',
     location,
   });
   await writeJsonDb(db);
@@ -525,43 +565,88 @@ export async function analyticsForPage(
     linkLocationsMap.set(key, current);
   }
 
-  // In-depth Country and City Hierarchy
+  // In-depth Country, Region, and City Hierarchy
   type CityAcc = {
     city: string;
+    region: string;
+    regionCode: string;
+    country: string;
+    countryCode: string;
     location: string;
     views: number;
     clicks: number;
     links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
   };
-  type CountryAcc = {
+  type RegionAcc = {
+    regionCode: string;
+    regionName: string;
     countryCode: string;
     countryName: string;
     views: number;
     clicks: number;
     cities: Map<string, CityAcc>;
   };
+  type CountryAcc = {
+    countryCode: string;
+    countryName: string;
+    views: number;
+    clicks: number;
+    regions: Map<string, RegionAcc>;
+    cities: Map<string, CityAcc>;
+  };
 
   const countriesAcc = new Map<string, CountryAcc>();
 
-  function getOrInitCountry(rawCountry: string, rawCity: string): { country: CountryAcc; city: CityAcc } {
+  function getOrInitHierarchy(
+    rawCountry?: string,
+    rawCountryCode?: string,
+    rawRegion?: string,
+    rawRegionCode?: string,
+    rawCity?: string,
+  ): { country: CountryAcc; region: RegionAcc; city: CityAcc } {
     const cName = rawCountry || 'Direct / Local';
+    const cCode = rawCountryCode || (cName.length === 2 ? cName.toUpperCase() : '');
     let countryItem = countriesAcc.get(cName);
     if (!countryItem) {
       countryItem = {
-        countryCode: cName,
+        countryCode: cCode,
+        countryName: cName,
+        views: 0,
+        clicks: 0,
+        regions: new Map<string, RegionAcc>(),
+        cities: new Map<string, CityAcc>(),
+      };
+      countriesAcc.set(cName, countryItem);
+    }
+
+    const rName = rawRegion || 'Direct';
+    const rCode = rawRegionCode || '';
+    let regionItem = countryItem.regions.get(rName);
+    if (!regionItem) {
+      regionItem = {
+        regionCode: rCode,
+        regionName: rName,
+        countryCode: cCode,
         countryName: cName,
         views: 0,
         clicks: 0,
         cities: new Map<string, CityAcc>(),
       };
-      countriesAcc.set(cName, countryItem);
+      countryItem.regions.set(rName, regionItem);
     }
+
     const cityName = rawCity || 'Direct';
     let cityItem = countryItem.cities.get(cityName);
     if (!cityItem) {
-      const locStr = rawCity && rawCountry && rawCity !== rawCountry ? `${rawCity}, ${rawCountry}` : (rawCity || rawCountry || 'Direct / Local');
+      const locStr = rawCity && rawCountry && rawCity !== rawCountry
+        ? `${rawCity}, ${rawCountry}`
+        : (rawCity || rawCountry || 'Direct / Local');
       cityItem = {
         city: cityName,
+        region: rName,
+        regionCode: rCode,
+        country: cName,
+        countryCode: cCode,
         location: locStr,
         views: 0,
         clicks: 0,
@@ -569,22 +654,29 @@ export async function analyticsForPage(
       };
       countryItem.cities.set(cityName, cityItem);
     }
-    return { country: countryItem, city: cityItem };
+
+    if (!regionItem.cities.has(cityName)) {
+      regionItem.cities.set(cityName, cityItem);
+    }
+
+    return { country: countryItem, region: regionItem, city: cityItem };
   }
 
   for (const view of viewsInRange) {
     const cName = view.country || (view.location && view.location.includes(',') ? view.location.split(',')[1].trim() : view.location) || 'Direct / Local';
     const cityName = view.city || (view.location && view.location.includes(',') ? view.location.split(',')[0].trim() : '');
-    const { country, city } = getOrInitCountry(cName, cityName);
+    const { country, region, city } = getOrInitHierarchy(cName, view.countryCode, view.region, view.regionCode, cityName);
     country.views += 1;
+    region.views += 1;
     city.views += 1;
   }
 
   for (const click of clicksInRange) {
     const cName = click.country || (click.location && click.location.includes(',') ? click.location.split(',')[1].trim() : click.location) || 'Direct / Local';
     const cityName = click.city || (click.location && click.location.includes(',') ? click.location.split(',')[0].trim() : '');
-    const { country, city } = getOrInitCountry(cName, cityName);
+    const { country, region, city } = getOrInitHierarchy(cName, click.countryCode, click.region, click.regionCode, cityName);
     country.clicks += 1;
+    region.clicks += 1;
     city.clicks += 1;
 
     const block = page.blocks.find(b => b.id === click.blockId);
@@ -597,11 +689,37 @@ export async function analyticsForPage(
   const countriesResult: CountryDetailMetric[] = [...countriesAcc.values()].map(c => {
     const citiesList: CityDetailMetric[] = [...c.cities.values()].map(ct => ({
       city: ct.city,
+      region: ct.region,
+      regionCode: ct.regionCode,
+      country: ct.country,
+      countryCode: ct.countryCode,
       location: ct.location,
       views: ct.views,
       clicks: ct.clicks,
       ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
       topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+    })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+
+    const regionsList: RegionDetailMetric[] = [...c.regions.values()].map(r => ({
+      regionCode: r.regionCode,
+      regionName: r.regionName,
+      countryCode: r.countryCode,
+      countryName: r.countryName,
+      views: r.views,
+      clicks: r.clicks,
+      ctr: r.views > 0 ? Number(((r.clicks / r.views) * 100).toFixed(1)) : (r.clicks > 0 ? 100 : 0),
+      cities: [...r.cities.values()].map(ct => ({
+        city: ct.city,
+        region: ct.region,
+        regionCode: ct.regionCode,
+        country: ct.country,
+        countryCode: ct.countryCode,
+        location: ct.location,
+        views: ct.views,
+        clicks: ct.clicks,
+        ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+        topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+      })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
     })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
 
     return {
@@ -610,6 +728,7 @@ export async function analyticsForPage(
       views: c.views,
       clicks: c.clicks,
       ctr: c.views > 0 ? Number(((c.clicks / c.views) * 100).toFixed(1)) : (c.clicks > 0 ? 100 : 0),
+      regions: regionsList,
       cities: citiesList,
     };
   }).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));

@@ -49,32 +49,57 @@ export function ReportingDashboard({
 }) {
   // Local filter states
   const [selectedCountry, setSelectedCountry] = useState<string>('all');
+  const [selectedRegion, setSelectedRegion] = useState<string>('all');
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedDevice, setSelectedDevice] = useState<string>('all');
-  const [locationTab, setLocationTab] = useState<'city' | 'country'>('city');
+  const [locationTab, setLocationTab] = useState<'city' | 'region' | 'country'>('city');
   const [chartMode, setChartMode] = useState<'daily' | 'hourly'>('daily');
   const [locationSearch, setLocationSearch] = useState<string>('');
   const [linkSortBy, setLinkSortBy] = useState<'clicks' | 'views' | 'ctr' | 'title'>('clicks');
   const [pageSortBy, setPageSortBy] = useState<'views' | 'clicks' | 'ctr' | 'subscribers' | 'name'>('views');
 
-  // Derive unique countries and cities for filter dropdowns
+  // Derive unique countries for filter dropdowns
   const availableCountries = useMemo(() => {
     if (!analytics?.countries) return [];
     return analytics.countries.map(c => c.countryName).filter(Boolean);
   }, [analytics]);
 
-  const availableCities = useMemo(() => {
+  // Derive unique states / regions for filter dropdowns (cascaded by country)
+  const availableRegions = useMemo(() => {
     if (!analytics?.countries) return [];
     const set = new Set<string>();
     for (const c of analytics.countries) {
       if (selectedCountry === 'all' || c.countryName === selectedCountry) {
-        for (const ct of c.cities) {
-          if (ct.city && ct.city !== 'Direct') set.add(ct.city);
+        for (const r of c.regions || []) {
+          if (r.regionName && r.regionName !== 'Direct') set.add(r.regionName);
         }
       }
     }
     return Array.from(set).sort();
   }, [analytics, selectedCountry]);
+
+  // Derive unique cities for filter dropdowns (cascaded by country and region)
+  const availableCities = useMemo(() => {
+    if (!analytics?.countries) return [];
+    const set = new Set<string>();
+    for (const c of analytics.countries) {
+      if (selectedCountry === 'all' || c.countryName === selectedCountry) {
+        if (selectedRegion !== 'all') {
+          const r = c.regions?.find(reg => reg.regionName === selectedRegion);
+          if (r) {
+            for (const ct of r.cities) {
+              if (ct.city && ct.city !== 'Direct') set.add(ct.city);
+            }
+          }
+        } else {
+          for (const ct of c.cities) {
+            if (ct.city && ct.city !== 'Direct') set.add(ct.city);
+          }
+        }
+      }
+    }
+    return Array.from(set).sort();
+  }, [analytics, selectedCountry, selectedRegion]);
 
   // Filtered dataset calculations based on active filters
   const filteredData = useMemo(() => {
@@ -83,7 +108,7 @@ export function ReportingDashboard({
     let clicks = analytics.clicks;
     let visitors = analytics.uniqueVisitors;
 
-    // Apply country/city filtering adjustments
+    // Apply country/region/city filtering adjustments
     if (selectedCountry !== 'all') {
       const matchC = analytics.countries?.find(c => c.countryName === selectedCountry);
       if (matchC) {
@@ -91,6 +116,11 @@ export function ReportingDashboard({
           const matchCity = matchC.cities.find(ct => ct.city === selectedCity);
           views = matchCity?.views ?? 0;
           clicks = matchCity?.clicks ?? 0;
+          visitors = Math.round(views * 0.85);
+        } else if (selectedRegion !== 'all') {
+          const matchRegion = matchC.regions?.find(r => r.regionName === selectedRegion);
+          views = matchRegion?.views ?? 0;
+          clicks = matchRegion?.clicks ?? 0;
           visitors = Math.round(views * 0.85);
         } else {
           views = matchC.views;
@@ -112,7 +142,7 @@ export function ReportingDashboard({
       visitors = Math.round(visitors * devRatio);
     }
 
-    const isUnfiltered = selectedCountry === 'all' && selectedCity === 'all' && selectedDevice === 'all';
+    const isUnfiltered = selectedCountry === 'all' && selectedRegion === 'all' && selectedCity === 'all' && selectedDevice === 'all';
     const ctr = isUnfiltered && analytics.ctr != null ? analytics.ctr : (views > 0 ? Number(((clicks / views) * 100).toFixed(1)) : 0);
     const subscribers = isUnfiltered && analytics.subscribers != null ? analytics.subscribers : Math.max(0, Math.round(views * 0.082));
     const subscriptionRate = isUnfiltered && analytics.subscriptionRate != null ? analytics.subscriptionRate : (views > 0 ? Number(((subscribers / views) * 100).toFixed(1)) : 0);
@@ -127,15 +157,17 @@ export function ReportingDashboard({
       subscribers,
       subscriptionRate,
     };
-  }, [analytics, selectedCountry, selectedCity, selectedDevice]);
+  }, [analytics, selectedCountry, selectedRegion, selectedCity, selectedDevice]);
 
   // Location share ratios
   const locationList = useMemo(() => {
     if (!analytics?.countries) return [];
+    const totalTrafficViews = Math.max(1, analytics.countries.reduce((sum, c) => sum + c.views, 0));
+
     if (locationTab === 'country') {
-      const totalViews = Math.max(1, analytics.countries.reduce((sum, c) => sum + c.views, 0));
       return analytics.countries.map(c => ({
         name: c.countryName,
+        region: '',
         country: c.countryName,
         flag: getCountryFlag(c.countryName),
         views: c.views,
@@ -144,11 +176,12 @@ export function ReportingDashboard({
         ctr: c.ctr,
         subscribers: Math.round(c.views * 0.08),
         subscriptionRate: c.views > 0 ? Number(((c.views * 0.08 / c.views) * 100).toFixed(1)) : 0,
-        percentage: Number(((c.views / totalViews) * 100).toFixed(1)),
-      }));
-    } else {
-      const allCities: {
+        percentage: Number(((c.views / totalTrafficViews) * 100).toFixed(1)),
+      })).sort((a, b) => b.views - a.views);
+    } else if (locationTab === 'region') {
+      const allRegions: {
         name: string;
+        region: string;
         country: string;
         flag: string;
         views: number;
@@ -159,13 +192,45 @@ export function ReportingDashboard({
         subscriptionRate: number;
         percentage: number;
       }[] = [];
-      let totalViews = 0;
+
+      for (const c of analytics.countries) {
+        for (const r of c.regions || []) {
+          allRegions.push({
+            name: r.regionName || 'Direct',
+            region: r.regionName || 'Direct',
+            country: c.countryName,
+            flag: getCountryFlag(c.countryName),
+            views: r.views,
+            visitors: Math.round(r.views * 0.85),
+            clicks: r.clicks,
+            ctr: r.ctr,
+            subscribers: Math.round(r.views * 0.08),
+            subscriptionRate: r.views > 0 ? Number(((r.views * 0.08 / r.views) * 100).toFixed(1)) : 0,
+            percentage: Number(((r.views / totalTrafficViews) * 100).toFixed(1)),
+          });
+        }
+      }
+      return allRegions.sort((a, b) => b.views - a.views);
+    } else {
+      const allCities: {
+        name: string;
+        region: string;
+        country: string;
+        flag: string;
+        views: number;
+        visitors: number;
+        clicks: number;
+        ctr: number;
+        subscribers: number;
+        subscriptionRate: number;
+        percentage: number;
+      }[] = [];
 
       for (const c of analytics.countries) {
         for (const ct of c.cities) {
-          totalViews += ct.views;
           allCities.push({
             name: ct.city || 'Direct',
+            region: ct.region || '',
             country: c.countryName,
             flag: getCountryFlag(c.countryName),
             views: ct.views,
@@ -174,23 +239,22 @@ export function ReportingDashboard({
             ctr: ct.ctr,
             subscribers: Math.round(ct.views * 0.08),
             subscriptionRate: ct.views > 0 ? Number(((ct.views * 0.08 / ct.views) * 100).toFixed(1)) : 0,
-            percentage: 0,
+            percentage: Number(((ct.views / totalTrafficViews) * 100).toFixed(1)),
           });
         }
       }
-
-      totalViews = Math.max(1, totalViews);
-      return allCities.map(ct => ({
-        ...ct,
-        percentage: Number(((ct.views / totalViews) * 100).toFixed(1)),
-      })).sort((a, b) => b.views - a.views);
+      return allCities.sort((a, b) => b.views - a.views);
     }
   }, [analytics, locationTab]);
 
   const filteredLocations = useMemo(() => {
     if (!locationSearch.trim()) return locationList;
     const q = locationSearch.toLowerCase();
-    return locationList.filter(l => l.name.toLowerCase().includes(q) || l.country.toLowerCase().includes(q));
+    return locationList.filter(l =>
+      l.name.toLowerCase().includes(q) ||
+      (l.region && l.region.toLowerCase().includes(q)) ||
+      l.country.toLowerCase().includes(q)
+    );
   }, [locationList, locationSearch]);
 
   // Synthetic link performance list from pages blocks
@@ -290,9 +354,9 @@ export function ReportingDashboard({
       ['Link Title', 'Type', 'Page', 'Views', 'Clicks', 'Unique Clicks', 'CTR %', 'Conversions'],
       ...linkPerformance.map(l => [l.title, l.type, l.pageName, l.views, l.clicks, l.uniqueClicks, `${l.ctr}%`, l.conversion]),
       [],
-      ['Geographic Location Report'],
-      ['Location', 'Country', 'Views', 'Visitors', 'Clicks', 'CTR %', 'Subscribers', 'Share %'],
-      ...locationList.map(loc => [loc.name, loc.country, loc.views, loc.visitors, loc.clicks, `${loc.ctr}%`, loc.subscribers, `${loc.percentage}%`]),
+      ['Geographic Location Report (Approximate Location)'],
+      ['Location', 'State / Region', 'Country', 'Views', 'Visitors', 'Clicks', 'CTR %', 'Subscribers', 'Share %'],
+      ...locationList.map(loc => [loc.name, loc.region || '', loc.country, loc.views, loc.visitors, loc.clicks, `${loc.ctr}%`, loc.subscribers, `${loc.percentage}%`]),
     ];
 
     const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
@@ -401,12 +465,30 @@ export function ReportingDashboard({
             value={selectedCountry}
             onChange={e => {
               setSelectedCountry(e.target.value);
+              setSelectedRegion('all');
               setSelectedCity('all');
             }}
           >
             <option value="all">All Countries</option>
             {availableCountries.map(c => (
               <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+
+          {/* State / Region Selector */}
+          <select
+            aria-label="Filter by state or region"
+            className="admReportSelect"
+            value={selectedRegion}
+            onChange={e => {
+              setSelectedRegion(e.target.value);
+              setSelectedCity('all');
+            }}
+            disabled={!availableRegions.length}
+          >
+            <option value="all">All States / Regions</option>
+            {availableRegions.map(r => (
+              <option key={r} value={r}>{r}</option>
             ))}
           </select>
 
@@ -613,16 +695,26 @@ export function ReportingDashboard({
 
       {/* 5. Geographic Location Reporting & City Share Ratios */}
       <SectionCard
-        title="Geographic Location Intelligence & Ratio Share"
+        title="Approximate Location Intelligence & Share"
         actions={
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="admBadgeOutline" style={{ fontSize: 11, padding: '3px 8px' }}>
+              Approximate Location (IP-based)
+            </span>
             <div className="admChartTabs">
               <button
                 type="button"
                 className={locationTab === 'city' ? 'active' : ''}
                 onClick={() => setLocationTab('city')}
               >
-                Cities Breakdown
+                Cities
+              </button>
+              <button
+                type="button"
+                className={locationTab === 'region' ? 'active' : ''}
+                onClick={() => setLocationTab('region')}
+              >
+                States / Regions
               </button>
               <button
                 type="button"
@@ -635,26 +727,29 @@ export function ReportingDashboard({
           </div>
         }
       >
-        <div style={{ marginBottom: '16px' }}>
-          <div className="admCountrySearch" style={{ maxWidth: 360 }}>
+        <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="admCountrySearch" style={{ maxWidth: 400, flex: 1 }}>
             <Search size={15} aria-hidden="true" />
             <input
               type="search"
-              placeholder="Search Mumbai, Dhaka, Kathmandu, Lahore, etc..."
+              placeholder="Search Mumbai, Dhaka, Maharashtra, California, etc..."
               value={locationSearch}
               onChange={e => setLocationSearch(e.target.value)}
             />
           </div>
+          <p className="admMuted" style={{ fontSize: 12, margin: 0 }}>
+            Estimated from visitor IP. May vary based on cellular networks or VPNs.
+          </p>
         </div>
 
         {/* Top Ratio Share Bars */}
         <div className="admRatioGrid">
           {filteredLocations.slice(0, 5).map(loc => (
-            <div className="admRatioItem" key={`${loc.name}-${loc.country}`}>
+            <div className="admRatioItem" key={`${loc.name}-${loc.country}-${loc.region || ''}`}>
               <div className="admRatioMeta">
                 <span>
                   <span style={{ marginRight: 6 }}>{loc.flag}</span>
-                  <strong>{loc.name}</strong> ({loc.country})
+                  <strong>{loc.name}</strong> {loc.region && loc.region !== loc.name ? `(${loc.region}, ${loc.country})` : `(${loc.country})`}
                 </span>
                 <span>
                   <strong>{loc.percentage}%</strong> ({number(loc.views)} views · {number(loc.clicks)} clicks)
@@ -672,7 +767,8 @@ export function ReportingDashboard({
           <table className="admReportTable">
             <thead>
               <tr>
-                <th>Location</th>
+                <th>{locationTab === 'country' ? 'Country' : locationTab === 'region' ? 'State / Region' : 'City / Location'}</th>
+                {locationTab === 'city' && <th>State / Region</th>}
                 <th>Country</th>
                 <th className="admTableNum">Visitors</th>
                 <th className="admTableNum">Views</th>
@@ -683,12 +779,13 @@ export function ReportingDashboard({
               </tr>
             </thead>
             <tbody>
-              {filteredLocations.slice(0, 15).map(loc => (
-                <tr key={`${loc.name}-${loc.country}`}>
+              {filteredLocations.slice(0, 20).map(loc => (
+                <tr key={`${loc.name}-${loc.country}-${loc.region || ''}`}>
                   <td>
                     <span style={{ marginRight: 6 }}>{loc.flag}</span>
                     <strong>{loc.name}</strong>
                   </td>
+                  {locationTab === 'city' && <td>{loc.region || '—'}</td>}
                   <td>{loc.country}</td>
                   <td className="admTableNum">{number(loc.visitors)}</td>
                   <td className="admTableNum">{number(loc.views)}</td>

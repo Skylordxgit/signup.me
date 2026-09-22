@@ -247,8 +247,9 @@ export function CountryDrilldownView({ report }: { report: AnalyticsReport | nul
     if (!query) return true;
     const nameMatch = (c.countryName || '').toLowerCase().includes(query);
     const codeMatch = (c.countryCode || '').toLowerCase().includes(query);
-    if (nameMatch || codeMatch) return true;
-    return c.cities.some(ct => (ct.city || '').toLowerCase().includes(query) || (ct.location || '').toLowerCase().includes(query));
+    const regionMatch = (c.regions || []).some(r => (r.regionName || '').toLowerCase().includes(query) || (r.regionCode || '').toLowerCase().includes(query));
+    if (nameMatch || codeMatch || regionMatch) return true;
+    return c.cities.some(ct => (ct.city || '').toLowerCase().includes(query) || (ct.location || '').toLowerCase().includes(query) || (ct.region || '').toLowerCase().includes(query));
   });
 
   const totalCountries = countries.length;
@@ -347,9 +348,11 @@ export function CountryDrilldownView({ report }: { report: AnalyticsReport | nul
                           <Globe2 size={14} aria-hidden="true" />
                           <div>
                             <strong>{city.city}</strong>
-                            {city.location && city.location !== city.city && (
+                            {city.region && city.region !== city.city ? (
+                              <small>{city.region}, {countryDisplayName}</small>
+                            ) : city.location && city.location !== city.city ? (
                               <small>{city.location}</small>
-                            )}
+                            ) : null}
                           </div>
                         </div>
 
