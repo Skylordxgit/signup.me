@@ -1,9 +1,5 @@
-import { redirect } from "next/navigation";
-import { requireMaster } from "@/lib/auth";
-import { MasterDashboard } from "@/components/MasterDashboard";
+import { MasterWorkspacesView } from "@/components/admin/MasterViews";
 
-export default async function MasterWorkspacesPage() {
-  const session = await requireMaster();
-  if (!session) redirect("/admin/login");
-  return <MasterDashboard email={session.email} initialView="workspaces" />;
+export default function MasterWorkspacesPage() {
+  return <MasterWorkspacesView />;
 }

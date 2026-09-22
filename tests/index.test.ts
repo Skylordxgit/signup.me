@@ -19,3 +19,4 @@ import './ReportingDashboard.test';
 import './adminRouting.test';
 import './adminUiAudit.test';
 import './geoAccuracy.test';
+import './masterRouting.test';

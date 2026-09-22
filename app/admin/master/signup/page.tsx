@@ -1,9 +1,5 @@
-import { redirect } from "next/navigation";
-import { requireMaster } from "@/lib/auth";
-import { MasterDashboard } from "@/components/MasterDashboard";
+import { MasterSignupView } from "@/components/admin/MasterViews";
 
-export default async function MasterSignupPage() {
-  const session = await requireMaster();
-  if (!session) redirect("/admin/login");
-  return <MasterDashboard email={session.email} initialView="signup" />;
+export default function MasterSignupPage() {
+  return <MasterSignupView />;
 }
