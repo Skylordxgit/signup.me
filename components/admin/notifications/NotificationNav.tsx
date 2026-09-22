@@ -97,3 +97,5 @@ export function NotificationNav({
     </nav>
   );
 }
+
+export default NotificationNav;

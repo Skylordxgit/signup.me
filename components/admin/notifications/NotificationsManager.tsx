@@ -104,3 +104,5 @@ export function NotificationsManager({
     </div>
   );
 }
+
+export default NotificationsManager;

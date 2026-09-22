@@ -277,3 +277,5 @@ export function NotificationHistoryView({
     </div>
   );
 }
+
+export default NotificationHistoryView;

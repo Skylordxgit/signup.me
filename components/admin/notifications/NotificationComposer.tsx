@@ -1369,3 +1369,5 @@ export function NotificationComposer({
     </div>
   );
 }
+
+export default NotificationComposer;

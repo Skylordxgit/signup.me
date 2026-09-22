@@ -11,11 +11,6 @@ import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, PageHeader
 import { ReportingDashboard } from "./ReportingDashboard";
 import type { MediaFile, UploadCategory } from "@/lib/uploads";
 import { NotificationsManager } from "./notifications/NotificationsManager";
-import { NotificationComposer } from "./notifications/NotificationComposer";
-import { CampaignsView } from "./notifications/CampaignsView";
-import { NotificationHistoryView } from "./notifications/NotificationHistoryView";
-import { SubscribersView } from "./notifications/SubscribersView";
-import { SegmentsView } from "./notifications/SegmentsView";
 
 export { ReportingDashboard };
 

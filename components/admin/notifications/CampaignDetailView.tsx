@@ -302,3 +302,5 @@ export function CampaignDetailView({
     </div>
   );
 }
+
+export default CampaignDetailView;

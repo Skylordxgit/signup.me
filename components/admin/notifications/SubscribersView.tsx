@@ -267,3 +267,5 @@ export function SubscribersView({
     </div>
   );
 }
+
+export default SubscribersView;

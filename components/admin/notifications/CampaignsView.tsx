@@ -349,3 +349,5 @@ export function CampaignsView({
     </div>
   );
 }
+
+export default CampaignsView;

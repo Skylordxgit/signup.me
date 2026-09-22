@@ -463,3 +463,5 @@ export function AudienceTargeter({
     </div>
   );
 }
+
+export default AudienceTargeter;

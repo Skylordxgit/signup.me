@@ -190,3 +190,5 @@ export function SegmentsView({
     </div>
   );
 }
+
+export default SegmentsView;

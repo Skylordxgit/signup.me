@@ -346,3 +346,5 @@ export function MultiSelectDropdown({
     </div>
   );
 }
+
+export default MultiSelectDropdown;
