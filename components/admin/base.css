@@ -53,6 +53,19 @@
 .admDialog :where(input, select, textarea):focus,
 .masterShell :where(input, select, textarea):focus { border-color: var(--c-accent); }
 .admShell :where(input, textarea)::placeholder, .admDialog :where(input, textarea)::placeholder { color: var(--c-faint); }
+.admShell :where(input[type="search"]),
+.admDialog :where(input[type="search"]),
+.masterShell :where(input[type="search"]) {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.admShell input[type="search"]::-webkit-search-decoration,
+.admShell input[type="search"]::-webkit-search-cancel-button,
+.admShell input[type="search"]::-webkit-search-results-button,
+.admShell input[type="search"]::-webkit-search-results-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
 .admShell :where(input, select, textarea):disabled,
 .admDialog :where(input, select, textarea):disabled { background: var(--c-surface-sunken); color: var(--c-muted); cursor: not-allowed; }
 .admShell input[readonly], .admDialog input[readonly] { background: var(--c-surface-sunken); color: var(--c-text); }

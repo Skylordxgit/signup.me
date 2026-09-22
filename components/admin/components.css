@@ -139,9 +139,29 @@
 .admSubNav button[aria-selected="true"] .admSubNavBadge { background: var(--c-accent); color: #fff; }
 
 /* Search input with leading icon */
-.admSearchField { position: relative; display: flex; align-items: center; min-width: 0; }
-.admSearchField > svg { position: absolute; left: var(--sp-3); color: var(--c-faint); pointer-events: none; }
-.admSearchField input { padding-left: var(--sp-8); }
+.admSearchField {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+}
+.admSearchField > svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--c-faint);
+  pointer-events: none;
+  z-index: 2;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.admSearchField input {
+  width: 100%;
+  padding-left: 38px !important;
+}
 
 /* ---------- Tables ---------- */
 .admTableWrap { width: 100%; min-width: 0; overflow-x: auto; border: 1px solid var(--c-line); border-radius: var(--radius-lg); background: var(--c-surface); }
@@ -676,14 +696,20 @@ body:has(.admDialog[open]) { overflow: hidden; }
 
 .admCountrySearch svg {
   position: absolute;
-  left: 10px;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--c-muted);
   pointer-events: none;
+  z-index: 2;
+  flex: none;
+  width: 15px;
+  height: 15px;
 }
 
 .admCountrySearch input {
   width: 100%;
-  padding-left: 32px;
+  padding-left: 38px !important;
   height: 36px;
   font-size: var(--text-xs);
   border-radius: var(--radius-md);

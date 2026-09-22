@@ -70,7 +70,7 @@
 .admTopbarTitle h1 { font-size: var(--text-lg); font-weight: 650; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .admHeaderSearch { margin-left: auto; width: min(100%, 280px); flex: 0 1 280px; }
-.admHeaderSearch input { min-height: var(--control-h-sm); background: var(--c-surface-sunken); }
+.admHeaderSearch input { min-height: var(--control-h-sm); background: var(--c-surface-sunken); padding-left: 38px !important; }
 .admHeaderActions { display: flex; align-items: center; gap: var(--sp-2); margin-left: auto; min-width: 0; }
 .admHeaderSearch + .admHeaderActions { margin-left: 0; }
 .admHeaderDivider { width: 1px; height: 22px; flex: none; background: var(--c-line); }
