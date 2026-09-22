@@ -4,45 +4,44 @@
 .admReportHeader {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-6);
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
 }
 
 .admReportFilterBar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--c-surface);
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--c-surface-sunken);
   border: 1px solid var(--c-line);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-md);
+  box-shadow: none;
 }
 
 .admReportFilterGroup {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
-  flex-wrap: wrap;
+  gap: 4px;
 }
 
 .admReportFilterLabel {
-  font-size: var(--text-xs);
-  font-weight: 650;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--c-muted);
 }
 
 .admReportSelect {
-  height: 34px;
-  padding: 0 var(--sp-3);
+  height: 28px;
+  padding: 0 8px;
   border: 1px solid var(--c-line);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   background: var(--c-surface);
   color: var(--c-text);
-  font-size: var(--text-sm);
+  font-size: 12px;
   font-weight: 550;
   cursor: pointer;
   transition: border-color 0.15s;
