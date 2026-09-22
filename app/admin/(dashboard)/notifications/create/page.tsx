@@ -2,6 +2,6 @@
 
 import { NotificationsManager } from "@/components/admin/notifications/NotificationsManager";
 
-export default function NotificationsPageRoute() {
-  return <NotificationsManager initialTab="overview" />;
+export default function NotificationCreatePageRoute() {
+  return <NotificationsManager initialTab="create" />;
 }

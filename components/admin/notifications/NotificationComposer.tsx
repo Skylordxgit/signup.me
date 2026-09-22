@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import Image from "next/image";
 import {
   Send,
   Calendar,
@@ -36,20 +35,34 @@ import {
   HelpCircle,
   Link2,
   Lock,
+  Tag,
+  FileCode2,
+  SlidersHorizontal,
+  ChevronDown,
+  Loader2,
+  AlertCircle,
+  RotateCcw,
 } from "lucide-react";
 import { AudienceTargeter } from "./AudienceTargeter";
 import { Button, Dialog, Field, SectionHeading, SectionCard } from "../AdminUI";
 import { ImageUploader } from "../../ImageUploader";
 import { adminApi } from "@/lib/admin";
-import type { AudienceFilters, CampaignStatus, NotificationCampaign, SubscriberSegment } from "@/lib/types";
+import type {
+  AudienceFilters,
+  CampaignStatus,
+  NotificationCampaign,
+  NotificationTemplate,
+  SubscriberSegment,
+} from "@/lib/types";
 import type { AudienceEstimateResult, WorkspaceDistinctLocations } from "@/lib/audienceTargeting";
+import { NotificationNav } from "./NotificationNav";
 
 export function NotificationComposer({
   pages = [],
   locations,
   segments = [],
   brandingName = "Signup888",
-  brandingLogo = "/favicon.png",
+  brandingLogo = "/signup888-logo.png",
 }: {
   pages?: { id: number; name: string; slug: string }[];
   locations?: WorkspaceDistinctLocations;
@@ -62,22 +75,20 @@ export function NotificationComposer({
   const isWorkspace = pathname.startsWith("/workspace");
   const base = isWorkspace ? "/workspace/notifications" : "/admin/notifications";
 
-  // Progressive Unlocking Stepper:
-  // Step 2 is only visible/accessible once Step 1 is done
-  // Step 3 is only visible/accessible once Step 2 is done
-  // Step 4 is only visible/accessible once Step 3 is done
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  // 5-Step Campaign Builder Stepper (Progressive Unlocking)
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
 
-  // Level 1: Campaign Setup
+  // STEP 1: Campaign Setup
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [campaignType, setCampaignType] = useState<"broadcast" | "scheduled">("broadcast");
   const [priority, setPriority] = useState<"normal" | "high" | "urgent">("normal");
-  const [autoUtm, setAutoUtm] = useState(true);
 
-  // Level 2: Ad Set (Audience, Placements & Schedule)
-  const [placementMode, setPlacementMode] = useState<"advantage_plus" | "manual">("advantage_plus");
-  const [selectedDevices, setSelectedDevices] = useState<string[]>(["mobile", "desktop", "tablet"]);
-  const [selectedBrowsers, setSelectedBrowsers] = useState<string[]>(["chrome", "safari", "firefox", "edge"]);
+  // STEP 2: Audience Targeting
+  const [targetMode, setTargetMode] = useState<"all" | "segment" | "custom">("all");
   const [targetFilters, setTargetFilters] = useState<AudienceFilters>({
     status: "active",
     locations: {
@@ -91,7 +102,19 @@ export function NotificationComposer({
     },
   });
 
-  // Scheduling
+  // STEP 3: Creative Editor
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [url, setUrl] = useState("/");
+  const [pageId, setPageId] = useState<number | null>(null);
+  const [icon, setIcon] = useState("");
+  const [image, setImage] = useState("");
+  const [badge, setBadge] = useState("");
+  const [ctaText, setCtaText] = useState("");
+  const [previewPlatform, setPreviewPlatform] = useState<"android" | "desktop" | "macos">("android");
+  const [imageBusy, setImageBusy] = useState(false);
+
+  // STEP 4: Schedule & Delivery
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
@@ -102,1132 +125,889 @@ export function NotificationComposer({
       return "Asia/Dhaka";
     }
   });
+  const [smartTimezoneDelivery, setSmartTimezoneDelivery] = useState(false);
+  const [batchSize, setBatchSize] = useState(250);
+  const [throttleRate, setThrottleRate] = useState(50);
+  const [retryFailures, setRetryFailures] = useState(true);
+  const [showAdvancedDelivery, setShowAdvancedDelivery] = useState(false);
 
-  // Level 3: Ad Creative & Copy
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
-  const [url, setUrl] = useState("/");
-  const [ctaText, setCtaText] = useState("Shop Now");
-  const [image, setImage] = useState("");
-  const [icon, setIcon] = useState(brandingLogo || "/favicon.png");
-  const [badge, setBadge] = useState("/favicon-32x32.png");
+  // STEP 5: Review & Send Modal / Test
+  const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+  const [testSendOpen, setTestSendOpen] = useState(false);
+  const [testTarget, setTestTarget] = useState<"my_device" | "sample_subscriber" | "test_group">("my_device");
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testSuccessMessage, setTestSuccessMessage] = useState("");
 
-  // Preview & Live Estimate
-  const [previewDevice, setPreviewDevice] = useState<"desktop" | "android" | "mobile">("desktop");
-  const [estimate, setEstimate] = useState<AudienceEstimateResult | null>(null);
-  const [loadingEstimate, setLoadingEstimate] = useState(false);
-
-  // State & Modals
+  // Common UI states
   const [busy, setBusy] = useState(false);
-  const [testSending, setTestSending] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-  const [safetyModalOpen, setSafetyModalOpen] = useState(false);
-  const [savedSegments, setSavedSegments] = useState<SubscriberSegment[]>(segments);
+  const [draftSavedToast, setDraftSavedToast] = useState(false);
+  const [estimateData, setEstimateData] = useState<AudienceEstimateResult | null>(null);
+  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const [personalizationMenuOpen, setPersonalizationMenuOpen] = useState(false);
 
-  // Fetch Live Estimate
+  // Load templates and initial draft from sessionStorage if available
   useEffect(() => {
-    let cancelled = false;
-    setLoadingEstimate(true);
-    adminApi<AudienceEstimateResult>("/api/admin/notifications/estimate", {
-      method: "POST",
-      body: JSON.stringify({ filters: targetFilters }),
-    })
-      .then((res) => {
-        if (!cancelled) setEstimate(res);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setLoadingEstimate(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [targetFilters]);
+    adminApi<{ templates: NotificationTemplate[] }>("/api/admin/notifications/templates")
+      .then((res) => setTemplates(res.templates || []))
+      .catch(() => {});
 
-  // Construct Final Destination URL with UTM tags if enabled
-  const getComputedUrl = () => {
-    const rawUrl = url.trim() || "/";
-    if (!autoUtm) return rawUrl;
-    try {
-      const parsed = new URL(rawUrl, "https://example.com");
-      const campaignParam = (name.trim() || title.trim() || "push_campaign")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "_");
-      parsed.searchParams.set("utm_source", "push");
-      parsed.searchParams.set("utm_medium", "push_notification");
-      parsed.searchParams.set("utm_campaign", campaignParam);
-      if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
-        return parsed.toString();
-      }
-      return `${parsed.pathname}${parsed.search}`;
-    } catch {
-      return rawUrl;
-    }
-  };
-
-  // Step 1 Validation & Progression
-  const handleProceedFromStep1 = () => {
-    setError("");
-    if (!name.trim()) {
-      const defaultName = `Notification Campaign - ${new Date().toLocaleDateString()}`;
-      setName(defaultName);
-    }
-    setMaxUnlockedStep((prev) => Math.max(prev, 2));
-    setStep(2);
-  };
-
-  // Step 2 Validation & Progression
-  const handleProceedFromStep2 = () => {
-    setError("");
-    if (sendMode === "schedule") {
-      if (!scheduledDate || !scheduledTime) {
-        setError("Please choose both a schedule date and time.");
-        return;
+    if (typeof window !== "undefined") {
+      const draft = sessionStorage.getItem("signup_notification_draft_template");
+      if (draft) {
+        try {
+          const tpl = JSON.parse(draft) as NotificationTemplate;
+          setTitle(tpl.title || "");
+          setBody(tpl.body || "");
+          setUrl(tpl.url || "/");
+          setIcon(tpl.icon || "");
+          setImage(tpl.image || "");
+          setCtaText(tpl.ctaText || "");
+          setName(tpl.name ? `Campaign: ${tpl.name}` : "");
+          sessionStorage.removeItem("signup_notification_draft_template");
+        } catch {
+          // Ignore parse errors
+        }
       }
     }
-    setMaxUnlockedStep((prev) => Math.max(prev, 3));
-    setStep(3);
-  };
+  }, []);
 
-  // Step 3 Validation & Progression
-  const handleProceedFromStep3 = () => {
-    setError("");
-    if (!title.trim()) {
-      setError("Notification headline / title is required.");
-      return;
+  // Sync page selector with destination url
+  useEffect(() => {
+    if (pageId && pages.length > 0) {
+      const p = pages.find((page) => page.id === pageId);
+      if (p) setUrl(`/${p.slug}`);
     }
-    if (!body.trim()) {
-      setError("Notification message body is required.");
-      return;
-    }
-    setMaxUnlockedStep((prev) => Math.max(prev, 4));
-    setStep(4);
-  };
+  }, [pageId, pages]);
 
-  const handleStepClick = (targetStep: 1 | 2 | 3 | 4) => {
-    if (targetStep <= maxUnlockedStep) {
-      setError("");
-      setStep(targetStep);
-    } else {
-      setError(`Please complete Step ${maxUnlockedStep} before advancing.`);
+  // Tag helper
+  const addTag = () => {
+    const val = tagInput.trim();
+    if (val && !tags.includes(val)) {
+      setTags([...tags, val]);
+      setTagInput("");
     }
   };
 
-  const handleTestSend = async () => {
-    if (!title.trim() || !body.trim()) {
-      setError("Please fill in notification title and message before test sending.");
-      return;
-    }
-    setTestSending(true);
-    setError("");
-    setMessage("");
+  const removeTag = (t: string) => {
+    setTags(tags.filter((item) => item !== t));
+  };
+
+  // Draft saver
+  const handleSaveDraft = async () => {
     try {
-      const res = await adminApi<{ ok: boolean; message?: string }>("/api/admin/notifications/test", {
+      setBusy(true);
+      await adminApi("/api/admin/notifications/campaigns", {
         method: "POST",
         body: JSON.stringify({
-          title: title.trim(),
-          body: body.trim(),
-          url: getComputedUrl(),
-          image: image || null,
-          icon: icon || null,
-          ctaText: ctaText || null,
+          name: name.trim() || "Untitled Campaign Draft",
+          description: description.trim(),
+          tags,
+          type: campaignType,
+          title: title.trim() || "Draft Title",
+          body: body.trim() || "Draft message",
+          url: url.trim() || "/",
+          pageId,
+          icon: icon.trim() || null,
+          image: image.trim() || null,
+          badge: badge.trim() || null,
+          ctaText: ctaText.trim() || null,
           priority,
+          status: "draft",
+          targetFilters,
+          scheduledAt: sendMode === "schedule" && scheduledDate && scheduledTime ? `${scheduledDate}T${scheduledTime}` : null,
+          timezone,
+          smartTimezoneDelivery,
+          batchSize,
+          throttleRate,
+          retryTemporaryFailures: retryFailures,
         }),
       });
-      setMessage(res.message || "Test push sent successfully to your device!");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Failed to send test push notification.");
-    } finally {
-      setTestSending(false);
-    }
-  };
-
-  const executeSendOrSchedule = async (asDraft = false) => {
-    if (!title.trim()) {
-      setError("Notification title is required.");
-      setStep(3);
-      return;
-    }
-    if (!body.trim()) {
-      setError("Notification message is required.");
-      setStep(3);
-      return;
-    }
-
-    setBusy(true);
-    setError("");
-    setMessage("");
-
-    try {
-      let scheduledAt: string | null = null;
-      if (sendMode === "schedule" && scheduledDate && scheduledTime) {
-        scheduledAt = new Date(`${scheduledDate}T${scheduledTime}:00`).toISOString();
-      }
-
-      const payload = {
-        name: name.trim() || title.trim() || "Campaign",
-        title: title.trim(),
-        body: body.trim(),
-        url: getComputedUrl(),
-        ctaText: ctaText.trim() || null,
-        image: image || null,
-        icon: icon || null,
-        badge: badge || null,
-        priority,
-        status: asDraft ? "draft" : scheduledAt ? "scheduled" : "completed",
-        scheduledAt,
-        timezone,
-        targetFilters: {
-          ...targetFilters,
-          deviceTypes: placementMode === "manual" ? selectedDevices : undefined,
-          browsers: placementMode === "manual" ? selectedBrowsers : undefined,
-        },
-      };
-
-      await adminApi<{ ok: boolean; campaign?: NotificationCampaign; sent?: number }>(
-        "/api/admin/notifications/campaigns",
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        }
-      );
-
-      setSafetyModalOpen(false);
-      router.push(`${base}/campaigns`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Failed to process campaign.");
+      setDraftSavedToast(true);
+      setTimeout(() => setDraftSavedToast(false), 3500);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to save draft");
     } finally {
       setBusy(false);
     }
   };
 
-  // Audience Gauge calculations (Specific -> Optimal -> Broad)
-  const totalAudience = estimate?.totalSubscribers || 100;
-  const matchAudience = estimate?.matchedCount ?? totalAudience;
-  const matchRatio = totalAudience > 0 ? matchAudience / totalAudience : 1;
-  const gaugeColor =
-    matchRatio < 0.1 ? "#ef4444" : matchRatio < 0.85 ? "#10b981" : "#3b82f6";
-  const gaugeStatus =
-    matchRatio < 0.1
-      ? "Specific Target"
-      : matchRatio < 0.85
-      ? "Optimal Audience"
-      : "Broad Workspace Audience";
+  // Test Push Sender
+  const handleSendTestPush = async () => {
+    if (!title.trim() || !body.trim()) {
+      alert("Please enter a title and message first.");
+      return;
+    }
+    try {
+      setSendingTest(true);
+      setTestSuccessMessage("");
+      const res = await adminApi<{ ok: boolean; message: string }>("/api/admin/notifications/test", {
+        method: "POST",
+        body: JSON.stringify({
+          title: title.trim(),
+          body: body.trim(),
+          url: url.trim() || "/",
+          icon: icon.trim() || null,
+          image: image.trim() || null,
+          badge: badge.trim() || null,
+          ctaText: ctaText.trim() || null,
+        }),
+      });
+      setTestSuccessMessage(res.message || "Test push notification dispatched successfully.");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Test push failed");
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  // Final Campaign Dispatch / Schedule
+  const handleFinalSubmit = async () => {
+    if (!title.trim() || !body.trim()) return;
+
+    try {
+      setBusy(true);
+      const scheduledDateTime =
+        sendMode === "schedule" && scheduledDate && scheduledTime
+          ? `${scheduledDate}T${scheduledTime}`
+          : null;
+
+      await adminApi("/api/admin/notifications/send", {
+        method: "POST",
+        body: JSON.stringify({
+          name: name.trim() || title.trim(),
+          description: description.trim(),
+          tags,
+          type: campaignType,
+          title: title.trim(),
+          body: body.trim(),
+          url: url.trim() || "/",
+          pageId,
+          icon: icon.trim() || null,
+          image: image.trim() || null,
+          badge: badge.trim() || null,
+          ctaText: ctaText.trim() || null,
+          priority,
+          status: sendMode === "schedule" ? "scheduled" : "completed",
+          scheduledAt: scheduledDateTime,
+          timezone,
+          smartTimezoneDelivery,
+          batchSize,
+          throttleRate,
+          retryTemporaryFailures: retryFailures,
+          targetFilters,
+        }),
+      });
+
+      setConfirmSendOpen(false);
+      router.push(`${base}/campaigns`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to launch campaign");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Step advancement validators
+  const handleNextFromStep1 = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setMaxUnlockedStep(Math.max(maxUnlockedStep, 2));
+    setStep(2);
+  };
+
+  const handleNextFromStep2 = () => {
+    setMaxUnlockedStep(Math.max(maxUnlockedStep, 3));
+    setStep(3);
+  };
+
+  const handleNextFromStep3 = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !body.trim()) return;
+    setMaxUnlockedStep(Math.max(maxUnlockedStep, 4));
+    setStep(4);
+  };
+
+  const handleNextFromStep4 = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (sendMode === "schedule" && (!scheduledDate || !scheduledTime)) {
+      alert("Please specify a date and time for the scheduled broadcast.");
+      return;
+    }
+    setMaxUnlockedStep(Math.max(maxUnlockedStep, 5));
+    setStep(5);
+  };
+
+  // Variable insertion
+  const insertVariable = (variable: string) => {
+    setBody((prev) => `${prev} {{${variable}}}`);
+    setPersonalizationMenuOpen(false);
+  };
+
+  const stepsList = [
+    { num: 1, label: "Campaign" },
+    { num: 2, label: "Audience" },
+    { num: 3, label: "Creative" },
+    { num: 4, label: "Schedule" },
+    { num: 5, label: "Review & Send" },
+  ];
 
   return (
-    <div className="admMetaNotificationStudio" style={{ display: "grid", gap: "var(--sp-5)", width: "100%" }}>
-      {/* Top Meta Ads Studio Header */}
+    <div className="admNotificationsWrapper">
+      {/* Draft Toast Notification */}
+      {draftSavedToast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 18px",
+            background: "#0f172a",
+            color: "#ffffff",
+            borderRadius: "8px",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.2)",
+            zIndex: 9999,
+            fontSize: "13px",
+            fontWeight: "600",
+          }}
+        >
+          <CheckCircle2 size={16} color="#10b981" />
+          <span>Campaign draft saved successfully</span>
+        </div>
+      )}
+
+      {/* 5-Step Campaign Navigation Stepper */}
       <div
+        className="admCampaignStepper"
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "var(--sp-3)",
-          padding: "var(--sp-4) var(--sp-5)",
-          background: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
-          color: "#ffffff",
-          borderRadius: "var(--radius-lg)",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+          padding: "10px 18px",
+          background: "var(--c-surface, #ffffff)",
+          border: "1px solid var(--c-line, #e2e8f0)",
+          borderRadius: "var(--radius-md, 8px)",
+          marginBottom: "var(--sp-4, 16px)",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <div
-            style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "10px",
-              background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 2px 6px rgba(59,130,246,0.4)",
-            }}
-          >
-            <Sliders size={20} color="#ffffff" />
-          </div>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <h2 style={{ margin: 0, fontSize: "17px", fontWeight: 700, color: "#ffffff" }}>
-                Meta Ads Campaign Manager
-              </h2>
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: "12px",
-                  background: "rgba(59, 130, 246, 0.2)",
-                  color: "#93c5fd",
-                  border: "1px solid rgba(147, 197, 253, 0.3)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                Step {step} of 4
-              </span>
-            </div>
-            <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#94a3b8" }}>
-              {name.trim() ? `Campaign: ${name}` : "Create and broadcast high-converting targeted notification campaigns"}
-            </p>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <button
-            type="button"
-            onClick={handleTestSend}
-            disabled={testSending || !title.trim()}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 14px",
-              borderRadius: "6px",
-              fontSize: "13px",
-              fontWeight: 600,
-              background: "rgba(255,255,255,0.1)",
-              color: "#ffffff",
-              border: "1px solid rgba(255,255,255,0.15)",
-              cursor: "pointer",
-            }}
-          >
-            <Send size={14} />
-            <span>{testSending ? "Sending Test..." : "Send Test Push"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => void executeSendOrSchedule(true)}
-            disabled={busy}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 14px",
-              borderRadius: "6px",
-              fontSize: "13px",
-              fontWeight: 600,
-              background: "rgba(255,255,255,0.15)",
-              color: "#ffffff",
-              border: "1px solid rgba(255,255,255,0.2)",
-              cursor: "pointer",
-            }}
-          >
-            <span>Save Draft</span>
-          </button>
-
-          {maxUnlockedStep >= 4 && (
-            <button
-              type="button"
-              onClick={() => {
-                if (step < 4) setStep(4);
-                else setSafetyModalOpen(true);
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "8px 18px",
-                borderRadius: "6px",
-                fontSize: "13px",
-                fontWeight: 700,
-                background: "linear-gradient(135deg, #10b981, #059669)",
-                color: "#ffffff",
-                border: "0",
-                boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
-                cursor: "pointer",
-              }}
-            >
-              <Zap size={14} />
-              <span>Publish Campaign</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Meta Ads Progressive Hierarchy Stepper */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: "8px",
-          padding: "4px",
-          background: "var(--c-surface)",
-          border: "1px solid var(--c-line)",
-          borderRadius: "var(--radius-md)",
-          boxShadow: "var(--shadow-xs)",
-        }}
-      >
-        {[
-          { num: 1, title: "1. Campaign", sub: "Objective & Details", icon: Target },
-          { num: 2, title: "2. Ad Set", sub: "Audience & Placements", icon: Globe },
-          { num: 3, title: "3. Ad Creative", sub: "Copy, Media & CTA", icon: Sparkles },
-          { num: 4, title: "4. Review & Launch", sub: "Summary & Checklist", icon: CheckCheck },
-        ].map((s) => {
-          const Icon = s.icon;
-          const isActive = step === s.num;
-          const isUnlocked = s.num <= maxUnlockedStep;
-          const isDone = s.num < maxUnlockedStep || (s.num === 3 && title.trim() && body.trim());
-          return (
-            <button
-              type="button"
-              key={s.num}
-              onClick={() => handleStepClick(s.num as 1 | 2 | 3 | 4)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "10px 14px",
-                borderRadius: "var(--radius-sm)",
-                background: isActive
-                  ? "var(--c-accent-soft, #eff6ff)"
-                  : isDone
-                  ? "var(--c-surface-sunken, #f8fafc)"
-                  : "transparent",
-                border: isActive
-                  ? "1px solid var(--c-accent, #3b82f6)"
-                  : "1px solid transparent",
-                cursor: isUnlocked ? "pointer" : "not-allowed",
-                opacity: isUnlocked ? 1 : 0.5,
-                textAlign: "left",
-                transition: "all 0.15s ease",
-              }}
-            >
-              <div
-                style={{
-                  width: "28px",
-                  height: "28px",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  background: isActive
-                    ? "var(--c-accent, #3b82f6)"
-                    : isDone
-                    ? "#10b981"
-                    : isUnlocked
-                    ? "#94a3b8"
-                    : "#cbd5e1",
-                  color: "#ffffff",
-                  flexShrink: 0,
-                }}
-              >
-                {!isUnlocked ? <Lock size={12} /> : isDone ? <Check size={14} /> : s.num}
-              </div>
-              <div style={{ overflow: "hidden" }}>
-                <strong
+        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+          {stepsList.map((s, idx) => {
+            const isCurrent = step === s.num;
+            const isUnlocked = s.num <= maxUnlockedStep;
+            return (
+              <div key={s.num} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <button
+                  type="button"
+                  disabled={!isUnlocked}
+                  onClick={() => isUnlocked && setStep(s.num as 1 | 2 | 3 | 4 | 5)}
                   style={{
-                    display: "block",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "6px",
                     fontSize: "13px",
-                    color: isActive
-                      ? "var(--c-accent, #1e40af)"
+                    fontWeight: isCurrent ? "700" : "550",
+                    color: isCurrent
+                      ? "var(--c-accent, #3b82f6)"
                       : isUnlocked
                       ? "var(--c-ink, #0f172a)"
                       : "var(--c-muted, #94a3b8)",
+                    background: isCurrent
+                      ? "var(--c-accent-soft, rgba(59, 130, 246, 0.1))"
+                      : "transparent",
+                    border: isCurrent ? "1px solid rgba(59, 130, 246, 0.2)" : "1px solid transparent",
+                    cursor: isUnlocked ? "pointer" : "not-allowed",
                   }}
                 >
-                  {s.title}
-                </strong>
-                <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>
-                  {!isUnlocked ? "Locked (Complete Step " + (s.num - 1) + ")" : isDone ? "✓ Configured" : s.sub}
-                </span>
+                  <span
+                    style={{
+                      width: "20px",
+                      height: "20px",
+                      borderRadius: "50%",
+                      background: isCurrent
+                        ? "var(--c-accent, #3b82f6)"
+                        : isUnlocked
+                        ? "var(--c-line, #e2e8f0)"
+                        : "var(--c-surface-sunken, #f1f5f9)",
+                      color: isCurrent ? "#ffffff" : isUnlocked ? "var(--c-ink, #0f172a)" : "var(--c-muted, #94a3b8)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {s.num < step ? <Check size={12} /> : s.num}
+                  </span>
+                  <span>{s.label}</span>
+                </button>
+                {idx < stepsList.length - 1 && <ChevronRight size={14} color="var(--c-line, #cbd5e1)" />}
               </div>
-            </button>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Button variant="secondary" onClick={handleSaveDraft} disabled={busy}>
+            Save Draft
+          </Button>
+        </div>
       </div>
 
-      {error && (
-        <div className="admError" role="alert" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span>{error}</span>
-          <button type="button" onClick={() => setError("")} style={{ border: 0, background: "transparent", cursor: "pointer" }}>
-            ✕
-          </button>
-        </div>
-      )}
-      {message && <p className="admSuccess" role="status">{message}</p>}
-
-      {/* Main Grid: Left Progressive Step + Right Meta Ads Audience & Placements Inspector */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.35fr) minmax(340px, 0.9fr)",
-          gap: "var(--sp-6)",
-          alignItems: "start",
-        }}
-      >
-        {/* Left Form: Progressive Step Content */}
-        <div style={{ display: "grid", gap: "var(--sp-5)" }}>
-          {/* STEP 1: CAMPAIGN SETUP */}
-          {step === 1 && (
-            <SectionCard
-              title="Step 1: Campaign Details & Priority"
-              description="Name your push notification broadcast and configure delivery priority."
-            >
-              <div style={{ display: "grid", gap: "var(--sp-4)" }}>
-                <Field label="Campaign Name" hint="Internal name used across your reports, analytics, and UTM tags.">
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Flash Sale Announcement or New Product Update"
-                  />
-                </Field>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
-                  <Field label="Delivery Priority" hint="Normal is standard delivery; Urgent bypasses device focus modes.">
-                    <select
-                      value={priority}
-                      onChange={(e) => setPriority(e.target.value as "normal" | "high" | "urgent")}
-                      style={{ height: "40px", fontSize: "13px" }}
-                    >
-                      <option value="normal">Normal (Standard Delivery)</option>
-                      <option value="high">High (Priority Notification)</option>
-                      <option value="urgent">Urgent (Instant Alert)</option>
-                    </select>
-                  </Field>
-
-                  <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                    <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", marginTop: "18px" }}>
-                      <input
-                        type="checkbox"
-                        checked={autoUtm}
-                        onChange={(e) => setAutoUtm(e.target.checked)}
-                      />
-                      <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-ink)" }}>
-                        Auto-tag with UTM Campaign Tracking
-                      </span>
-                    </label>
-                    <small style={{ color: "var(--c-muted)", fontSize: "11px", marginLeft: "24px" }}>
-                      Appends utm_source=push&utm_campaign={name ? name.toLowerCase().replace(/\s+/g, "_") : "push"}
-                    </small>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--sp-3)", borderTop: "1px solid var(--c-line)", paddingTop: "var(--sp-4)" }}>
-                  <Button variant="primary" icon={ArrowRight} onClick={handleProceedFromStep1}>
-                    Save & Continue to Step 2: Audience ➔
-                  </Button>
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
-          {/* STEP 2: AD SET (AUDIENCE, PLACEMENTS & SCHEDULE) */}
-          {step === 2 && (
-            <div style={{ display: "grid", gap: "var(--sp-5)" }}>
-              <SectionCard
-                title="Step 2: Audience Definition & Location Targeting"
-                description="Target multiple countries, regions, and cities with inclusion and exclusion rules."
-              >
-                <AudienceTargeter
-                  filters={targetFilters}
-                  onChange={setTargetFilters}
-                  pages={pages}
-                  locations={locations}
-                  segments={savedSegments}
-                  onSegmentSaved={(newSeg) => setSavedSegments((prev) => [...prev, newSeg])}
+      {/* ========================================================================= */}
+      {/* STEP 1: CAMPAIGN SETUP */}
+      {/* ========================================================================= */}
+      {step === 1 && (
+        <form onSubmit={handleNextFromStep1} style={{ maxWidth: "780px" }}>
+          <SectionCard
+            title="Step 1 — Campaign Details"
+            description="Set internal identifiers and priority. This information is only visible to your workspace team."
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <Field label="Campaign Name *" hint="Internal name (e.g., 'Dhaka Weekend Promotion', 'Black Friday Broadcast')">
+                <input
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Dhaka Weekend Promotion"
+                  style={{ height: "38px", fontSize: "14px" }}
                 />
-              </SectionCard>
+              </Field>
 
-              {/* Placements (Advantage+ vs Manual Placements) */}
-              <SectionCard
-                title="Placements (Advantage+ vs. Manual)"
-                description="Choose where your notifications appear across subscriber devices and browsers."
-              >
-                <div style={{ display: "grid", gap: "var(--sp-3)" }}>
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "start",
-                      gap: "12px",
-                      padding: "var(--sp-3-5)",
-                      borderRadius: "var(--radius-md)",
-                      border: placementMode === "advantage_plus" ? "2px solid var(--c-accent)" : "1px solid var(--c-line)",
-                      background: placementMode === "advantage_plus" ? "var(--c-accent-soft)" : "transparent",
-                      cursor: "pointer",
-                    }}
-                  >
+              <Field label="Internal Description" hint="Brief context on the campaign objective and target segment">
+                <textarea
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="e.g. Promoting 20% discount on summer apparel for active subscribers in Bangladesh..."
+                  style={{ fontSize: "13px" }}
+                />
+              </Field>
+
+              <Field label="Campaign Tags" hint="Add categorization tags (Press Enter to add)">
+                <div>
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                     <input
-                      type="radio"
-                      name="placementMode"
-                      checked={placementMode === "advantage_plus"}
-                      onChange={() => setPlacementMode("advantage_plus")}
-                      style={{ marginTop: "4px" }}
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addTag();
+                        }
+                      }}
+                      placeholder="e.g. Bangladesh, Weekend, September"
+                      style={{ height: "36px", flex: 1 }}
                     />
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <strong style={{ fontSize: "14px", color: "var(--c-ink)" }}>
-                          Advantage+ Placements (Recommended)
-                        </strong>
-                        <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "10px", background: "#10b981", color: "#ffffff" }}>
-                          MAX REACH
+                    <Button type="button" variant="secondary" onClick={addTag}>
+                      Add Tag
+                    </Button>
+                  </div>
+                  {tags.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {tags.map((t) => (
+                        <span
+                          key={t}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            background: "var(--c-surface-sunken, #f8fafc)",
+                            border: "1px solid var(--c-line, #e2e8f0)",
+                            color: "var(--c-ink, #0f172a)",
+                          }}
+                        >
+                          <Tag size={10} /> {t}
+                          <button
+                            type="button"
+                            onClick={() => removeTag(t)}
+                            style={{ background: "none", border: "none", color: "var(--c-muted, #64748b)", cursor: "pointer", padding: "0 2px" }}
+                          >
+                            &times;
+                          </button>
                         </span>
-                      </div>
-                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--c-muted)", lineHeight: 1.35 }}>
-                        Automatically optimizes delivery across all subscriber devices (Mobile, Desktop, Tablets) and browsers (Chrome, Safari, Firefox, Edge).
-                      </p>
-                    </div>
-                  </label>
-
-                  <label
-                    style={{
-                      display: "flex",
-                      alignItems: "start",
-                      gap: "12px",
-                      padding: "var(--sp-3-5)",
-                      borderRadius: "var(--radius-md)",
-                      border: placementMode === "manual" ? "2px solid var(--c-accent)" : "1px solid var(--c-line)",
-                      background: placementMode === "manual" ? "var(--c-accent-soft)" : "transparent",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="placementMode"
-                      checked={placementMode === "manual"}
-                      onChange={() => setPlacementMode("manual")}
-                      style={{ marginTop: "4px" }}
-                    />
-                    <div>
-                      <strong style={{ fontSize: "14px", color: "var(--c-ink)" }}>
-                        Manual Placements
-                      </strong>
-                      <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--c-muted)", lineHeight: 1.35 }}>
-                        Manually choose specific device hardware types and browser engines to receive this broadcast.
-                      </p>
-                    </div>
-                  </label>
-
-                  {placementMode === "manual" && (
-                    <div style={{ padding: "var(--sp-3)", background: "var(--c-surface-sunken)", borderRadius: "var(--radius-md)", border: "1px solid var(--c-line)", display: "grid", gap: "var(--sp-3)" }}>
-                      <div>
-                        <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--c-ink)", display: "block", marginBottom: "6px" }}>
-                          Target Devices
-                        </span>
-                        <div style={{ display: "flex", gap: "16px" }}>
-                          {["mobile", "desktop", "tablet"].map((d) => (
-                            <label key={d} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedDevices.includes(d)}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedDevices([...selectedDevices, d]);
-                                  else setSelectedDevices(selectedDevices.filter((x) => x !== d));
-                                }}
-                              />
-                              <span style={{ textTransform: "capitalize" }}>{d}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--c-ink)", display: "block", marginBottom: "6px" }}>
-                          Target Browsers
-                        </span>
-                        <div style={{ display: "flex", gap: "16px", flexWrap: "wrap" }}>
-                          {["chrome", "safari", "firefox", "edge"].map((b) => (
-                            <label key={b} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", cursor: "pointer" }}>
-                              <input
-                                type="checkbox"
-                                checked={selectedBrowsers.includes(b)}
-                                onChange={(e) => {
-                                  if (e.target.checked) setSelectedBrowsers([...selectedBrowsers, b]);
-                                  else setSelectedBrowsers(selectedBrowsers.filter((x) => x !== b));
-                                }}
-                              />
-                              <span style={{ textTransform: "capitalize" }}>{b}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
+                      ))}
                     </div>
                   )}
                 </div>
-              </SectionCard>
+              </Field>
 
-              {/* Budget & Schedule */}
-              <SectionCard
-                title="Budget & Dispatch Schedule"
-                description="Set the start time or broadcast immediately upon approval."
-              >
-                <div style={{ display: "flex", gap: "var(--sp-4)", marginBottom: "var(--sp-3)" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-                    <input
-                      type="radio"
-                      name="sendMode"
-                      checked={sendMode === "now"}
-                      onChange={() => setSendMode("now")}
-                    />
-                    <span>Run continuously starting now (Immediate)</span>
-                  </label>
-
-                  <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontWeight: 600, fontSize: "14px" }}>
-                    <input
-                      type="radio"
-                      name="sendMode"
-                      checked={sendMode === "schedule"}
-                      onChange={() => setSendMode("schedule")}
-                    />
-                    <span>Set a start date & time (Scheduled)</span>
-                  </label>
-                </div>
-
-                {sendMode === "schedule" && (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr", gap: "var(--sp-3)", padding: "var(--sp-3)", background: "var(--c-surface-sunken)", borderRadius: "var(--radius-md)", border: "1px solid var(--c-line)" }}>
-                    <Field label="Start Date">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                <Field label="Campaign Type">
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${campaignType === "broadcast" ? "var(--c-accent, #3b82f6)" : "var(--c-line, #e2e8f0)"}`,
+                        background: campaignType === "broadcast" ? "var(--c-accent-soft, rgba(59, 130, 246, 0.05))" : "var(--c-surface, #fff)",
+                        cursor: "pointer",
+                      }}
+                    >
                       <input
-                        type="date"
-                        value={scheduledDate}
-                        onChange={(e) => setScheduledDate(e.target.value)}
+                        type="radio"
+                        name="campaignType"
+                        checked={campaignType === "broadcast"}
+                        onChange={() => setCampaignType("broadcast")}
                       />
-                    </Field>
-                    <Field label="Start Time">
+                      <div>
+                        <strong style={{ fontSize: "13px", display: "block" }}>Standard Broadcast</strong>
+                        <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>Immediate delivery to targeted audience</span>
+                      </div>
+                    </label>
+
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px",
+                        borderRadius: "8px",
+                        border: `1px solid ${campaignType === "scheduled" ? "var(--c-accent, #3b82f6)" : "var(--c-line, #e2e8f0)"}`,
+                        background: campaignType === "scheduled" ? "var(--c-accent-soft, rgba(59, 130, 246, 0.05))" : "var(--c-surface, #fff)",
+                        cursor: "pointer",
+                      }}
+                    >
                       <input
-                        type="time"
-                        value={scheduledTime}
-                        onChange={(e) => setScheduledTime(e.target.value)}
+                        type="radio"
+                        name="campaignType"
+                        checked={campaignType === "scheduled"}
+                        onChange={() => setCampaignType("scheduled")}
                       />
-                    </Field>
-                    <Field label="Timezone">
-                      <input value={timezone} onChange={(e) => setTimezone(e.target.value)} />
-                    </Field>
+                      <div>
+                        <strong style={{ fontSize: "13px", display: "block" }}>Scheduled Campaign</strong>
+                        <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>Deliver at a designated future time</span>
+                      </div>
+                    </label>
                   </div>
-                )}
+                </Field>
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--sp-4)", borderTop: "1px solid var(--c-line)", paddingTop: "var(--sp-4)" }}>
-                  <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(1)}>
-                    Back to Campaign Setup
-                  </Button>
-                  <Button variant="primary" icon={ArrowRight} onClick={handleProceedFromStep2}>
-                    Save & Continue to Step 3: Creative ➔
-                  </Button>
-                </div>
-              </SectionCard>
+                <Field label="Delivery Priority">
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value as "normal" | "high" | "urgent")}
+                    style={{ height: "38px" }}
+                  >
+                    <option value="normal">Normal Priority (Standard)</option>
+                    <option value="high">High Priority (Fast-track queue)</option>
+                    <option value="urgent">Urgent (Instant wake-up lock)</option>
+                  </select>
+                </Field>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "12px" }}>
+                <Button variant="secondary" onClick={handleSaveDraft} disabled={busy}>
+                  Save Draft
+                </Button>
+                <Button variant="primary" type="submit" disabled={!name.trim()}>
+                  Continue to Audience <ArrowRight size={15} />
+                </Button>
+              </div>
             </div>
-          )}
+          </SectionCard>
+        </form>
+      )}
 
-          {/* STEP 3: AD CREATIVE & COPY */}
-          {step === 3 && (
+      {/* ========================================================================= */}
+      {/* STEP 2: AUDIENCE TARGETING */}
+      {/* ========================================================================= */}
+      {step === 2 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <SectionCard
+            title="Step 2 — Audience & Geographic Targeting"
+            description="Define which subscribers receive this broadcast using location hierarchies, devices, and engagement history."
+          >
+            <AudienceTargeter
+              filters={targetFilters}
+              onChange={setTargetFilters}
+              pages={pages}
+              locations={locations}
+              segments={segments}
+            />
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "20px" }}>
+              <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(1)}>
+                Back
+              </Button>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <Button variant="secondary" onClick={handleSaveDraft} disabled={busy}>
+                  Save Draft
+                </Button>
+                <Button variant="primary" onClick={handleNextFromStep2}>
+                  Continue to Creative <ArrowRight size={15} />
+                </Button>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* STEP 3: CREATIVE COMPOSER */}
+      {/* ========================================================================= */}
+      {step === 3 && (
+        <form onSubmit={handleNextFromStep3}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))", gap: "20px" }}>
+            {/* Left Column: Creative Editor */}
             <SectionCard
-              title="Step 3: Ad Creative, Copy & Destination"
-              description="Design the message headline, body copy, CTA button, destination URL, and banner image."
+              title="Step 3 — Notification Creative"
+              description="Craft the headline, message copy, banner imagery, and click destination."
+              actions={
+                templates.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={FileCode2}
+                    type="button"
+                    onClick={() => setTemplatePickerOpen(true)}
+                  >
+                    Load Template
+                  </Button>
+                )
+              }
             >
-              <div style={{ display: "grid", gap: "var(--sp-4)" }}>
-                {/* Brand Identity */}
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "10px 14px", background: "var(--c-surface-sunken)", borderRadius: "var(--radius-md)", border: "1px solid var(--c-line)" }}>
-                  <Image
-                    src={icon || "/favicon.png"}
-                    alt=""
-                    width={32}
-                    height={32}
-                    style={{ borderRadius: "6px", objectFit: "cover" }}
-                    unoptimized
-                  />
-                  <div>
-                    <strong style={{ display: "block", fontSize: "13px", color: "var(--c-ink)" }}>
-                      Identity: {brandingName}
-                    </strong>
-                    <span style={{ fontSize: "11px", color: "var(--c-muted)" }}>
-                      Subscribers will see this sender brand identity
-                    </span>
-                  </div>
-                </div>
-
-                <Field label={`Primary Headline / Title (${title.length}/80)`} hint="Bold headline displayed on subscriber devices.">
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <Field
+                  label="Notification Title *"
+                  hint={`${title.length}/80 characters ${title.length > 55 ? "(May truncate on small mobile screens)" : ""}`}
+                >
                   <input
                     required
                     maxLength={80}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="⚡ Flash Sale: 50% Off Everything Today!"
+                    placeholder="e.g. Exclusive 20% Off Weekend Voucher"
+                    style={{ height: "38px", fontSize: "14px", fontWeight: "600" }}
                   />
                 </Field>
 
-                <Field label={`Primary Text / Message Body (${body.length}/180)`} hint="Notification text description.">
-                  <textarea
-                    required
-                    maxLength={180}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    placeholder="Don't miss our exclusive deals. Tap to claim your discount before midnight!"
-                    style={{ minHeight: "80px" }}
-                  />
+                <Field
+                  label="Notification Message *"
+                  hint={`${body.length}/180 characters ${body.length > 120 ? "(May truncate on lockscreen cards)" : ""}`}
+                >
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "4px" }}>
+                      <div style={{ position: "relative" }}>
+                        <button
+                          type="button"
+                          onClick={() => setPersonalizationMenuOpen(!personalizationMenuOpen)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "2px 8px",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            fontWeight: "600",
+                            background: "var(--c-surface-sunken, #f1f5f9)",
+                            border: "1px solid var(--c-line, #e2e8f0)",
+                            color: "var(--c-accent, #3b82f6)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <Sparkles size={11} /> + Personalization <ChevronDown size={10} />
+                        </button>
+                        {personalizationMenuOpen && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: 0,
+                              top: "100%",
+                              marginTop: "4px",
+                              background: "var(--c-surface, #ffffff)",
+                              border: "1px solid var(--c-line, #e2e8f0)",
+                              borderRadius: "6px",
+                              boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                              zIndex: 100,
+                              minWidth: "160px",
+                              display: "flex",
+                              flexDirection: "column",
+                              padding: "4px",
+                            }}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => insertVariable("city")}
+                              style={{ padding: "6px 8px", textAlign: "left", background: "none", border: "none", fontSize: "12px", cursor: "pointer", borderRadius: "4px" }}
+                            >
+                              Subscriber City (&#123;&#123;city&#125;&#125;)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => insertVariable("country")}
+                              style={{ padding: "6px 8px", textAlign: "left", background: "none", border: "none", fontSize: "12px", cursor: "pointer", borderRadius: "4px" }}
+                            >
+                              Subscriber Country (&#123;&#123;country&#125;&#125;)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => insertVariable("page_name")}
+                              style={{ padding: "6px 8px", textAlign: "left", background: "none", border: "none", fontSize: "12px", cursor: "pointer", borderRadius: "4px" }}
+                            >
+                              Page Name (&#123;&#123;page_name&#125;&#125;)
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <textarea
+                      required
+                      rows={3}
+                      maxLength={180}
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      placeholder="e.g. Tap to claim your instant weekend voucher before midnight. Valid on all collections!"
+                      style={{ fontSize: "13px" }}
+                    />
+                  </div>
                 </Field>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: "var(--sp-3)" }}>
-                  <Field label="Call to Action (CTA Button)" hint="Action button text.">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <Field label="Attach Smart Page">
                     <select
-                      value={ctaText}
-                      onChange={(e) => setCtaText(e.target.value)}
-                      style={{ height: "40px", fontSize: "13px" }}
+                      value={pageId || ""}
+                      onChange={(e) => setPageId(e.target.value ? Number(e.target.value) : null)}
+                      style={{ height: "38px" }}
                     >
-                      <option value="Shop Now">Shop Now</option>
-                      <option value="Claim Offer">Claim Offer</option>
-                      <option value="Learn More">Learn More</option>
-                      <option value="View Deal">View Deal</option>
-                      <option value="Book Now">Book Now</option>
-                      <option value="Open Link">Open Link</option>
+                      <option value="">Custom link destination</option>
+                      {pages.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (/{p.slug})
+                        </option>
+                      ))}
                     </select>
                   </Field>
 
-                  <Field label="Destination URL (HTTPS / Path)" hint="Where subscribers land when clicking.">
+                  <Field label="Destination URL *" hint="Where tapping the notification redirects">
                     <input
                       required
                       value={url}
-                      onChange={(e) => setUrl(e.target.value)}
-                      placeholder="https://example.com/offer or /sale"
+                      onChange={(e) => {
+                        setUrl(e.target.value);
+                        setPageId(null);
+                      }}
+                      placeholder="https://... or /page-slug"
+                      style={{ height: "38px" }}
                     />
                   </Field>
                 </div>
 
-                {autoUtm && (
-                  <div style={{ padding: "8px 12px", background: "var(--c-surface-sunken)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--c-line)", fontSize: "11px", color: "var(--c-muted)", wordBreak: "break-all" }}>
-                    <strong>Calculated UTM Destination:</strong> {getComputedUrl()}
-                  </div>
-                )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <ImageUploader
+                    category="general"
+                    label="Notification Icon"
+                    value={icon}
+                    onChange={setIcon}
+                    onBusyChange={setImageBusy}
+                  />
+                  <ImageUploader
+                    category="general"
+                    label="16:9 Banner Image (Optional)"
+                    value={image}
+                    onChange={setImage}
+                    onBusyChange={setImageBusy}
+                  />
+                </div>
 
-                <ImageUploader
-                  category="campaign"
-                  label="Ad Banner Image Media (Optional)"
-                  hint="16:9 rich expanded image displayed on Android notification shades and Windows/Mac desktop push."
-                  value={image}
-                  onChange={setImage}
-                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <Field label="CTA / Action Button (Optional)" hint="e.g. 'Claim Offer', 'Open Page'">
+                    <input
+                      value={ctaText}
+                      onChange={(e) => setCtaText(e.target.value)}
+                      placeholder="e.g. Claim Now"
+                      style={{ height: "38px" }}
+                    />
+                  </Field>
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--sp-4)", borderTop: "1px solid var(--c-line)", paddingTop: "var(--sp-4)" }}>
+                  <Field label="Badge Icon (Optional)" hint="Small monochromatic notification badge">
+                    <input
+                      value={badge}
+                      onChange={(e) => setBadge(e.target.value)}
+                      placeholder="/favicon.ico or icon path"
+                      style={{ height: "38px" }}
+                    />
+                  </Field>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px" }}>
                   <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(2)}>
-                    Back to Audience
+                    Back
                   </Button>
-                  <Button variant="primary" icon={ArrowRight} onClick={handleProceedFromStep3}>
-                    Save & Continue to Step 4: Review ➔
-                  </Button>
-                </div>
-              </div>
-            </SectionCard>
-          )}
-
-          {/* STEP 4: REVIEW & LAUNCH */}
-          {step === 4 && (
-            <SectionCard
-              title="Step 4: Campaign Review & Launch Checklist"
-              description="Verify your campaign settings before broadcasting to subscribers."
-            >
-              <div style={{ display: "grid", gap: "var(--sp-4)" }}>
-                {/* Summary Matrix Card */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "var(--sp-3)",
-                    padding: "var(--sp-4)",
-                    background: "var(--c-surface-sunken)",
-                    borderRadius: "var(--radius-md)",
-                    border: "1px solid var(--c-line)",
-                  }}
-                >
-                  <div>
-                    <span style={{ fontSize: "11px", color: "var(--c-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                      Campaign Name
-                    </span>
-                    <strong style={{ display: "block", fontSize: "14px", color: "var(--c-ink)", marginTop: "2px" }}>
-                      {name || title || "Untitled Campaign"}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: "11px", color: "var(--c-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                      Delivery Priority
-                    </span>
-                    <strong style={{ display: "block", fontSize: "14px", color: "var(--c-accent)", marginTop: "2px", textTransform: "capitalize" }}>
-                      {priority} Delivery
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: "11px", color: "var(--c-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                      Audience Reach
-                    </span>
-                    <strong style={{ display: "block", fontSize: "14px", color: "#10b981", marginTop: "2px" }}>
-                      {estimate ? `${estimate.matchedCount.toLocaleString()} subscribers` : "Calculating..."}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span style={{ fontSize: "11px", color: "var(--c-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                      Dispatch Timing
-                    </span>
-                    <strong style={{ display: "block", fontSize: "14px", color: "var(--c-ink)", marginTop: "2px" }}>
-                      {sendMode === "now" ? "Instant Broadcast" : `${scheduledDate} at ${scheduledTime}`}
-                    </strong>
-                  </div>
-                </div>
-
-                {/* Pre-flight Checklist */}
-                <div style={{ display: "grid", gap: "8px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: title.trim() ? "#10b981" : "#ef4444" }}>
-                    <CheckCircle2 size={16} />
-                    <span>Notification Headline: {title ? `"${title}"` : "Missing title"}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: body.trim() ? "#10b981" : "#ef4444" }}>
-                    <CheckCircle2 size={16} />
-                    <span>Message Body: {body ? `"${body.slice(0, 50)}..."` : "Missing body"}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#10b981" }}>
-                    <CheckCircle2 size={16} />
-                    <span>Destination Link: {getComputedUrl()}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#10b981" }}>
-                    <CheckCircle2 size={16} />
-                    <span>Targeting: {targetFilters.locations?.includeCities?.length ? targetFilters.locations.includeCities.join(", ") : "All workspace locations"}</span>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "var(--sp-4)",
-                    background: "linear-gradient(135deg, rgba(16,185,129,0.1), rgba(59,130,246,0.1))",
-                    borderRadius: "var(--radius-md)",
-                    border: "1px solid rgba(16,185,129,0.3)",
-                  }}
-                >
-                  <div>
-                    <strong style={{ display: "block", fontSize: "15px", color: "var(--c-ink)" }}>
-                      Ready to launch campaign?
-                    </strong>
-                    <span style={{ fontSize: "12px", color: "var(--c-muted)" }}>
-                      Notifications will be dispatched directly to your subscribers.
-                    </span>
-                  </div>
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <Button variant="secondary" onClick={() => void executeSendOrSchedule(true)}>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <Button variant="secondary" onClick={handleSaveDraft} disabled={busy}>
                       Save Draft
                     </Button>
-                    <Button
-                      variant="primary"
-                      icon={Send}
-                      loading={busy}
-                      disabled={busy || !title.trim() || !body.trim()}
-                      onClick={() => void executeSendOrSchedule(false)}
-                      style={{ background: "#10b981", borderColor: "#10b981" }}
-                    >
-                      {sendMode === "now" ? "Broadcast Campaign Now" : "Schedule Campaign"}
+                    <Button variant="primary" type="submit" disabled={!title.trim() || !body.trim() || imageBusy}>
+                      Continue to Schedule <ArrowRight size={15} />
                     </Button>
                   </div>
                 </div>
-
-                <div style={{ display: "flex", justifyContent: "flex-start", marginTop: "var(--sp-2)" }}>
-                  <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(3)}>
-                    Back to Creative
-                  </Button>
-                </div>
               </div>
             </SectionCard>
-          )}
-        </div>
 
-        {/* Right Column: Meta Ads Audience Meter & Live Placement Previews */}
-        <aside
-          style={{
-            display: "grid",
-            gap: "var(--sp-5)",
-            position: "sticky",
-            top: "var(--sp-4)",
-          }}
-        >
-          {/* Meta Ads Audience Gauge Meter */}
-          <div
-            style={{
-              padding: "var(--sp-4)",
-              background: "var(--c-surface)",
-              border: "1px solid var(--c-line)",
-              borderRadius: "var(--radius-lg)",
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-3)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <Compass size={18} color="var(--c-accent)" />
-                <strong style={{ fontSize: "14px", color: "var(--c-ink)" }}>
-                  Audience Definition
-                </strong>
-              </div>
-              <span
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  padding: "2px 8px",
-                  borderRadius: "12px",
-                  background: `${gaugeColor}20`,
-                  color: gaugeColor,
-                }}
-              >
-                {gaugeStatus}
-              </span>
-            </div>
+            {/* Right Column: Live Device Preview */}
+            <SectionCard
+              title="Live Device Preview"
+              description="Visual simulation across Android, Desktop, and macOS notification centers."
+            >
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <div style={{ display: "flex", gap: "6px", borderBottom: "1px solid var(--c-line, #e2e8f0)", paddingBottom: "10px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPlatform("android")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: "650",
+                      background: previewPlatform === "android" ? "var(--c-ink, #0f172a)" : "var(--c-surface-sunken, #f1f5f9)",
+                      color: previewPlatform === "android" ? "#ffffff" : "var(--c-muted, #64748b)",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Smartphone size={13} /> Android
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPlatform("desktop")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: "650",
+                      background: previewPlatform === "desktop" ? "var(--c-ink, #0f172a)" : "var(--c-surface-sunken, #f1f5f9)",
+                      color: previewPlatform === "desktop" ? "#ffffff" : "var(--c-muted, #64748b)",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Monitor size={13} /> Windows / Chrome
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewPlatform("macos")}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: "650",
+                      background: previewPlatform === "macos" ? "var(--c-ink, #0f172a)" : "var(--c-surface-sunken, #f1f5f9)",
+                      color: previewPlatform === "macos" ? "#ffffff" : "var(--c-muted, #64748b)",
+                      border: "none",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Laptop size={13} /> macOS / Safari
+                  </button>
+                </div>
 
-            {/* Gauge Bar */}
-            <div style={{ position: "relative", margin: "14px 0 10px" }}>
-              <div
-                style={{
-                  height: "8px",
-                  borderRadius: "4px",
-                  background: "linear-gradient(90deg, #ef4444 0%, #10b981 50%, #3b82f6 100%)",
-                  width: "100%",
-                }}
-              />
-              <div
-                style={{
-                  position: "absolute",
-                  top: "-4px",
-                  left: `${Math.min(Math.max(matchRatio * 100, 5), 95)}%`,
-                  transform: "translateX(-50%)",
-                  width: "16px",
-                  height: "16px",
-                  borderRadius: "50%",
-                  background: "#ffffff",
-                  border: `3px solid ${gaugeColor}`,
-                  boxShadow: "0 2px 5px rgba(0,0,0,0.2)",
-                  transition: "left 0.3s ease",
-                }}
-              />
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--c-muted)", marginBottom: "var(--sp-3)" }}>
-              <span>Specific</span>
-              <span>Optimal</span>
-              <span>Broad</span>
-            </div>
-
-            {/* Audience Stats */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-2)", paddingTop: "var(--sp-3)", borderTop: "1px solid var(--c-line)" }}>
-              <div>
-                <span style={{ fontSize: "11px", color: "var(--c-muted)", display: "block" }}>
-                  Estimated Audience
-                </span>
-                <strong style={{ fontSize: "18px", color: "var(--c-ink)" }}>
-                  {loadingEstimate ? "..." : (estimate?.matchedCount ?? 0).toLocaleString()}
-                </strong>
-                <small style={{ display: "block", fontSize: "10px", color: "var(--c-muted)" }}>
-                  {estimate ? `${estimate.percentage}% of workspace` : ""}
-                </small>
-              </div>
-
-              <div>
-                <span style={{ fontSize: "11px", color: "var(--c-muted)", display: "block" }}>
-                  Est. Daily Clicks
-                </span>
-                <strong style={{ fontSize: "18px", color: "var(--c-accent)" }}>
-                  {loadingEstimate
-                    ? "..."
-                    : `${Math.round((estimate?.matchedCount || 0) * 0.08)} - ${Math.round((estimate?.matchedCount || 0) * 0.14)}`}
-                </strong>
-                <small style={{ display: "block", fontSize: "10px", color: "#10b981" }}>
-                  8.0% - 14.0% CTR
-                </small>
-              </div>
-            </div>
-          </div>
-
-          {/* Live Placement Preview Card */}
-          <div
-            style={{
-              padding: "var(--sp-4)",
-              background: "var(--c-surface)",
-              border: "1px solid var(--c-line)",
-              borderRadius: "var(--radius-lg)",
-              boxShadow: "var(--shadow-sm)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--sp-3)" }}>
-              <strong style={{ fontSize: "13px", color: "var(--c-ink)" }}>
-                Live Placement Preview
-              </strong>
-              <div style={{ display: "flex", gap: "4px" }}>
-                {[
-                  { key: "desktop", icon: Laptop, label: "Desktop" },
-                  { key: "android", icon: Smartphone, label: "Android" },
-                  { key: "mobile", icon: Globe, label: "Mobile" },
-                ].map((d) => {
-                  const Icon = d.icon;
-                  const active = previewDevice === d.key;
-                  return (
-                    <button
-                      type="button"
-                      key={d.key}
-                      onClick={() => setPreviewDevice(d.key as "desktop" | "android" | "mobile")}
-                      title={d.label}
-                      style={{
-                        padding: "4px 8px",
-                        borderRadius: "4px",
-                        border: 0,
-                        background: active ? "var(--c-accent)" : "var(--c-surface-sunken)",
-                        color: active ? "#ffffff" : "var(--c-muted)",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <Icon size={14} />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Realistic Push Preview Container */}
-            <div style={{ background: "#0f172a", padding: "16px", borderRadius: "10px" }}>
-              {/* DESKTOP PREVIEW */}
-              {previewDevice === "desktop" && (
+                {/* Simulated Notification Card */}
                 <div
                   style={{
-                    background: "rgba(30, 41, 59, 0.95)",
-                    border: "1px solid rgba(255, 255, 255, 0.15)",
-                    borderRadius: "10px",
-                    padding: "12px",
-                    color: "#ffffff",
-                    boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
-                    fontFamily: "system-ui, -apple-system, sans-serif",
+                    padding: "16px",
+                    background: previewPlatform === "macos" ? "rgba(255, 255, 255, 0.85)" : "var(--c-surface, #ffffff)",
+                    backdropFilter: previewPlatform === "macos" ? "blur(16px)" : "none",
+                    border: "1px solid var(--c-line, #cbd5e1)",
+                    borderRadius: previewPlatform === "macos" ? "14px" : "10px",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <Image src={icon || "/favicon.png"} alt="" width={16} height={16} style={{ borderRadius: "3px" }} unoptimized />
-                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#94a3b8" }}>
-                        {brandingName} · Google Chrome
+                      <div
+                        style={{
+                          width: "20px",
+                          height: "20px",
+                          borderRadius: "4px",
+                          background: "#3b82f6",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#fff",
+                          fontSize: "10px",
+                          overflow: "hidden",
+                        }}
+                      >
+                        <Bell size={12} />
+                      </div>
+                      <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--c-ink, #0f172a)" }}>
+                        {brandingName}
                       </span>
+                      <span style={{ fontSize: "10px", color: "var(--c-muted, #94a3b8)" }}>&bull; now</span>
                     </div>
-                    <span style={{ fontSize: "10px", color: "#64748b" }}>just now</span>
                   </div>
 
-                  <strong style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#ffffff", marginBottom: "4px" }}>
-                    {title || "Special Flash Deal Available!"}
-                  </strong>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1", lineHeight: 1.35 }}>
-                    {body || "Tap to claim your exclusive discount before time runs out."}
-                  </p>
+                  <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                    <div
+                      style={{
+                        width: "44px",
+                        height: "44px",
+                        borderRadius: "8px",
+                        background: "var(--c-surface-sunken, #f1f5f9)",
+                        border: "1px solid var(--c-line, #e2e8f0)",
+                        overflow: "hidden",
+                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {icon ? (
+                        <img src={icon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <Sparkles size={20} color="#3b82f6" />
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p style={{ fontSize: "13px", fontWeight: "700", margin: "0 0 3px 0", color: "var(--c-ink, #0f172a)" }}>
+                        {title || "Your Notification Title"}
+                      </p>
+                      <p style={{ fontSize: "12px", color: "var(--c-muted, #475569)", margin: 0, lineHeight: "1.4" }}>
+                        {body || "This is where your broadcast message body will be displayed to subscribers."}
+                      </p>
+                    </div>
+                  </div>
 
                   {image && (
-                    <div style={{ marginTop: "10px", borderRadius: "6px", overflow: "hidden" }}>
-                      <img src={image} alt="" style={{ width: "100%", height: "130px", objectFit: "cover" }} />
+                    <div style={{ marginTop: "12px", borderRadius: "8px", overflow: "hidden", maxHeight: "160px" }}>
+                      <img src={image} alt="" style={{ width: "100%", height: "160px", objectFit: "cover" }} />
                     </div>
                   )}
 
                   {ctaText && (
-                    <div style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end" }}>
+                    <div style={{ marginTop: "12px", borderTop: "1px solid var(--c-line, #e2e8f0)", paddingTop: "8px" }}>
                       <span
                         style={{
+                          display: "inline-block",
+                          padding: "5px 12px",
+                          borderRadius: "6px",
                           fontSize: "11px",
-                          fontWeight: 700,
-                          padding: "4px 10px",
-                          borderRadius: "4px",
-                          background: "#3b82f6",
-                          color: "#ffffff",
+                          fontWeight: "700",
+                          background: "var(--c-surface-sunken, #f8fafc)",
+                          border: "1px solid var(--c-line, #e2e8f0)",
+                          color: "#2563eb",
                         }}
                       >
                         {ctaText}
@@ -1235,132 +1015,548 @@ export function NotificationComposer({
                     </div>
                   )}
                 </div>
-              )}
 
-              {/* ANDROID PREVIEW */}
-              {previewDevice === "android" && (
-                <div
+                <p style={{ fontSize: "11px", color: "var(--c-muted, #94a3b8)", margin: "6px 0 0 0", textAlign: "center" }}>
+                  Preview — actual appearance may vary by browser/device.
+                </p>
+              </div>
+            </SectionCard>
+          </div>
+        </form>
+      )}
+
+      {/* Template Picker Modal */}
+      {templatePickerOpen && (
+        <Dialog title="Load Notification Template" onClose={() => setTemplatePickerOpen(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "400px", overflowY: "auto" }}>
+            {templates.map((tpl) => (
+              <div
+                key={tpl.id}
+                onClick={() => {
+                  setTitle(tpl.title);
+                  setBody(tpl.body);
+                  if (tpl.url) setUrl(tpl.url);
+                  if (tpl.icon) setIcon(tpl.icon);
+                  if (tpl.image) setImage(tpl.image);
+                  if (tpl.ctaText) setCtaText(tpl.ctaText);
+                  setTemplatePickerOpen(false);
+                }}
+                style={{
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--c-line, #e2e8f0)",
+                  background: "var(--c-surface, #ffffff)",
+                  cursor: "pointer",
+                  transition: "border-color 0.15s",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                  <strong style={{ fontSize: "13px" }}>{tpl.name}</strong>
+                  <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>{tpl.category}</span>
+                </div>
+                <p style={{ fontSize: "12px", margin: "0 0 2px 0", color: "var(--c-ink, #0f172a)" }}>{tpl.title}</p>
+                <p style={{ fontSize: "11px", color: "var(--c-muted, #64748b)", margin: 0 }}>{tpl.body}</p>
+              </div>
+            ))}
+          </div>
+        </Dialog>
+      )}
+
+      {/* ========================================================================= */}
+      {/* STEP 4: SCHEDULE & DISPATCH */}
+      {/* ========================================================================= */}
+      {step === 4 && (
+        <form onSubmit={handleNextFromStep4} style={{ maxWidth: "780px" }}>
+          <SectionCard
+            title="Step 4 — Schedule & Dispatch Configuration"
+            description="Choose immediate dispatch or set a scheduled delivery date and timezone."
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <label
                   style={{
-                    background: "#1e293b",
-                    border: "1px solid #334155",
-                    borderRadius: "14px",
-                    padding: "12px 14px",
-                    color: "#ffffff",
-                    fontFamily: "Roboto, system-ui, sans-serif",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "14px",
+                    borderRadius: "8px",
+                    border: `1px solid ${sendMode === "now" ? "var(--c-accent, #3b82f6)" : "var(--c-line, #e2e8f0)"}`,
+                    background: sendMode === "now" ? "var(--c-accent-soft, rgba(59, 130, 246, 0.05))" : "var(--c-surface, #ffffff)",
+                    cursor: "pointer",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <Bell size={13} color="#94a3b8" />
-                      <span style={{ fontSize: "11px", color: "#94a3b8" }}>{brandingName}</span>
-                    </div>
-                    <span style={{ fontSize: "10px", color: "#64748b" }}>Now</span>
-                  </div>
-
-                  <strong style={{ display: "block", fontSize: "13px", color: "#f8fafc", marginBottom: "3px" }}>
-                    {title || "Special Flash Deal Available!"}
-                  </strong>
-                  <p style={{ margin: 0, fontSize: "12px", color: "#cbd5e1", lineHeight: 1.35 }}>
-                    {body || "Tap to claim your exclusive discount before time runs out."}
-                  </p>
-
-                  {image && (
-                    <div style={{ marginTop: "8px", borderRadius: "8px", overflow: "hidden" }}>
-                      <img src={image} alt="" style={{ width: "100%", height: "140px", objectFit: "cover" }} />
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: "10px", display: "flex", gap: "10px", borderTop: "1px solid #334155", paddingTop: "8px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#38bdf8", textTransform: "uppercase" }}>
-                      {ctaText || "OPEN LINK"}
-                    </span>
-                    <span style={{ fontSize: "11px", color: "#94a3b8", textTransform: "uppercase" }}>
-                      DISMISS
+                  <input
+                    type="radio"
+                    name="sendMode"
+                    checked={sendMode === "now"}
+                    onChange={() => setSendMode("now")}
+                  />
+                  <div>
+                    <strong style={{ fontSize: "14px", display: "block" }}>Send Broadcast Now</strong>
+                    <span style={{ fontSize: "12px", color: "var(--c-muted, #64748b)" }}>
+                      Dispatches to queue immediately upon confirmation
                     </span>
                   </div>
+                </label>
+
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "14px",
+                    borderRadius: "8px",
+                    border: `1px solid ${sendMode === "schedule" ? "var(--c-accent, #3b82f6)" : "var(--c-line, #e2e8f0)"}`,
+                    background: sendMode === "schedule" ? "var(--c-accent-soft, rgba(59, 130, 246, 0.05))" : "var(--c-surface, #ffffff)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="sendMode"
+                    checked={sendMode === "schedule"}
+                    onChange={() => setSendMode("schedule")}
+                  />
+                  <div>
+                    <strong style={{ fontSize: "14px", display: "block" }}>Schedule for Later</strong>
+                    <span style={{ fontSize: "12px", color: "var(--c-muted, #64748b)" }}>
+                      Auto-deliver at a specified date and time
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {sendMode === "schedule" && (
+                <div
+                  style={{
+                    padding: "16px",
+                    background: "var(--c-surface-sunken, #f8fafc)",
+                    borderRadius: "8px",
+                    border: "1px solid var(--c-line, #e2e8f0)",
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr 1fr",
+                    gap: "12px",
+                  }}
+                >
+                  <Field label="Dispatch Date *">
+                    <input
+                      type="date"
+                      required
+                      min={new Date().toISOString().slice(0, 10)}
+                      value={scheduledDate}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      style={{ height: "38px" }}
+                    />
+                  </Field>
+
+                  <Field label="Dispatch Time *">
+                    <input
+                      type="time"
+                      required
+                      value={scheduledTime}
+                      onChange={(e) => setScheduledTime(e.target.value)}
+                      style={{ height: "38px" }}
+                    />
+                  </Field>
+
+                  <Field label="Timezone">
+                    <select
+                      value={timezone}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      style={{ height: "38px" }}
+                    >
+                      <option value="Asia/Dhaka">Asia/Dhaka (GMT+6)</option>
+                      <option value="Asia/Kolkata">Asia/Kolkata (GMT+5:30)</option>
+                      <option value="Asia/Kathmandu">Asia/Kathmandu (GMT+5:45)</option>
+                      <option value="Asia/Karachi">Asia/Karachi (GMT+5)</option>
+                      <option value="Asia/Dubai">Asia/Dubai (GMT+4)</option>
+                      <option value="Europe/London">Europe/London (GMT)</option>
+                      <option value="America/New_York">America/New_York (EST)</option>
+                      <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                      <option value="UTC">UTC Universal</option>
+                    </select>
+                  </Field>
                 </div>
               )}
 
-              {/* MOBILE WEB PREVIEW */}
-              {previewDevice === "mobile" && (
-                <div
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "13px",
+                  cursor: "pointer",
+                  color: "var(--c-ink, #0f172a)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={smartTimezoneDelivery}
+                  onChange={(e) => setSmartTimezoneDelivery(e.target.checked)}
+                />
+                <span>
+                  <strong>Deliver using subscriber local timezone</strong> (Optimizes open rates based on regional active hours)
+                </span>
+              </label>
+
+              {/* Collapsible Advanced Delivery Settings */}
+              <div style={{ borderTop: "1px solid var(--c-line, #e2e8f0)", paddingTop: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedDelivery(!showAdvancedDelivery)}
                   style={{
-                    background: "#0f172a",
-                    border: "1px solid #1e293b",
-                    borderRadius: "12px",
-                    padding: "12px",
-                    color: "#ffffff",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    background: "none",
+                    border: "none",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    color: "var(--c-accent, #3b82f6)",
+                    cursor: "pointer",
+                    padding: 0,
                   }}
                 >
-                  <div style={{ display: "flex", gap: "10px", alignItems: "start" }}>
-                    <Image src={icon || "/favicon.png"} alt="" width={24} height={24} style={{ borderRadius: "5px", flexShrink: 0 }} unoptimized />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <strong style={{ fontSize: "12px", color: "#ffffff" }}>
-                          {title || "Flash Sale Announcement"}
-                        </strong>
-                        <span style={{ fontSize: "10px", color: "#64748b" }}>1m ago</span>
-                      </div>
-                      <p style={{ margin: "2px 0 0", fontSize: "11px", color: "#94a3b8", lineHeight: 1.3 }}>
-                        {body || "Tap to open and view your custom offer."}
-                      </p>
-                    </div>
+                  <SlidersHorizontal size={14} /> Advanced Delivery Settings {showAdvancedDelivery ? "▲" : "▼"}
+                </button>
+
+                {showAdvancedDelivery && (
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      padding: "14px",
+                      background: "var(--c-surface-sunken, #f8fafc)",
+                      borderRadius: "8px",
+                      border: "1px solid var(--c-line, #e2e8f0)",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "14px",
+                    }}
+                  >
+                    <Field label="Batch Size" hint="Number of subscriptions pushed concurrently (Default: 250)">
+                      <input
+                        type="number"
+                        min={50}
+                        max={1000}
+                        value={batchSize}
+                        onChange={(e) => setBatchSize(Number(e.target.value) || 250)}
+                        style={{ height: "36px" }}
+                      />
+                    </Field>
+
+                    <Field label="Throttling Rate" hint="Pushes per second to prevent endpoint saturation (Default: 50/s)">
+                      <input
+                        type="number"
+                        min={10}
+                        max={200}
+                        value={throttleRate}
+                        onChange={(e) => setThrottleRate(Number(e.target.value) || 50)}
+                        style={{ height: "36px" }}
+                      />
+                    </Field>
+
+                    <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "12px", gridColumn: "span 2" }}>
+                      <input
+                        type="checkbox"
+                        checked={retryFailures}
+                        onChange={(e) => setRetryFailures(e.target.checked)}
+                      />
+                      <span>Retry failed temporary deliveries up to 2 times</span>
+                    </label>
                   </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "16px" }}>
+                <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(3)}>
+                  Back
+                </Button>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Button variant="secondary" onClick={handleSaveDraft} disabled={busy}>
+                    Save Draft
+                  </Button>
+                  <Button variant="primary" type="submit">
+                    Continue to Review <ArrowRight size={15} />
+                  </Button>
                 </div>
-              )}
+              </div>
             </div>
+          </SectionCard>
+        </form>
+      )}
 
-            <button
-              type="button"
-              onClick={handleTestSend}
-              disabled={testSending || !title.trim()}
+      {/* ========================================================================= */}
+      {/* STEP 5: REVIEW & SEND */}
+      {/* ========================================================================= */}
+      {step === 5 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px", maxWidth: "900px" }}>
+          <SectionCard
+            title="Step 5 — Pre-Flight Review & Launch"
+            description="Verify all campaign parameters, test push rendering, and confirm broadcast dispatch."
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {/* Pre-flight Checklist */}
+              <div
+                style={{
+                  padding: "14px 18px",
+                  background: "var(--c-surface-sunken, #f8fafc)",
+                  borderRadius: "8px",
+                  border: "1px solid var(--c-line, #e2e8f0)",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "600", color: "#16a34a" }}>
+                  <CheckCircle2 size={15} /> Campaign Configured
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "600", color: "#16a34a" }}>
+                  <CheckCircle2 size={15} /> Audience Verified
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "600", color: "#16a34a" }}>
+                  <CheckCircle2 size={15} /> Title & Copy Validated
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "600", color: "#16a34a" }}>
+                  <CheckCircle2 size={15} /> Push Service Ready
+                </div>
+              </div>
+
+              {/* Summary Matrix Cards */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                {/* Campaign & Audience Card */}
+                <div
+                  style={{
+                    padding: "14px",
+                    background: "var(--c-surface, #ffffff)",
+                    border: "1px solid var(--c-line, #e2e8f0)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <h4 style={{ fontSize: "13px", fontWeight: "700", margin: "0 0 8px 0", color: "var(--c-ink, #0f172a)" }}>
+                    Campaign & Target Audience
+                  </h4>
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "12px", lineHeight: "1.8", color: "var(--c-muted, #64748b)" }}>
+                    <li>
+                      <strong style={{ color: "var(--c-ink, #0f172a)" }}>Campaign:</strong> {name || "Untitled Broadcast"}
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--c-ink, #0f172a)" }}>Priority:</strong> {priority.toUpperCase()}
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--c-ink, #0f172a)" }}>Type:</strong> {campaignType === "broadcast" ? "Standard Broadcast" : "Scheduled"}
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--c-ink, #0f172a)" }}>Target Locations:</strong>{" "}
+                      {targetFilters.locations?.includeCountries?.length
+                        ? targetFilters.locations.includeCountries.join(", ")
+                        : "All Countries"}
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Schedule & Delivery Card */}
+                <div
+                  style={{
+                    padding: "14px",
+                    background: "var(--c-surface, #ffffff)",
+                    border: "1px solid var(--c-line, #e2e8f0)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <h4 style={{ fontSize: "13px", fontWeight: "700", margin: "0 0 8px 0", color: "var(--c-ink, #0f172a)" }}>
+                    Dispatch & Destination
+                  </h4>
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0, fontSize: "12px", lineHeight: "1.8", color: "var(--c-muted, #64748b)" }}>
+                    <li>
+                      <strong style={{ color: "var(--c-ink, #0f172a)" }}>Delivery:</strong>{" "}
+                      {sendMode === "now" ? "Instant (Send Now)" : `${scheduledDate} at ${scheduledTime} (${timezone})`}
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--c-ink, #0f172a)" }}>Destination:</strong> {url}
+                    </li>
+                    <li>
+                      <strong style={{ color: "var(--c-ink, #0f172a)" }}>Batch Size:</strong> {batchSize} / batch ({throttleRate}/sec)
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* Creative Snapshot */}
+              <div
+                style={{
+                  padding: "14px",
+                  background: "var(--c-surface-sunken, #f8fafc)",
+                  borderRadius: "8px",
+                  border: "1px solid var(--c-line, #e2e8f0)",
+                }}
+              >
+                <h4 style={{ fontSize: "13px", fontWeight: "700", margin: "0 0 8px 0" }}>Creative Snapshot</h4>
+                <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "6px",
+                      background: "#3b82f6",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                      overflow: "hidden",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {icon ? <img src={icon} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Bell size={18} />}
+                  </div>
+                  <div>
+                    <strong style={{ fontSize: "13px", color: "var(--c-ink, #0f172a)", display: "block" }}>{title}</strong>
+                    <p style={{ fontSize: "12px", color: "var(--c-muted, #64748b)", margin: "2px 0 0 0" }}>{body}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderTop: "1px solid var(--c-line, #e2e8f0)",
+                  paddingTop: "16px",
+                }}
+              >
+                <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(4)}>
+                  Back
+                </Button>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Button variant="secondary" onClick={handleSaveDraft} disabled={busy}>
+                    Save Draft
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    icon={Send}
+                    type="button"
+                    onClick={() => setTestSendOpen(true)}
+                  >
+                    Send Test
+                  </Button>
+                  <Button
+                    variant="primary"
+                    icon={sendMode === "schedule" ? Calendar : Send}
+                    onClick={() => setConfirmSendOpen(true)}
+                    disabled={busy || !title.trim() || !body.trim()}
+                  >
+                    {sendMode === "schedule" ? "Schedule Campaign" : "Send Campaign Now"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TEST SEND MODAL */}
+      {/* ========================================================================= */}
+      {testSendOpen && (
+        <Dialog title="Send Test Push Notification" onClose={() => setTestSendOpen(false)}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <p style={{ fontSize: "13px", color: "var(--c-muted, #64748b)", margin: 0 }}>
+              Dispatch a test push directly to your browser or test subscriber device without altering production analytics.
+            </p>
+
+            <Field label="Test Target">
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                  <input
+                    type="radio"
+                    name="testTarget"
+                    checked={testTarget === "my_device"}
+                    onChange={() => setTestTarget("my_device")}
+                  />
+                  <span>My Active Browser / Device</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px" }}>
+                  <input
+                    type="radio"
+                    name="testTarget"
+                    checked={testTarget === "sample_subscriber"}
+                    onChange={() => setTestTarget("sample_subscriber")}
+                  />
+                  <span>Sample Recent Subscriber Endpoint</span>
+                </label>
+              </div>
+            </Field>
+
+            {testSuccessMessage && (
+              <div
+                style={{
+                  padding: "10px",
+                  borderRadius: "6px",
+                  background: "rgba(16, 185, 129, 0.1)",
+                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  color: "#065f46",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                }}
+              >
+                ✓ {testSuccessMessage}
+              </div>
+            )}
+
+            <div className="admDialogActions" style={{ marginTop: "12px" }}>
+              <Button variant="secondary" onClick={() => setTestSendOpen(false)} disabled={sendingTest}>
+                Close
+              </Button>
+              <Button variant="primary" onClick={handleSendTestPush} disabled={sendingTest}>
+                {sendingTest ? <Loader2 className="admSpinner" size={14} /> : <Send size={14} />}
+                Send Test Now
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* ========================================================================= */}
+      {/* FINAL BROADCAST CONFIRMATION MODAL */}
+      {/* ========================================================================= */}
+      {confirmSendOpen && (
+        <Dialog
+          title={sendMode === "schedule" ? "Confirm Campaign Schedule" : "Confirm Notification Broadcast"}
+          onClose={() => !busy && setConfirmSendOpen(false)}
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div
               style={{
-                width: "100%",
-                marginTop: "12px",
-                padding: "8px",
-                borderRadius: "6px",
-                border: "1px solid var(--c-line)",
-                background: "var(--c-surface-sunken)",
-                fontSize: "12px",
-                fontWeight: 600,
-                color: "var(--c-ink)",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
+                padding: "14px",
+                background: "rgba(59, 130, 246, 0.08)",
+                border: "1px solid rgba(59, 130, 246, 0.2)",
+                borderRadius: "8px",
+                color: "#1e40af",
+                fontSize: "13px",
               }}
             >
-              <Send size={13} />
-              <span>{testSending ? "Sending Test Push..." : "Send Live Test to This Browser"}</span>
-            </button>
-          </div>
-        </aside>
-      </div>
-
-      {/* Safety Confirmation Modal */}
-      {safetyModalOpen && (
-        <Dialog title="Launch Campaign Broadcast" onClose={() => setSafetyModalOpen(false)}>
-          <div className="admFormStack">
-            <p>
-              Are you sure you want to broadcast <strong>{title}</strong> to{" "}
-              <strong>{estimate ? estimate.matchedCount.toLocaleString() : "your"} subscribers</strong>?
-            </p>
-            <div style={{ padding: "10px", background: "var(--c-surface-sunken)", borderRadius: "6px", fontSize: "12px", color: "var(--c-muted)" }}>
-              <div><strong>Targeting:</strong> {targetFilters.locations?.includeCities?.length ? targetFilters.locations.includeCities.join(", ") : "All Locations"}</div>
-              <div><strong>Timing:</strong> {sendMode === "now" ? "Instant Broadcast" : `${scheduledDate} at ${scheduledTime}`}</div>
-              <div><strong>Link:</strong> {getComputedUrl()}</div>
+              <p style={{ margin: "0 0 4px 0", fontWeight: "700" }}>
+                {sendMode === "schedule"
+                  ? `You are scheduling this campaign for ${scheduledDate} at ${scheduledTime} (${timezone}).`
+                  : "You are about to broadcast this push notification immediately to all matching subscribers."}
+              </p>
+              <p style={{ margin: 0, fontSize: "12px", color: "var(--c-muted, #475569)" }}>
+                Title: <strong>{title}</strong>
+              </p>
             </div>
-            <div className="admDialogActions">
-              <Button onClick={() => setSafetyModalOpen(false)}>Back</Button>
-              <Button
-                variant="primary"
-                icon={Send}
-                loading={busy}
-                onClick={() => void executeSendOrSchedule(false)}
-                style={{ background: "#10b981", borderColor: "#10b981" }}
-              >
-                Confirm & Launch Now
+
+            <p style={{ fontSize: "12px", color: "var(--c-muted, #64748b)", margin: 0 }}>
+              Push requests will be processed in rate-limited batches with double-send protection.
+            </p>
+
+            <div className="admDialogActions" style={{ marginTop: "12px" }}>
+              <Button variant="secondary" onClick={() => setConfirmSendOpen(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleFinalSubmit} disabled={busy}>
+                {busy ? <Loader2 className="admSpinner" size={14} /> : <Check size={14} />}
+                {sendMode === "schedule" ? "Confirm & Schedule" : "Confirm & Send Broadcast"}
               </Button>
             </div>
           </div>

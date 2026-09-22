@@ -91,6 +91,32 @@ export function matchSubscriber(subscriber: NotificationSubscriber, filters?: Au
     }
   }
 
+  // Last Active Recency Filter
+  if (typeof filters.lastActiveWithinDays === "number" && filters.lastActiveWithinDays > 0) {
+    const lastActive = details.lastActiveAt ? new Date(details.lastActiveAt).getTime() : new Date(subscriber.updatedAt || subscriber.createdAt).getTime();
+    if (Date.now() - lastActive > filters.lastActiveWithinDays * 86400000) return false;
+  }
+
+  // Engagement Filter
+  if (filters.engagement === "clicked") {
+    if (!details.totalClicks || details.totalClicks <= 0) return false;
+  } else if (filters.engagement === "never_clicked") {
+    if (details.totalClicks && details.totalClicks > 0) return false;
+  }
+
+  // Traffic Source Filter
+  if (filters.trafficSources && filters.trafficSources.length > 0) {
+    const src = normalize(details.source || details.utmSource || "direct");
+    const allowed = filters.trafficSources.map(normalize);
+    const matches = allowed.some(a => src.includes(a) || (a === "direct" && (!src || src === "direct")));
+    if (!matches) return false;
+  }
+
+  // Visited Page Filter
+  if (filters.visitedPageIds && filters.visitedPageIds.length > 0) {
+    if (!filters.visitedPageIds.includes(subscriber.pageId)) return false;
+  }
+
   // Location Target Filtering
   const loc = filters.locations;
   if (loc) {

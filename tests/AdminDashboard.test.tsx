@@ -225,7 +225,7 @@ test("campaign history renders KPI metrics, visual funnel cards, and tabs correc
   assert.match(html, /Reuse in composer/);
 
   const notifHtml = renderToStaticMarkup(<NotificationsView pages={[]} initialTab="campaigns" />);
-  assert.match(notifHtml, /Compose/);
+  assert.match(notifHtml, /Campaign/);
   assert.match(notifHtml, /Campaigns/);
   assert.match(notifHtml, /Subscribers/);
 });

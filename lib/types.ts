@@ -348,9 +348,14 @@ export type AudienceFilters = {
   pageIds?: number[];
   subscribedWithinDays?: number | null;
   subscribedBeforeDays?: number | null;
+  lastActiveWithinDays?: number | null;
   devices?: ('mobile' | 'desktop' | 'tablet')[];
   browsers?: string[];
   operatingSystems?: string[];
+  engagement?: 'all' | 'clicked' | 'never_clicked';
+  trafficSources?: string[];
+  visitedPageIds?: number[];
+  clickedBlockIds?: number[];
   status?: 'active' | 'inactive' | 'all';
   segmentId?: string | null;
 };
@@ -359,6 +364,9 @@ export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'completed' | '
 
 export type NotificationSendInput = {
   name?: string;
+  description?: string;
+  tags?: string[];
+  type?: 'broadcast' | 'scheduled';
   title: string;
   body: string;
   url: string;
@@ -372,6 +380,10 @@ export type NotificationSendInput = {
   status?: CampaignStatus;
   scheduledAt?: string | null;
   timezone?: string;
+  smartTimezoneDelivery?: boolean;
+  batchSize?: number;
+  throttleRate?: number;
+  retryTemporaryFailures?: boolean;
   priority?: 'normal' | 'high' | 'urgent';
   targetFilters?: AudienceFilters;
 };
@@ -389,6 +401,9 @@ export type NotificationCampaign = {
   id: number;
   workspaceId: string;
   name?: string;
+  description?: string;
+  tags?: string[];
+  type?: 'broadcast' | 'scheduled';
   pageId: number | null;
   pageSlug: string | null;
   title: string;
@@ -402,6 +417,10 @@ export type NotificationCampaign = {
   status: CampaignStatus;
   scheduledAt?: string | null;
   timezone?: string;
+  smartTimezoneDelivery?: boolean;
+  batchSize?: number;
+  throttleRate?: number;
+  retryTemporaryFailures?: boolean;
   priority?: 'normal' | 'high' | 'urgent';
   targetFilters?: AudienceFilters;
   attempted: number;
@@ -445,6 +464,22 @@ export type SubscriberSegment = {
   description?: string;
   filters: AudienceFilters;
   subscriberCount?: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NotificationTemplate = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  category?: 'promotion' | 'announcement' | 'reminder' | 'content' | 'urgent' | 'custom';
+  title: string;
+  body: string;
+  url?: string;
+  icon?: string | null;
+  image?: string | null;
+  badge?: string | null;
+  ctaText?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -1,6 +1,60 @@
-import type { SmartPage, ThemeSettings } from "./types";
+import type { NotificationTemplate, SmartPage, ThemeSettings } from "./types";
 import { DEFAULT_WORKSPACE_ID } from "./workspaceConstants";
 import { nowIso } from "./utils";
+
+export function seedTemplates(workspaceId = DEFAULT_WORKSPACE_ID): NotificationTemplate[] {
+  const timestamp = nowIso();
+  return [
+    {
+      id: "tpl-promo",
+      workspaceId,
+      name: "Special Weekend Offer",
+      category: "promotion",
+      title: "🔥 Exclusive Weekend Offer Just for You!",
+      body: "Claim your special discount before midnight. Tap to open and activate your voucher.",
+      url: "/",
+      ctaText: "Claim Offer",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: "tpl-announcement",
+      workspaceId,
+      name: "Major Announcement",
+      category: "announcement",
+      title: "📢 Exciting News: We Just Launched Something New",
+      body: "Check out our latest update with fresh features and improvements.",
+      url: "/",
+      ctaText: "Read More",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: "tpl-reminder",
+      workspaceId,
+      name: "Gentle Reminder",
+      category: "reminder",
+      title: "⏰ Don't Forget: Limited Time Remaining",
+      body: "Only a few spots left for this week. Tap to secure yours now.",
+      url: "/",
+      ctaText: "Check Now",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+    {
+      id: "tpl-urgent",
+      workspaceId,
+      name: "Urgent Update",
+      category: "urgent",
+      title: "⚡ Urgent Update Regarding Your Account",
+      body: "Please review the updated information on our official page immediately.",
+      url: "/",
+      ctaText: "Review Now",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    },
+  ];
+}
 
 export const defaultTheme: ThemeSettings = {
   preset: "minimal-white",

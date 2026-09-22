@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationNav, NotificationTabKey } from "./NotificationNav";
+import { NotificationsOverview } from "./NotificationsOverview";
 import { NotificationComposer } from "./NotificationComposer";
 import { CampaignsView } from "./CampaignsView";
 import { NotificationHistoryView } from "./NotificationHistoryView";
 import { SubscribersView } from "./SubscribersView";
 import { SegmentsView } from "./SegmentsView";
+import { NotificationTemplatesView } from "./NotificationTemplatesView";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { adminApi } from "@/lib/admin";
 import type { PageSummary, SubscriberSegment } from "@/lib/types";
@@ -27,7 +29,7 @@ export function NotificationsManager({
 
   let adminPages: PageSummary[] = [];
   let brandingName = "Signup888";
-  let brandingLogo = "/favicon.png";
+  let brandingLogo = "/signup888-logo.png";
 
   try {
     const admin = useAdmin();
@@ -45,12 +47,13 @@ export function NotificationsManager({
   const effectivePages = passedPages && passedPages.length > 0 ? passedPages : adminPages;
 
   const determineTab = (): NotificationTabKey => {
-    if (pathname.includes("/compose")) return "compose";
-    if (pathname.includes("/history")) return "history";
+    if (pathname.includes("/create") || pathname.includes("/compose")) return "create";
+    if (pathname.includes("/history") || pathname.includes("/logs")) return "logs";
     if (pathname.includes("/subscribers")) return "subscribers";
     if (pathname.includes("/segments")) return "segments";
+    if (pathname.includes("/templates")) return "templates";
     if (pathname.includes("/campaigns")) return "campaigns";
-    return initialTab || "campaigns";
+    return initialTab || "overview";
   };
 
   const [activeTab, setActiveTab] = useState<NotificationTabKey>(determineTab());
@@ -72,7 +75,7 @@ export function NotificationsManager({
 
   const handleTabChange = (nextTab: NotificationTabKey) => {
     setActiveTab(nextTab);
-    const targetUrl = nextTab === "campaigns" ? `${base}/campaigns` : `${base}/${nextTab}`;
+    const targetUrl = nextTab === "overview" ? `${base}` : `${base}/${nextTab}`;
     router.push(targetUrl);
   };
 
@@ -80,7 +83,9 @@ export function NotificationsManager({
     <div className="admNotificationsModule" style={{ width: "100%" }}>
       <NotificationNav activeTab={activeTab} onTabChange={handleTabChange} />
 
-      {activeTab === "compose" && (
+      {activeTab === "overview" && <NotificationsOverview />}
+
+      {activeTab === "create" && (
         <NotificationComposer
           pages={effectivePages}
           locations={locations}
@@ -91,16 +96,16 @@ export function NotificationsManager({
       )}
 
       {activeTab === "campaigns" && (
-        <CampaignsView onCompose={() => handleTabChange("compose")} />
+        <CampaignsView onCompose={() => handleTabChange("create")} />
       )}
-
-      {activeTab === "history" && <NotificationHistoryView />}
 
       {activeTab === "subscribers" && <SubscribersView />}
 
-      {activeTab === "segments" && (
-        <SegmentsView onUseSegment={() => handleTabChange("compose")} />
-      )}
+      {activeTab === "segments" && <SegmentsView onCompose={() => handleTabChange("create")} />}
+
+      {activeTab === "templates" && <NotificationTemplatesView />}
+
+      {activeTab === "logs" && <NotificationHistoryView />}
     </div>
   );
 }

@@ -261,11 +261,13 @@ test("audience summarizer: formats human-readable audience descriptions", () => 
 
 test("MultiSelectDropdown and NotificationNav components render without crashing", () => {
   const navHtml = renderToStaticMarkup(<NotificationNav />);
-  assert.ok(navHtml.includes("Compose"));
+  assert.ok(navHtml.includes("Overview"));
+  assert.ok(navHtml.includes("Create Campaign"));
   assert.ok(navHtml.includes("Campaigns"));
-  assert.ok(navHtml.includes("History"));
   assert.ok(navHtml.includes("Subscribers"));
   assert.ok(navHtml.includes("Segments"));
+  assert.ok(navHtml.includes("Templates"));
+  assert.ok(navHtml.includes("Delivery Logs"));
 
   const dropdownHtml = renderToStaticMarkup(
     <MultiSelectDropdown

@@ -1108,6 +1108,32 @@ export async function deleteSubscriberSegment(id: string, workspaceId: string): 
   return true;
 }
 
+export async function listNotificationTemplates(workspaceId: string): Promise<import('../types').NotificationTemplate[]> {
+  return [];
+}
+
+export async function saveNotificationTemplate(template: Partial<import('../types').NotificationTemplate> & { name: string; title: string; body: string; workspaceId: string }): Promise<import('../types').NotificationTemplate> {
+  return {
+    id: template.id || 'tpl-1',
+    workspaceId: template.workspaceId,
+    name: template.name,
+    category: template.category || 'custom',
+    title: template.title,
+    body: template.body,
+    url: template.url || '/',
+    icon: template.icon || null,
+    image: template.image || null,
+    badge: template.badge || null,
+    ctaText: template.ctaText || null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function deleteNotificationTemplate(id: string, workspaceId: string): Promise<boolean> {
+  return true;
+}
+
 export async function trackNotificationCampaignClick(campaignId: number) {
   return Boolean(await recordNotificationCampaignEvent(campaignId, 'clicked'));
 }

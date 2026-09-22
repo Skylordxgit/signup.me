@@ -1,9 +1,9 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { PenTool, Send, History, Users, Layers } from "lucide-react";
+import { LayoutDashboard, PlusCircle, Send, Users, Layers, FileCode2, ScrollText } from "lucide-react";
 
-export type NotificationTabKey = "compose" | "campaigns" | "history" | "subscribers" | "segments";
+export type NotificationTabKey = "overview" | "create" | "campaigns" | "subscribers" | "segments" | "templates" | "logs";
 
 export function NotificationNav({
   activeTab,
@@ -19,21 +19,25 @@ export function NotificationNav({
 
   const getComputedTab = (): NotificationTabKey => {
     if (activeTab) return activeTab;
-    if (pathname.includes("/compose")) return "compose";
-    if (pathname.includes("/history")) return "history";
+    if (pathname.includes("/create") || pathname.includes("/compose")) return "create";
     if (pathname.includes("/subscribers")) return "subscribers";
     if (pathname.includes("/segments")) return "segments";
-    return "campaigns";
+    if (pathname.includes("/templates")) return "templates";
+    if (pathname.includes("/logs") || pathname.includes("/history")) return "logs";
+    if (pathname.includes("/campaigns")) return "campaigns";
+    return "overview";
   };
 
   const current = getComputedTab();
 
   const tabs: { key: NotificationTabKey; href: string; label: string; icon: typeof Send }[] = [
-    { key: "compose", href: `${base}/compose`, label: "Compose", icon: PenTool },
+    { key: "overview", href: `${base}`, label: "Overview", icon: LayoutDashboard },
+    { key: "create", href: `${base}/create`, label: "Create Campaign", icon: PlusCircle },
     { key: "campaigns", href: `${base}/campaigns`, label: "Campaigns", icon: Send },
-    { key: "history", href: `${base}/history`, label: "History", icon: History },
     { key: "subscribers", href: `${base}/subscribers`, label: "Subscribers", icon: Users },
     { key: "segments", href: `${base}/segments`, label: "Segments", icon: Layers },
+    { key: "templates", href: `${base}/templates`, label: "Templates", icon: FileCode2 },
+    { key: "logs", href: `${base}/logs`, label: "Delivery Logs", icon: ScrollText },
   ];
 
   const handleSelect = (tab: (typeof tabs)[number]) => {
@@ -53,12 +57,13 @@ export function NotificationNav({
         display: "flex",
         alignItems: "center",
         flexWrap: "wrap",
-        gap: "8px",
-        marginBottom: "var(--sp-5)",
+        gap: "6px",
+        marginBottom: "var(--sp-4, 16px)",
         padding: "6px",
-        background: "var(--c-surface-sunken, #f1f5f9)",
+        background: "var(--c-surface, #ffffff)",
         border: "1px solid var(--c-line, #e2e8f0)",
         borderRadius: "var(--radius-md, 8px)",
+        boxShadow: "0 1px 2px rgba(0,0,0,0.02)",
       }}
     >
       {tabs.map((tab) => {
@@ -75,21 +80,19 @@ export function NotificationNav({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "8px",
-              padding: "8px 16px",
+              gap: "6px",
+              padding: "7px 14px",
               borderRadius: "6px",
-              fontSize: "14px",
-              fontWeight: isActive ? 600 : 500,
-              background: isActive ? "var(--c-surface, #ffffff)" : "transparent",
-              color: isActive ? "var(--c-accent, #0f172a)" : "var(--c-muted, #64748b)",
-              boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
-              border: isActive ? "1px solid var(--c-line, #cbd5e1)" : "1px solid transparent",
+              fontSize: "13px",
+              fontWeight: isActive ? "650" : "550",
+              color: isActive ? "var(--c-accent, #3b82f6)" : "var(--c-muted, #64748b)",
+              background: isActive ? "var(--c-accent-soft, rgba(59, 130, 246, 0.1))" : "transparent",
+              border: isActive ? "1px solid rgba(59, 130, 246, 0.2)" : "1px solid transparent",
               cursor: "pointer",
               transition: "all 0.15s ease",
-              userSelect: "none",
             }}
           >
-            <Icon size={16} aria-hidden="true" />
+            <Icon size={15} />
             <span>{tab.label}</span>
           </button>
         );

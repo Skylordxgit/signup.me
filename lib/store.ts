@@ -38,3 +38,6 @@ export const listNotificationHistory: typeof jsonStore.listNotificationHistory =
 export const listSubscriberSegments: typeof jsonStore.listSubscriberSegments = (...args) => store().listSubscriberSegments(...args);
 export const saveSubscriberSegment: typeof jsonStore.saveSubscriberSegment = (...args) => store().saveSubscriberSegment(...args);
 export const deleteSubscriberSegment: typeof jsonStore.deleteSubscriberSegment = (...args) => store().deleteSubscriberSegment(...args);
+export const listNotificationTemplates: typeof jsonStore.listNotificationTemplates = (...args) => store().listNotificationTemplates(...args);
+export const saveNotificationTemplate: typeof jsonStore.saveNotificationTemplate = (...args) => store().saveNotificationTemplate(...args);
+export const deleteNotificationTemplate: typeof jsonStore.deleteNotificationTemplate = (...args) => store().deleteNotificationTemplate(...args);

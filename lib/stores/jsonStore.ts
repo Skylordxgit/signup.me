@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, SmartPage, SubscriberSegment } from "../types";
+import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, SmartPage, SubscriberSegment } from "../types";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
-import { defaultTheme, seedPages } from "../defaults";
+import { defaultTheme, seedPages, seedTemplates } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 import { DEFAULT_WORKSPACE_ID } from "../workspaces";
@@ -18,6 +18,7 @@ type DatabaseShape = {
   notificationCampaigns: NotificationCampaign[];
   notificationDeliveryLogs?: NotificationDeliveryLog[];
   subscriberSegments?: SubscriberSegment[];
+  notificationTemplates?: NotificationTemplate[];
 };
 
 /* Resolved per call rather than at import, so the working directory in effect
@@ -51,6 +52,8 @@ export const deleteNotificationCampaign = serialized(deleteNotificationCampaignU
 export const recordNotificationCampaignEvent = serialized(recordNotificationCampaignEventUnlocked);
 export const saveSubscriberSegment = serialized(saveSubscriberSegmentUnlocked);
 export const deleteSubscriberSegment = serialized(deleteSubscriberSegmentUnlocked);
+export const saveNotificationTemplate = serialized(saveNotificationTemplateUnlocked);
+export const deleteNotificationTemplate = serialized(deleteNotificationTemplateUnlocked);
 
 function dataFile() {
   return path.join(process.cwd(), "data", "db.json");
@@ -1145,4 +1148,62 @@ async function recordNotificationCampaignEventUnlocked(campaignId: number, event
   campaign.updatedAt = nowIso();
   await writeJsonDb(db);
   return campaign;
+}
+
+export async function listNotificationTemplates(workspaceId: string): Promise<NotificationTemplate[]> {
+  const db = await readJsonDb();
+  if (!db.notificationTemplates || db.notificationTemplates.length === 0) {
+    db.notificationTemplates = seedTemplates(workspaceId);
+    await writeJsonDb(db);
+  }
+  return db.notificationTemplates.filter(t => t.workspaceId === workspaceId);
+}
+
+async function saveNotificationTemplateUnlocked(template: Partial<NotificationTemplate> & { name: string; title: string; body: string; workspaceId: string }): Promise<NotificationTemplate> {
+  const db = await readJsonDb();
+  if (!db.notificationTemplates) db.notificationTemplates = [];
+  const timestamp = nowIso();
+  const existing = template.id ? db.notificationTemplates.find(t => t.id === template.id && t.workspaceId === template.workspaceId) : null;
+  if (existing) {
+    existing.name = template.name.trim();
+    existing.title = template.title.trim();
+    existing.body = template.body.trim();
+    if (template.category !== undefined) existing.category = template.category;
+    if (template.url !== undefined) existing.url = template.url;
+    if (template.icon !== undefined) existing.icon = template.icon;
+    if (template.image !== undefined) existing.image = template.image;
+    if (template.badge !== undefined) existing.badge = template.badge;
+    if (template.ctaText !== undefined) existing.ctaText = template.ctaText;
+    existing.updatedAt = timestamp;
+    await writeJsonDb(db);
+    return existing;
+  }
+  const created: NotificationTemplate = {
+    id: template.id || randomUUID(),
+    workspaceId: template.workspaceId,
+    name: template.name.trim(),
+    category: template.category || 'custom',
+    title: template.title.trim(),
+    body: template.body.trim(),
+    url: template.url || '/',
+    icon: template.icon || null,
+    image: template.image || null,
+    badge: template.badge || null,
+    ctaText: template.ctaText || null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  };
+  db.notificationTemplates.push(created);
+  await writeJsonDb(db);
+  return created;
+}
+
+async function deleteNotificationTemplateUnlocked(id: string, workspaceId: string): Promise<boolean> {
+  const db = await readJsonDb();
+  if (!db.notificationTemplates) return false;
+  const index = db.notificationTemplates.findIndex(t => t.id === id && t.workspaceId === workspaceId);
+  if (index === -1) return false;
+  db.notificationTemplates.splice(index, 1);
+  await writeJsonDb(db);
+  return true;
 }
