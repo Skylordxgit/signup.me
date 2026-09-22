@@ -31,61 +31,56 @@ export function subscriberDevice(userAgent: string, touchPoints = 0) {
   return { device, browser };
 }
 
-const timezoneCountryMap: Record<string, string> = {
-  'Asia/Dhaka': 'Bangladesh',
-  'Asia/Kolkata': 'India',
-  'Asia/Calcutta': 'India',
-  'Asia/Karachi': 'Pakistan',
-  'Asia/Kathmandu': 'Nepal',
-  'Asia/Colombo': 'Sri Lanka',
-  'Asia/Dubai': 'United Arab Emirates',
-  'Asia/Riyadh': 'Saudi Arabia',
-  'Asia/Singapore': 'Singapore',
-  'Asia/Bangkok': 'Thailand',
-  'Asia/Tokyo': 'Japan',
-  'Asia/Seoul': 'South Korea',
-  'Asia/Hong_Kong': 'Hong Kong',
-  'Asia/Shanghai': 'China',
-  'Asia/Kuala_Lumpur': 'Malaysia',
-  'Asia/Jakarta': 'Indonesia',
-  'Europe/London': 'United Kingdom',
-  'Europe/Paris': 'France',
-  'Europe/Berlin': 'Germany',
-  'Europe/Amsterdam': 'Netherlands',
-  'Europe/Rome': 'Italy',
-  'Europe/Madrid': 'Spain',
-  'Europe/Dublin': 'Ireland',
-  'Europe/Stockholm': 'Sweden',
-  'America/New_York': 'United States',
-  'America/Chicago': 'United States',
-  'America/Los_Angeles': 'United States',
-  'America/Denver': 'United States',
-  'America/Toronto': 'Canada',
-  'America/Vancouver': 'Canada',
-  'America/Sao_Paulo': 'Brazil',
-  'Australia/Sydney': 'Australia',
-  'Australia/Melbourne': 'Australia',
-  'Pacific/Auckland': 'New Zealand',
-  'Africa/Cairo': 'Egypt',
-  'Africa/Johannesburg': 'South Africa',
-  'Africa/Lagos': 'Nigeria',
+const timezoneCountryMap: Record<string, { country: string; city?: string }> = {
+  'Asia/Dhaka': { country: 'Bangladesh', city: 'Dhaka' },
+  'Asia/Kolkata': { country: 'India', city: 'Kolkata' },
+  'Asia/Calcutta': { country: 'India', city: 'Kolkata' },
+  'Asia/Karachi': { country: 'Pakistan', city: 'Karachi' },
+  'Asia/Dubai': { country: 'United Arab Emirates', city: 'Dubai' },
+  'Asia/Riyadh': { country: 'Saudi Arabia', city: 'Riyadh' },
+  'Asia/Singapore': { country: 'Singapore', city: 'Singapore' },
+  'Asia/Bangkok': { country: 'Thailand', city: 'Bangkok' },
+  'Asia/Tokyo': { country: 'Japan', city: 'Tokyo' },
+  'Asia/Seoul': { country: 'South Korea', city: 'Seoul' },
+  'Asia/Hong_Kong': { country: 'Hong Kong', city: 'Hong Kong' },
+  'Asia/Shanghai': { country: 'China', city: 'Shanghai' },
+  'Asia/Kuala_Lumpur': { country: 'Malaysia', city: 'Kuala Lumpur' },
+  'Asia/Jakarta': { country: 'Indonesia', city: 'Jakarta' },
+  'Europe/London': { country: 'United Kingdom', city: 'London' },
+  'Europe/Paris': { country: 'France', city: 'Paris' },
+  'Europe/Berlin': { country: 'Germany', city: 'Berlin' },
+  'Europe/Amsterdam': { country: 'Netherlands', city: 'Amsterdam' },
+  'Europe/Rome': { country: 'Italy', city: 'Rome' },
+  'Europe/Madrid': { country: 'Spain', city: 'Madrid' },
+  'Europe/Dublin': { country: 'Ireland', city: 'Dublin' },
+  'Europe/Stockholm': { country: 'Sweden', city: 'Stockholm' },
+  'America/New_York': { country: 'United States', city: 'New York' },
+  'America/Chicago': { country: 'United States', city: 'Chicago' },
+  'America/Los_Angeles': { country: 'United States', city: 'Los Angeles' },
+  'America/Toronto': { country: 'Canada', city: 'Toronto' },
+  'America/Vancouver': { country: 'Canada', city: 'Vancouver' },
+  'America/Sao_Paulo': { country: 'Brazil', city: 'Sao Paulo' },
+  'Australia/Sydney': { country: 'Australia', city: 'Sydney' },
+  'Australia/Melbourne': { country: 'Australia', city: 'Melbourne' },
+  'Pacific/Auckland': { country: 'New Zealand', city: 'Auckland' },
+  'Africa/Cairo': { country: 'Egypt', city: 'Cairo' },
+  'Africa/Johannesburg': { country: 'South Africa', city: 'Johannesburg' },
+  'Africa/Lagos': { country: 'Nigeria', city: 'Lagos' },
 };
 
 export function formatLocation(countryCodeOrName?: string, city?: string, timezone?: string): { country: string; city: string; location: string } {
   let country = (countryCodeOrName || '').trim();
-  const rawCity = (city || '').trim();
+  let rawCity = (city || '').trim();
 
-  // Resolve country from timezone if not provided by GeoIP, but NEVER assume timezone string is the city!
-  if (!country && timezone && timezoneCountryMap[timezone]) {
-    country = timezoneCountryMap[timezone];
+  if (timezone && timezoneCountryMap[timezone]) {
+    const tzMatch = timezoneCountryMap[timezone];
+    if (!country) country = tzMatch.country;
+    if (!rawCity && tzMatch.city) rawCity = tzMatch.city;
   }
 
-  // Handle city-states where city and country are identical
-  if (!rawCity && (timezone === 'Asia/Singapore' || country === 'Singapore')) {
-    return { country: 'Singapore', city: 'Singapore', location: 'Singapore' };
-  }
-  if (!rawCity && (timezone === 'Asia/Hong_Kong' || country === 'Hong Kong')) {
-    return { country: 'Hong Kong', city: 'Hong Kong', location: 'Hong Kong' };
+  if (!rawCity && timezone && timezone.includes('/')) {
+    const tzCity = timezone.split('/')[1]?.replace(/_/g, ' ') || '';
+    if (tzCity) rawCity = tzCity;
   }
 
   if (/^[A-Za-z]{2}$/.test(country)) {
@@ -136,8 +131,6 @@ export function collectSubscriberDetails(headers: Headers, hints: unknown): Subs
   const configuredIp = trusted('SUBSCRIBER_IP_HEADER')?.split(',')[0]?.trim();
   const fallbackIp = headers.get('cf-connecting-ip')
     || headers.get('x-real-ip')
-    || headers.get('x-client-ip')
-    || headers.get('true-client-ip')
     || headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     || '';
   const rawIp = configuredIp || fallbackIp;
@@ -147,35 +140,11 @@ export function collectSubscriberDetails(headers: Headers, hints: unknown): Subs
   if (typeof data.timezone === 'string' && data.timezone.length <= 100) {
     try { timezone = new Intl.DateTimeFormat('en', { timeZone: data.timezone }).resolvedOptions().timeZone; } catch { /* Invalid client hint. */ }
   }
-
-  const hintCountry = typeof data.country === 'string' ? data.country.trim().slice(0, 100) : '';
-  const hintCity = typeof data.city === 'string' ? data.city.trim().slice(0, 100) : '';
-
-  const country = trusted('SUBSCRIBER_COUNTRY_HEADER')
-    || headers.get('cf-ipcountry')
-    || headers.get('x-vercel-ip-country')
-    || headers.get('x-country')
-    || hintCountry
-    || '';
-
-  const rawHeaderCity = headers.get('cf-ipcity')
-    || headers.get('x-vercel-ip-city')
-    || headers.get('x-city')
-    || '';
-
-  let city = trusted('SUBSCRIBER_CITY_HEADER');
-  if (!city && rawHeaderCity) {
-    try { city = decodeURIComponent(rawHeaderCity); } catch { city = rawHeaderCity; }
-  }
-  if (!city && hintCity) {
-    city = hintCity;
-  }
-
   return {
     ...subscriberDevice(headers.get('user-agent') || '', touchPoints),
     ipAddress: ip,
-    country,
-    city: city || '',
+    country: trusted('SUBSCRIBER_COUNTRY_HEADER') || headers.get('cf-ipcountry') || '',
+    city: trusted('SUBSCRIBER_CITY_HEADER') || headers.get('cf-ipcity') || '',
     timezone,
   };
 }

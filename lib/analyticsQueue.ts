@@ -7,11 +7,7 @@ export interface QueuedPageView {
   deviceType: string;
   referrer: string;
   country: string | null;
-  countryCode?: string | null;
-  region?: string | null;
-  regionCode?: string | null;
   city: string | null;
-  timezone?: string | null;
   workspaceId: string;
   createdAt?: string;
   isUnique?: boolean;
@@ -23,11 +19,7 @@ export interface QueuedLinkClick {
   deviceType: string;
   referrer: string;
   country: string | null;
-  countryCode?: string | null;
-  region?: string | null;
-  regionCode?: string | null;
   city: string | null;
-  timezone?: string | null;
   workspaceId: string;
   createdAt?: string;
 }
@@ -108,24 +100,20 @@ export async function flushAnalytics(): Promise<void> {
         const values: unknown[] = [];
         const placeholders: string[] = [];
         for (const item of viewsToFlush) {
-          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
           values.push(
             item.pageId,
             item.visitorHash,
             item.deviceType || 'desktop',
             item.referrer || 'Direct',
-            item.countryCode || null,
             item.country || null,
-            item.regionCode || null,
-            item.region || null,
             item.city || null,
-            item.timezone || null,
             item.workspaceId || 'default',
             item.createdAt ? new Date(item.createdAt) : new Date()
           );
         }
         await pool.query(
-          `INSERT INTO page_views (page_id, visitor_hash, device_type, referrer, country_code, country, region_code, region, city, timezone, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
+          `INSERT INTO page_views (page_id, visitor_hash, device_type, referrer, country, city, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
           values
         );
       }
@@ -135,24 +123,20 @@ export async function flushAnalytics(): Promise<void> {
         const values: unknown[] = [];
         const placeholders: string[] = [];
         for (const item of clicksToFlush) {
-          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
           values.push(
             item.pageId,
             item.blockId,
             item.deviceType || 'desktop',
             item.referrer || 'Direct',
-            item.countryCode || null,
             item.country || null,
-            item.regionCode || null,
-            item.region || null,
             item.city || null,
-            item.timezone || null,
             item.workspaceId || 'default',
             item.createdAt ? new Date(item.createdAt) : new Date()
           );
         }
         await pool.query(
-          `INSERT INTO link_clicks (page_id, block_id, device_type, referrer, country_code, country, region_code, region, city, timezone, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
+          `INSERT INTO link_clicks (page_id, block_id, device_type, referrer, country, city, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
           values
         );
       }

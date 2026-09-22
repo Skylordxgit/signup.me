@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { trackView } from "@/lib/store";
-import { resolveClientLocation } from "@/lib/ipGeo";
+import { formatLocation } from "@/lib/subscriberDetails";
 import { resolvePublicHost } from '@/lib/domainRouting';
 
 export async function POST(request: NextRequest) {
@@ -12,23 +12,20 @@ export async function POST(request: NextRequest) {
   const host = await resolvePublicHost(request.headers.get('host'));
   if (host.kind === 'unknown' || host.kind === 'master') return NextResponse.json({ ok: false }, { status: 404 });
 
-  const geo = await resolveClientLocation(request.headers, body);
+  const rawCountry = request.headers.get("cf-ipcountry") || request.headers.get("x-vercel-ip-country") || request.headers.get("x-country") || body.country || "";
+  const rawCity = request.headers.get("cf-ipcity") || request.headers.get("x-vercel-ip-city") || request.headers.get("x-city") || body.city || "";
+  const timezone = body.timezone || "";
+  const { country, city, location } = formatLocation(rawCountry, rawCity, timezone);
 
   const result = await trackView(
     slug,
     request.headers.get("user-agent") || "",
     request.headers.get("referer"),
     visitorKey,
-    geo.countryName,
-    geo.city,
-    geo.location,
+    country,
+    city,
+    location,
     host.kind === 'custom' ? host.workspaceId : undefined,
-    {
-      countryCode: geo.countryCode,
-      regionCode: geo.regionCode,
-      region: geo.regionName,
-      timezone: geo.timezone,
-    },
   );
   return NextResponse.json(result ?? { ok: false }, result ? undefined : { status: 404 });
 }

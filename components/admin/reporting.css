@@ -1,78 +1,55 @@
 /* Detailed Reporting & Analytics Styles */
 
-.admReportingContainer {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-6);
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-
 /* Header & Global Filters */
 .admReportHeader {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
+  margin-bottom: var(--sp-6);
 }
 
 .admReportFilterBar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-2-5);
+  gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
   background: var(--c-surface);
   border: 1px solid var(--c-line);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
+  box-shadow: var(--shadow-sm);
 }
 
 .admReportFilterGroup {
   display: flex;
   align-items: center;
-  gap: var(--sp-1-5);
-  flex-shrink: 0;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
 }
 
 .admReportFilterLabel {
-  font-size: var(--text-2xs);
-  font-weight: 700;
+  font-size: var(--text-xs);
+  font-weight: 650;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--c-muted);
 }
 
 .admReportSelect {
-  height: var(--control-h-sm);
-  min-height: var(--control-h-sm);
+  height: 34px;
   padding: 0 var(--sp-3);
   border: 1px solid var(--c-line);
   border-radius: var(--radius-md);
   background: var(--c-surface);
   color: var(--c-text);
-  font-size: var(--text-xs);
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: 550;
   cursor: pointer;
-  box-shadow: var(--shadow-xs);
-  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+  transition: border-color 0.15s;
 }
 
-.admReportSelect:hover {
-  border-color: var(--c-line-strong);
-}
-
-.admReportSelect:focus {
+.admReportSelect:hover, .admReportSelect:focus {
   border-color: var(--c-accent);
-  box-shadow: var(--focus-ring);
-  outline: none;
 }
 
 .admReportActions {
@@ -80,34 +57,30 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  flex-wrap: wrap;
 }
 
 /* KPI Cards with Comparison Deltas */
 .admReportKpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--sp-4);
-  width: 100%;
-  max-width: 100%;
+  margin-bottom: var(--sp-6);
 }
 
 .admReportKpiCard {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: var(--sp-4) var(--sp-4-5);
+  padding: var(--sp-4) var(--sp-5);
   background: var(--c-surface);
   border: 1px solid var(--c-line);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  transition: transform var(--duration-fast), box-shadow var(--duration-fast), border-color var(--duration-fast);
-  min-width: 0;
+  transition: transform 0.15s, box-shadow 0.15s;
 }
 
 .admReportKpiCard:hover {
   box-shadow: var(--shadow-md);
-  border-color: var(--c-line-strong);
   transform: translateY(-1px);
 }
 
@@ -119,10 +92,8 @@
 }
 
 .admReportKpiHead span {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--c-muted);
 }
 
@@ -132,50 +103,44 @@
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
-  flex-shrink: 0;
 }
 
 .admReportKpiValue {
-  font-size: var(--text-3xl);
-  font-weight: 750;
+  font-size: 28px;
+  font-weight: 700;
   line-height: 1.15;
   letter-spacing: -0.02em;
-  color: var(--c-ink);
+  color: var(--c-text);
   font-variant-numeric: tabular-nums;
-  margin: var(--sp-1) 0;
 }
 
 .admReportKpiFoot {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-top: var(--sp-2);
-  font-size: var(--text-2xs);
+  margin-top: var(--sp-3);
+  font-size: var(--text-xs);
   color: var(--c-muted);
-  flex-wrap: wrap;
 }
 
 .admKpiDelta {
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  font-weight: 700;
-  font-size: var(--text-2xs);
-  letter-spacing: 0.02em;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-weight: 650;
+  font-size: 11px;
 }
 
 .admKpiDelta.isPositive {
-  background: var(--c-success-soft);
-  color: var(--c-success);
-  border: 1px solid var(--c-success-line);
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
 }
 
 .admKpiDelta.isNegative {
-  background: var(--c-danger-soft);
-  color: var(--c-danger);
-  border: 1px solid var(--c-danger-line);
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
 }
 
 /* Conversion Funnel */
@@ -184,90 +149,83 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-4);
   align-items: stretch;
-  width: 100%;
 }
 
 .admFunnelStage {
   display: flex;
   flex-direction: column;
-  padding: var(--sp-4-5);
-  background: var(--c-surface-sunken);
+  padding: var(--sp-5);
+  background: var(--c-surface);
   border: 1px solid var(--c-line);
   border-radius: var(--radius-lg);
   position: relative;
-  min-width: 0;
 }
 
 .admFunnelStageHead {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: var(--sp-2-5);
-  gap: var(--sp-2);
-  flex-wrap: wrap;
+  margin-bottom: var(--sp-3);
 }
 
 .admFunnelStageHead strong {
   font-size: var(--text-base);
-  font-weight: 700;
-  color: var(--c-ink);
+  font-weight: 650;
 }
 
 .admFunnelBadge {
-  padding: 2px 8px;
-  border-radius: var(--radius-pill);
-  font-size: var(--text-2xs);
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
   font-weight: 700;
   background: var(--c-accent-soft);
   color: var(--c-accent);
 }
 
 .admFunnelCount {
-  font-size: var(--text-3xl);
-  font-weight: 800;
+  font-size: 30px;
+  font-weight: 750;
   line-height: 1.1;
-  margin-bottom: var(--sp-1);
+  margin-bottom: var(--sp-2);
   font-variant-numeric: tabular-nums;
-  color: var(--c-ink);
 }
 
 .admFunnelRate {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--c-muted);
   margin-bottom: var(--sp-3);
 }
 
 .admFunnelTrack {
   width: 100%;
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: var(--radius-pill);
+  height: 8px;
+  background: var(--c-line);
+  border-radius: 9999px;
   overflow: hidden;
   margin-top: auto;
 }
 
 .admFunnelBar {
   height: 100%;
-  border-radius: var(--radius-pill);
+  border-radius: 9999px;
   transition: width 0.4s ease;
 }
 
-.admFunnelStage:nth-child(1) .admFunnelBar { background: var(--c-accent); }
+.admFunnelStage:nth-child(1) .admFunnelBar { background: #3b82f6; }
 .admFunnelStage:nth-child(2) .admFunnelBar { background: #8b5cf6; }
-.admFunnelStage:nth-child(3) .admFunnelBar { background: var(--c-success); }
+.admFunnelStage:nth-child(3) .admFunnelBar { background: #10b981; }
 
 /* Hourly & Daily Chart Controls */
 .admChartTabs {
   display: inline-flex;
   padding: 2px;
   border-radius: var(--radius-md);
-  background: var(--c-surface-sunken);
-  border: 1px solid var(--c-line);
+  background: var(--c-line);
   gap: 2px;
 }
 
 .admChartTabs button {
-  padding: 3px 10px;
+  padding: 4px 12px;
   border: 0;
   border-radius: var(--radius-sm);
   font-size: var(--text-xs);
@@ -275,30 +233,20 @@
   background: transparent;
   color: var(--c-muted);
   cursor: pointer;
-  transition: all var(--duration-fast);
 }
 
 .admChartTabs button.active {
   background: var(--c-surface);
-  color: var(--c-accent);
-  box-shadow: var(--shadow-xs);
-}
-
-.admHourlyChartWrap {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: var(--sp-2);
+  color: var(--c-text);
+  box-shadow: var(--shadow-sm);
 }
 
 .admHourlyChart {
   display: grid;
-  grid-template-columns: repeat(24, minmax(16px, 1fr));
+  grid-template-columns: repeat(24, minmax(0, 1fr));
   gap: 4px;
   align-items: end;
-  height: 180px;
-  min-width: 480px;
+  height: 200px;
   padding-top: var(--sp-4);
   padding-bottom: var(--sp-6);
   position: relative;
@@ -315,7 +263,7 @@
 
 .admHourlyBarWrap {
   width: 100%;
-  max-width: 16px;
+  max-width: 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -326,7 +274,7 @@
 
 .admHourlyBarViews {
   width: 100%;
-  background: var(--c-accent);
+  background: #3b82f6;
   border-radius: 3px 3px 0 0;
   min-height: 2px;
   transition: height 0.3s;
@@ -355,8 +303,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
-  margin-bottom: var(--sp-4);
-  width: 100%;
+  margin-bottom: var(--sp-5);
 }
 
 .admRatioItem {
@@ -369,57 +316,46 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: var(--text-xs);
-  color: var(--c-text);
+  font-size: var(--text-sm);
 }
 
 .admRatioMeta strong {
-  font-weight: 700;
-  color: var(--c-ink);
+  font-weight: 650;
 }
 
 .admRatioBar {
   width: 100%;
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: var(--radius-pill);
+  height: 7px;
+  background: var(--c-line);
+  border-radius: 9999px;
   overflow: hidden;
 }
 
 .admRatioFill {
   height: 100%;
-  border-radius: var(--radius-pill);
-  background: linear-gradient(90deg, #2563eb, #8b5cf6);
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
   transition: width 0.3s;
 }
 
 /* Sortable Reporting Table */
 .admReportTableWrap {
   width: 100%;
-  max-width: 100%;
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  border: 1px solid var(--c-line);
-  border-radius: var(--radius-lg);
-  background: var(--c-surface);
-  box-shadow: var(--shadow-xs);
 }
 
 .admReportTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   text-align: left;
 }
 
 .admReportTable th {
-  padding: var(--sp-2-5) var(--sp-3-5);
-  background: var(--c-surface-sunken);
+  padding: var(--sp-3) var(--sp-4);
+  background: rgba(0,0,0,0.02);
   border-bottom: 1px solid var(--c-line);
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-weight: 650;
   color: var(--c-muted);
   cursor: pointer;
   user-select: none;
@@ -427,22 +363,18 @@
 }
 
 .admReportTable th:hover {
-  color: var(--c-ink);
+  color: var(--c-text);
 }
 
 .admReportTable td {
-  padding: var(--sp-2-5) var(--sp-3-5);
-  border-bottom: 1px solid var(--c-line-subtle);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--c-line);
   vertical-align: middle;
   white-space: nowrap;
 }
 
-.admReportTable tr:last-child td {
-  border-bottom: none;
-}
-
 .admReportTable tr:hover td {
-  background: var(--c-surface-sunken);
+  background: var(--c-surface-hover);
 }
 
 .admTableNum {
@@ -454,12 +386,12 @@
 .admBadgeCtr {
   display: inline-flex;
   align-items: center;
-  padding: 1px 6px;
-  border-radius: var(--radius-pill);
-  font-size: var(--text-2xs);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
   font-weight: 700;
-  background: var(--c-accent-soft);
-  color: var(--c-accent);
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
 }
 
 /* Device & OS Grid */
@@ -469,22 +401,19 @@
   border-radius: var(--radius-lg);
   background: var(--c-surface);
   box-shadow: var(--shadow-sm);
-  min-width: 0;
 }
 
 .admBreakdownTitle {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--text-sm);
+  font-weight: 650;
   margin-bottom: var(--sp-3);
-  color: var(--c-muted);
+  color: var(--c-text);
 }
 
 .admBreakdownList {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2-5);
+  gap: var(--sp-3);
 }
 
 .admBreakdownItem {
@@ -503,9 +432,6 @@
 .admBreakdownHeader span:first-child {
   font-weight: 600;
   color: var(--c-text);
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .admBreakdownHeader span:last-child {
@@ -515,15 +441,15 @@
 
 .admBreakdownTrack {
   width: 100%;
-  height: 5px;
-  background: #e2e8f0;
-  border-radius: var(--radius-pill);
+  height: 6px;
+  background: var(--c-line);
+  border-radius: 9999px;
   overflow: hidden;
 }
 
 .admBreakdownFill {
   height: 100%;
-  border-radius: var(--radius-pill);
+  border-radius: 9999px;
   background: var(--c-accent);
 }
 
@@ -546,9 +472,5 @@
   }
   .admReportActions {
     margin-left: 0;
-    width: 100%;
-  }
-  .admReportActions .admButton {
-    flex: 1;
   }
 }

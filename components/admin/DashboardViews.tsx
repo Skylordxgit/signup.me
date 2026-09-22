@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Calendar, Check, ChevronDown, Clock3, Copy, Download, ExternalLink, Eye, FileText, FolderOpen, Globe2, History, Inbox, LayoutGrid, Link2, List, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Search, Send, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Calendar, Check, ChevronDown, Clock3, Copy, Download, ExternalLink, Eye, FileText, FolderOpen, Globe2, History, ImageIcon, Inbox, LayoutGrid, Link2, List, Loader2, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Search, Send, Sparkles, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
@@ -247,9 +247,8 @@ export function CountryDrilldownView({ report }: { report: AnalyticsReport | nul
     if (!query) return true;
     const nameMatch = (c.countryName || '').toLowerCase().includes(query);
     const codeMatch = (c.countryCode || '').toLowerCase().includes(query);
-    const regionMatch = (c.regions || []).some(r => (r.regionName || '').toLowerCase().includes(query) || (r.regionCode || '').toLowerCase().includes(query));
-    if (nameMatch || codeMatch || regionMatch) return true;
-    return c.cities.some(ct => (ct.city || '').toLowerCase().includes(query) || (ct.location || '').toLowerCase().includes(query) || (ct.region || '').toLowerCase().includes(query));
+    if (nameMatch || codeMatch) return true;
+    return c.cities.some(ct => (ct.city || '').toLowerCase().includes(query) || (ct.location || '').toLowerCase().includes(query));
   });
 
   const totalCountries = countries.length;
@@ -348,11 +347,9 @@ export function CountryDrilldownView({ report }: { report: AnalyticsReport | nul
                           <Globe2 size={14} aria-hidden="true" />
                           <div>
                             <strong>{city.city}</strong>
-                            {city.region && city.region !== city.city ? (
-                              <small>{city.region}, {countryDisplayName}</small>
-                            ) : city.location && city.location !== city.city ? (
+                            {city.location && city.location !== city.city && (
                               <small>{city.location}</small>
-                            ) : null}
+                            )}
                           </div>
                         </div>
 
@@ -1039,20 +1036,21 @@ export function CampaignHistoryView({
                 )}
 
                 <div className="admCampaignCardFooter">
-                  <Button
-                    size="sm"
+                  <button
+                    type="button"
+                    className="admButton admButtonSm"
                     onClick={() => setSelectedCampaign(c)}
                   >
                     Inspect &amp; preview
-                  </Button>
+                  </button>
                   {onComposeWith && (
-                    <Button
-                      size="sm"
-                      variant="primary"
+                    <button
+                      type="button"
+                      className="admButton admButtonSm admPrimary"
                       onClick={() => onComposeWith(c)}
                     >
                       Reuse in composer
-                    </Button>
+                    </button>
                   )}
                 </div>
               </article>
@@ -1336,15 +1334,9 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
             </fieldset>
             <div className="admNotificationSend">
               <span>{loading ? 'Loading audience...' : !recipients ? 'No subscribers in this audience yet' : `${number(recipients)} subscriber${recipients === 1 ? '' : 's'} selected`}</span>
-              <Button
-                type="submit"
-                variant="primary"
-                icon={Send}
-                loading={sending}
-                disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}
-              >
-                Send notification
-              </Button>
+              <button type="submit" className="admButton admPrimary" disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}>
+                {sending ? <Loader2 className="admSpinner" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}{sending ? 'Sending...' : 'Send notification'}
+              </button>
             </div>
           </form>
 
@@ -1537,7 +1529,7 @@ export function SettingsView({
             <Field label="Signed-in email" hint="Contact an admin to change the address on your account."><input type="email" readOnly value={email} /></Field>
             <ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} />
             <div className="admActionRow">
-              <Button type="submit" variant="primary" icon={Check}>Save preferences</Button>
+              <button type="submit" className="admButton admPrimary"><Check size={16} aria-hidden="true" />Save preferences</button>
               <span role="status" className="admMuted">{message}</span>
             </div>
           </div>

@@ -210,12 +210,3 @@ export function summarizePage(page: SmartPage) {
     updatedAt: page.updatedAt,
   };
 }
-
-export function formatDate(value: string | Date | undefined | null): string {
-  if (!value) return "-";
-  try {
-    return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
-  } catch {
-    return String(value);
-  }
-}

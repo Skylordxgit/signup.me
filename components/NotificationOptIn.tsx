@@ -4,7 +4,6 @@ import { Bell, CheckCircle2, Lock, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { resolveNotificationPrompt, resolveNotificationPromptTheme, type NotificationPromptSettings } from '@/lib/notificationPrompt';
 import { pushSupport, type PushSupport } from '@/lib/pushSupport';
-import { getClientGeo } from '@/lib/clientGeo';
 
 async function timedFetch(url: string, options: RequestInit = {}, timeout = 10000) {
   const controller = new AbortController();
@@ -144,20 +143,10 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
         userVisibleOnly: true,
         applicationServerKey: decodePublicKey(publicKey),
       });
-      const geo = await getClientGeo();
       const response = await timedFetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          slug,
-          subscription: subscription.toJSON(),
-          deviceHints: {
-            touchPoints: navigator.maxTouchPoints || 0,
-            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            city: geo.city,
-            country: geo.country,
-          },
-        }),
+        body: JSON.stringify({ slug, subscription: subscription.toJSON(), deviceHints: { touchPoints: navigator.maxTouchPoints || 0, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }),
       }, 15000);
       if (!response.ok) throw new Error('Your subscription was not saved. Please try again.');
       preference(slug, 'saved-v2');
