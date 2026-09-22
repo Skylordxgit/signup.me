@@ -11,8 +11,10 @@ import { summarizeAudience } from "@/lib/audienceTargeting";
 
 export function SegmentsView({
   initialSegments = [],
+  onUseSegment,
 }: {
   initialSegments?: SubscriberSegment[];
+  onUseSegment?: (seg?: SubscriberSegment) => void;
 }) {
   const pathname = usePathname() || "/admin/notifications";
   const isWorkspace = pathname.startsWith("/workspace");
@@ -76,11 +78,16 @@ export function SegmentsView({
           </span>
         </div>
 
-        <Link href={`${base}/compose`}>
-          <Button variant="primary" icon={Plus}>
-            Create Campaign with Segment
-          </Button>
-        </Link>
+        <Button
+          variant="primary"
+          icon={Plus}
+          onClick={() => {
+            if (onUseSegment) onUseSegment();
+            else window.location.assign(`${base}/compose`);
+          }}
+        >
+          Create Campaign with Segment
+        </Button>
       </div>
 
       {loading ? (
@@ -139,11 +146,17 @@ export function SegmentsView({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderTop: "1px solid var(--c-line)", paddingTop: "8px" }}>
-                  <Link href={`${base}/compose`}>
-                    <Button size="sm" variant="secondary" icon={Send}>
-                      Target Segment
-                    </Button>
-                  </Link>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={Send}
+                    onClick={() => {
+                      if (onUseSegment) onUseSegment(seg);
+                      else window.location.assign(`${base}/compose`);
+                    }}
+                  >
+                    Target Segment
+                  </Button>
 
                   <IconButton
                     icon={Trash2}

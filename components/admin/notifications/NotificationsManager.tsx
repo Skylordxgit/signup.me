@@ -45,13 +45,12 @@ export function NotificationsManager({
   const effectivePages = passedPages && passedPages.length > 0 ? passedPages : adminPages;
 
   const determineTab = (): NotificationTabKey => {
-    if (initialTab) return initialTab;
     if (pathname.includes("/compose")) return "compose";
     if (pathname.includes("/history")) return "history";
     if (pathname.includes("/subscribers")) return "subscribers";
     if (pathname.includes("/segments")) return "segments";
     if (pathname.includes("/campaigns")) return "campaigns";
-    return "campaigns";
+    return initialTab || "campaigns";
   };
 
   const [activeTab, setActiveTab] = useState<NotificationTabKey>(determineTab());
@@ -60,7 +59,7 @@ export function NotificationsManager({
 
   useEffect(() => {
     setActiveTab(determineTab());
-  }, [pathname, initialTab]);
+  }, [pathname]);
 
   useEffect(() => {
     adminApi<{ locations?: WorkspaceDistinctLocations; segments?: SubscriberSegment[] }>("/api/admin/notifications")
@@ -91,13 +90,17 @@ export function NotificationsManager({
         />
       )}
 
-      {activeTab === "campaigns" && <CampaignsView />}
+      {activeTab === "campaigns" && (
+        <CampaignsView onCompose={() => handleTabChange("compose")} />
+      )}
 
       {activeTab === "history" && <NotificationHistoryView />}
 
       {activeTab === "subscribers" && <SubscribersView />}
 
-      {activeTab === "segments" && <SegmentsView />}
+      {activeTab === "segments" && (
+        <SegmentsView onUseSegment={() => handleTabChange("compose")} />
+      )}
     </div>
   );
 }

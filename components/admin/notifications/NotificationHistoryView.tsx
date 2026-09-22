@@ -7,10 +7,11 @@ import { adminApi } from "@/lib/admin";
 import type { NotificationDeliveryLog } from "@/lib/types";
 
 export function NotificationHistoryView({
-  campaigns = [],
+  campaigns: initialCampaigns = [],
 }: {
   campaigns?: { id: number; name?: string; title: string }[];
 }) {
+  const [campaignsList, setCampaignsList] = useState<{ id: number; name?: string; title: string }[]>(initialCampaigns);
   const [logs, setLogs] = useState<NotificationDeliveryLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -20,6 +21,16 @@ export function NotificationHistoryView({
   const [deviceFilter, setDeviceFilter] = useState<string>("");
   const [offset, setOffset] = useState(0);
   const limit = 50;
+
+  useEffect(() => {
+    if (!initialCampaigns.length) {
+      adminApi<{ campaigns: { id: number; name?: string; title: string }[] }>("/api/admin/notifications/campaigns")
+        .then((res) => {
+          if (res.campaigns) setCampaignsList(res.campaigns);
+        })
+        .catch(() => {});
+    }
+  }, [initialCampaigns]);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -117,7 +128,7 @@ export function NotificationHistoryView({
             style={{ height: "36px", fontSize: "var(--text-xs)", minWidth: 140 }}
           >
             <option value="">All Campaigns</option>
-            {campaigns.map((c) => (
+            {campaignsList.map((c) => (
               <option key={c.id} value={String(c.id)}>
                 {c.name || c.title}
               </option>

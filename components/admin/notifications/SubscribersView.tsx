@@ -22,10 +22,11 @@ type SubscriberItem = {
 };
 
 export function SubscribersView({
-  locations,
+  locations: initialLocations,
 }: {
   locations?: WorkspaceDistinctLocations;
 }) {
+  const [locations, setLocations] = useState<WorkspaceDistinctLocations | undefined>(initialLocations);
   const [subscribers, setSubscribers] = useState<SubscriberItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -36,6 +37,16 @@ export function SubscribersView({
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("all");
   const [offset, setOffset] = useState(0);
   const limit = 50;
+
+  useEffect(() => {
+    if (!initialLocations) {
+      adminApi<{ locations?: WorkspaceDistinctLocations }>("/api/admin/notifications")
+        .then((res) => {
+          if (res.locations) setLocations(res.locations);
+        })
+        .catch(() => {});
+    }
+  }, [initialLocations]);
 
   const fetchSubscribers = async () => {
     setLoading(true);

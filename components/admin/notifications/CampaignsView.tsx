@@ -28,8 +28,10 @@ import type { CampaignStatus, NotificationCampaign } from "@/lib/types";
 
 export function CampaignsView({
   initialCampaigns = [],
+  onCompose,
 }: {
   initialCampaigns?: NotificationCampaign[];
+  onCompose?: () => void;
 }) {
   const router = useRouter();
   const pathname = usePathname() || "/admin/notifications";
@@ -189,11 +191,16 @@ export function CampaignsView({
           </select>
         </div>
 
-        <Link href={`${base}/compose`}>
-          <Button variant="primary" icon={Plus}>
-            New Campaign
-          </Button>
-        </Link>
+        <Button
+          variant="primary"
+          icon={Plus}
+          onClick={() => {
+            if (onCompose) onCompose();
+            else router.push(`${base}/compose`);
+          }}
+        >
+          New Campaign
+        </Button>
       </div>
 
       {/* Campaigns Table */}
@@ -203,11 +210,16 @@ export function CampaignsView({
           title="No notification campaigns found"
           description="Create and broadcast targeted push notifications to your subscribers."
         >
-          <Link href={`${base}/compose`}>
-            <Button variant="primary" icon={Plus}>
-              Compose First Campaign
-            </Button>
-          </Link>
+          <Button
+            variant="primary"
+            icon={Plus}
+            onClick={() => {
+              if (onCompose) onCompose();
+              else router.push(`${base}/compose`);
+            }}
+          >
+            Compose First Campaign
+          </Button>
         </EmptyState>
       ) : (
         <div className="admTableWrap">
