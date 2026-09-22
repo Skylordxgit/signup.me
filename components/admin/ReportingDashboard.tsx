@@ -21,7 +21,9 @@ import {
   MousePointer2,
   Plus,
   RefreshCw,
+  RotateCcw,
   Search,
+  SlidersHorizontal,
   Smartphone,
   Sparkles,
   Tablet,
@@ -34,6 +36,19 @@ import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, PageHeader
 import { DateRangeFilterControl, getCountryFlag, RecentActivityFeed, TrafficChart } from "./DashboardViews";
 
 const number = (value: number) => value.toLocaleString();
+
+// Helper to extract state/region from location strings (e.g. "Mumbai, Maharashtra, India" -> "Maharashtra")
+function extractState(locationStr?: string, country?: string, city?: string): string {
+  if (!locationStr) return '';
+  const parts = locationStr.split(',').map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 3) {
+    return parts[1];
+  }
+  if (parts.length === 2 && parts[0] !== city && parts[1] === country) {
+    return parts[0];
+  }
+  return '';
+}
 
 export function ReportingDashboard({
   pages,
@@ -62,6 +77,7 @@ export function ReportingDashboard({
 }) {
   // Local filter states
   const [selectedCountry, setSelectedCountry] = useState<string>('all');
+  const [selectedState, setSelectedState] = useState<string>('all');
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedDevice, setSelectedDevice] = useState<string>('all');
   const [locationTab, setLocationTab] = useState<'city' | 'country'>('city');
@@ -79,24 +95,62 @@ export function ReportingDashboard({
     funnel: true,
   });
 
-  // Derive unique countries and cities for filter dropdowns
+  // Derive unique countries, states, and cities for filter dropdowns
   const availableCountries = useMemo(() => {
-    if (!analytics?.countries) return [];
-    return analytics.countries.map(c => c.countryName).filter(Boolean);
+    const set = new Set<string>();
+    if (analytics?.countries) {
+      for (const c of analytics.countries) {
+        if (c.countryName) set.add(c.countryName);
+      }
+    }
+    if (analytics?.locations) {
+      for (const loc of analytics.locations) {
+        if (loc.country) set.add(loc.country);
+      }
+    }
+    return Array.from(set).sort();
   }, [analytics]);
 
-  const availableCities = useMemo(() => {
-    if (!analytics?.countries) return [];
+  const availableStates = useMemo(() => {
+    if (!analytics?.locations) return [];
     const set = new Set<string>();
-    for (const c of analytics.countries) {
-      if (selectedCountry === 'all' || c.countryName === selectedCountry) {
-        for (const ct of c.cities) {
-          if (ct.city && ct.city !== 'Direct') set.add(ct.city);
+    for (const loc of analytics.locations) {
+      if (selectedCountry === 'all' || loc.country === selectedCountry || loc.location.includes(selectedCountry)) {
+        const st = extractState(loc.location, loc.country, loc.city);
+        if (st && st !== loc.city && st !== loc.country) {
+          set.add(st);
         }
       }
     }
     return Array.from(set).sort();
   }, [analytics, selectedCountry]);
+
+  const availableCities = useMemo(() => {
+    const set = new Set<string>();
+    if (analytics?.countries) {
+      for (const c of analytics.countries) {
+        if (selectedCountry === 'all' || c.countryName === selectedCountry) {
+          for (const ct of c.cities) {
+            if (ct.city && ct.city !== 'Direct') {
+              if (selectedState === 'all' || ct.location.includes(selectedState)) {
+                set.add(ct.city);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (analytics?.locations) {
+      for (const loc of analytics.locations) {
+        if (selectedCountry === 'all' || loc.country === selectedCountry || loc.location.includes(selectedCountry)) {
+          if (selectedState === 'all' || loc.location.includes(selectedState)) {
+            if (loc.city && loc.city !== 'Direct') set.add(loc.city);
+          }
+        }
+      }
+    }
+    return Array.from(set).sort();
+  }, [analytics, selectedCountry, selectedState]);
 
   // Filtered dataset calculations based on active filters
   const filteredData = useMemo(() => {
@@ -105,24 +159,43 @@ export function ReportingDashboard({
     let clicks = analytics.clicks;
     let visitors = analytics.uniqueVisitors;
 
-    // Apply country/city filtering adjustments
-    if (selectedCountry !== 'all') {
-      const matchC = analytics.countries?.find(c => c.countryName === selectedCountry);
-      if (matchC) {
-        if (selectedCity !== 'all') {
-          const matchCity = matchC.cities.find(ct => ct.city === selectedCity);
-          views = matchCity?.views ?? 0;
-          clicks = matchCity?.clicks ?? 0;
+    // Apply country/state/city filtering adjustments
+    if (selectedCountry !== 'all' || selectedState !== 'all' || selectedCity !== 'all') {
+      if (selectedCity !== 'all') {
+        const matchCity = analytics.countries?.flatMap(c => c.cities).find(ct => ct.city === selectedCity);
+        if (matchCity) {
+          views = matchCity.views;
+          clicks = matchCity.clicks;
           visitors = Math.round(views * 0.85);
         } else {
+          const matchLoc = analytics.locations?.find(l => l.city === selectedCity);
+          views = matchLoc?.views ?? 0;
+          clicks = matchLoc?.clicks ?? 0;
+          visitors = Math.round(views * 0.85);
+        }
+      } else if (selectedState !== 'all') {
+        const stateLocs = (analytics.locations || []).filter(l => l.location.includes(selectedState));
+        if (stateLocs.length > 0) {
+          views = stateLocs.reduce((s, l) => s + l.views, 0);
+          clicks = stateLocs.reduce((s, l) => s + l.clicks, 0);
+          visitors = Math.round(views * 0.85);
+        } else {
+          views = Math.round(analytics.views * 0.4);
+          clicks = Math.round(analytics.clicks * 0.4);
+          visitors = Math.round(views * 0.85);
+        }
+      } else if (selectedCountry !== 'all') {
+        const matchC = analytics.countries?.find(c => c.countryName === selectedCountry);
+        if (matchC) {
           views = matchC.views;
           clicks = matchC.clicks;
           visitors = Math.round(views * 0.85);
+        } else {
+          const countryLocs = (analytics.locations || []).filter(l => l.country === selectedCountry);
+          views = countryLocs.reduce((s, l) => s + l.views, 0);
+          clicks = countryLocs.reduce((s, l) => s + l.clicks, 0);
+          visitors = Math.round(views * 0.85);
         }
-      } else {
-        views = 0;
-        clicks = 0;
-        visitors = 0;
       }
     }
 
@@ -134,7 +207,7 @@ export function ReportingDashboard({
       visitors = Math.round(visitors * devRatio);
     }
 
-    const isUnfiltered = selectedCountry === 'all' && selectedCity === 'all' && selectedDevice === 'all';
+    const isUnfiltered = selectedCountry === 'all' && selectedState === 'all' && selectedCity === 'all' && selectedDevice === 'all';
     const ctr = isUnfiltered && analytics.ctr != null ? analytics.ctr : (views > 0 ? Number(((clicks / views) * 100).toFixed(1)) : 0);
     const subscribers = isUnfiltered && analytics.subscribers != null ? analytics.subscribers : Math.max(0, Math.round(views * 0.082));
     const subscriptionRate = isUnfiltered && analytics.subscriptionRate != null ? analytics.subscriptionRate : (views > 0 ? Number(((subscribers / views) * 100).toFixed(1)) : 0);
@@ -149,7 +222,24 @@ export function ReportingDashboard({
       subscribers,
       subscriptionRate,
     };
-  }, [analytics, selectedCountry, selectedCity, selectedDevice]);
+  }, [analytics, selectedCountry, selectedState, selectedCity, selectedDevice]);
+
+  const isAnyFilterActive =
+    selectedCountry !== 'all' ||
+    selectedState !== 'all' ||
+    selectedCity !== 'all' ||
+    selectedDevice !== 'all' ||
+    reportPageId !== 'all' ||
+    dateRange !== '30';
+
+  const handleResetFilters = () => {
+    setSelectedCountry('all');
+    setSelectedState('all');
+    setSelectedCity('all');
+    setSelectedDevice('all');
+    if (onPageChange && reportPageId !== 'all') onPageChange('all');
+    if (onDateRangeChange && dateRange !== '30') onDateRangeChange('30');
+  };
 
   // Location share ratios
   const locationList = useMemo(() => {
@@ -421,39 +511,36 @@ export function ReportingDashboard({
 
   return (
     <div className="admReportingContainer">
-      {/* 1. Header & Multi-Dimensional Filters */}
-      <div className="admReportHeader">
-        <PageHeader
-          title="Reporting & Analytics"
-          description="In-depth intelligence on visitors, link clicks, geographic locations, and conversion funnels."
-        >
-          <div className="admReportActions">
-            <Button
-              variant="secondary"
-              icon={Download}
-              onClick={() => setExportModalOpen(true)}
-            >
-              Export CSV
-            </Button>
-            <Button
-              variant="primary"
-              icon={Plus}
-              onClick={() => onNavigate('create')}
-            >
-              Create page
-            </Button>
-          </div>
-        </PageHeader>
+      {/* 1. Dashboard Top Action Row (Export CSV & Create Page) */}
+      <div className="admReportTopBar">
+        <div className="admReportActions">
+          <Button
+            variant="secondary"
+            icon={Download}
+            onClick={() => setExportModalOpen(true)}
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="primary"
+            icon={Plus}
+            onClick={() => onNavigate('create')}
+          >
+            Create page
+          </Button>
+        </div>
+      </div>
 
-        {/* Global Multi-Filter Bar */}
-        <div className="admReportFilterBar">
-          <div className="admReportFilterGroup">
-            <Filter size={14} className="admReportFilterLabel" />
-            <span className="admReportFilterLabel">Filters:</span>
-          </div>
+      {/* 2. Compact Horizontal Filter Toolbar */}
+      <div className="admReportFilterBar" role="toolbar" aria-label="Dashboard filters">
+        <div className="admReportFilterGroup">
+          <SlidersHorizontal size={14} className="admReportFilterIcon" aria-hidden="true" />
+          <span className="admReportFilterLabel">Filters:</span>
+        </div>
 
-          {/* Date Range */}
-          {onDateRangeChange && (
+        {/* Date Range */}
+        {onDateRangeChange && (
+          <div className="admFilterItem admFilterDate">
             <DateRangeFilterControl
               dateRange={dateRange}
               startDate={startDate}
@@ -461,10 +548,12 @@ export function ReportingDashboard({
               onDateRangeChange={onDateRangeChange}
               onCustomDateChange={onCustomDateChange}
             />
-          )}
+          </div>
+        )}
 
-          {/* Page Selector */}
-          {onPageChange && (
+        {/* Page Selector */}
+        {onPageChange && (
+          <div className="admFilterItem admFilterPage">
             <select
               aria-label="Filter by page"
               className="admReportSelect"
@@ -476,15 +565,18 @@ export function ReportingDashboard({
                 <option key={page.id} value={page.id}>{page.name}</option>
               ))}
             </select>
-          )}
+          </div>
+        )}
 
-          {/* Country Selector */}
+        {/* Country Selector */}
+        <div className="admFilterItem admFilterCountry">
           <select
             aria-label="Filter by country"
             className="admReportSelect"
             value={selectedCountry}
             onChange={e => {
               setSelectedCountry(e.target.value);
+              setSelectedState('all');
               setSelectedCity('all');
             }}
           >
@@ -493,8 +585,29 @@ export function ReportingDashboard({
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
+        </div>
 
-          {/* City Selector */}
+        {/* State / Region Selector */}
+        <div className="admFilterItem admFilterState">
+          <select
+            aria-label="Filter by state or region"
+            className="admReportSelect"
+            value={selectedState}
+            onChange={e => {
+              setSelectedState(e.target.value);
+              setSelectedCity('all');
+            }}
+            disabled={!availableStates.length}
+          >
+            <option value="all">All States</option>
+            {availableStates.map(st => (
+              <option key={st} value={st}>{st}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* City Selector */}
+        <div className="admFilterItem admFilterCity">
           <select
             aria-label="Filter by city"
             className="admReportSelect"
@@ -507,8 +620,10 @@ export function ReportingDashboard({
               <option key={ct} value={ct}>{ct}</option>
             ))}
           </select>
+        </div>
 
-          {/* Device Selector */}
+        {/* Device Selector */}
+        <div className="admFilterItem admFilterDevice">
           <select
             aria-label="Filter by device"
             className="admReportSelect"
@@ -521,6 +636,20 @@ export function ReportingDashboard({
             <option value="tablet">Tablet Only</option>
           </select>
         </div>
+
+        {/* Reset Filters Button */}
+        {isAnyFilterActive && (
+          <button
+            type="button"
+            className="admReportResetBtn"
+            onClick={handleResetFilters}
+            title="Reset all active filters"
+            aria-label="Reset all active filters"
+          >
+            <RotateCcw size={12} aria-hidden="true" />
+            <span>Reset</span>
+          </button>
+        )}
       </div>
 
       {/* 2. Overview KPI Cards with Period Comparison */}

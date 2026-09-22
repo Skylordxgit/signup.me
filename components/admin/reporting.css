@@ -1,29 +1,44 @@
 /* Detailed Reporting & Analytics Styles */
 
-/* Header & Global Filters */
-.admReportHeader {
+/* Top Action Bar */
+.admReportTopBar {
   display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
-  margin-bottom: var(--sp-5);
+  align-items: center;
+  justify-content: flex-end;
+  margin-bottom: var(--sp-3);
 }
 
+.admReportActions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+/* Compact Horizontal Filter Toolbar */
 .admReportFilterBar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: var(--c-surface-sunken);
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--c-surface);
   border: 1px solid var(--c-line);
   border-radius: var(--radius-md);
-  box-shadow: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  margin-bottom: var(--sp-4);
 }
 
 .admReportFilterGroup {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  margin-right: 4px;
+  color: var(--c-muted);
+  user-select: none;
+}
+
+.admReportFilterIcon {
+  color: var(--c-accent);
 }
 
 .admReportFilterLabel {
@@ -34,36 +49,119 @@
   color: var(--c-muted);
 }
 
-.admReportSelect {
-  height: 28px;
-  padding: 0 8px;
+.admFilterItem {
+  display: inline-flex;
+  align-items: center;
+}
+
+.admFilterDate .admDateRangeSelect {
+  width: 160px;
+  min-width: 140px;
+  max-width: 170px;
+  height: 36px;
+  font-size: 12px;
+  font-weight: 550;
+  background-color: var(--c-surface-sunken);
   border: 1px solid var(--c-line);
   border-radius: var(--radius-sm);
-  background: var(--c-surface);
-  color: var(--c-text);
+  color: var(--c-ink);
+}
+
+.admFilterPage .admReportSelect {
+  width: 160px;
+  min-width: 140px;
+  max-width: 180px;
+}
+
+.admFilterCountry .admReportSelect {
+  width: 145px;
+  min-width: 130px;
+  max-width: 160px;
+}
+
+.admFilterState .admReportSelect {
+  width: 135px;
+  min-width: 120px;
+  max-width: 160px;
+}
+
+.admFilterCity .admReportSelect {
+  width: 135px;
+  min-width: 120px;
+  max-width: 160px;
+}
+
+.admFilterDevice .admReportSelect {
+  width: 130px;
+  min-width: 120px;
+  max-width: 150px;
+}
+
+.admReportSelect {
+  height: 36px;
+  padding: 0 26px 0 10px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background-color: var(--c-surface-sunken);
+  color: var(--c-ink);
   font-size: 12px;
   font-weight: 550;
   cursor: pointer;
-  transition: border-color 0.15s;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
 }
 
-.admReportSelect:hover, .admReportSelect:focus {
+.admReportSelect:hover {
   border-color: var(--c-accent);
+  background-color: var(--c-surface);
 }
 
-.admReportActions {
-  margin-left: auto;
-  display: flex;
+.admReportSelect:focus {
+  outline: none;
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent-soft);
+  background-color: var(--c-surface);
+}
+
+.admReportSelect:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admReportResetBtn {
+  display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: 5px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface-sunken);
+  color: var(--c-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: auto;
+}
+
+.admReportResetBtn:hover {
+  color: var(--c-danger);
+  border-color: var(--c-danger-line, rgba(239, 68, 68, 0.3));
+  background: var(--c-danger-soft, rgba(239, 68, 68, 0.08));
 }
 
 /* KPI Cards with Comparison Deltas */
 .admReportKpis {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: var(--sp-4);
-  margin-bottom: var(--sp-6);
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
 }
 
 .admReportKpiCard {
@@ -465,11 +563,38 @@
   .admReportKpis {
     grid-template-columns: 1fr;
   }
-  .admReportFilterBar {
-    flex-direction: column;
-    align-items: stretch;
+  .admReportTopBar {
+    justify-content: stretch;
   }
   .admReportActions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .admReportFilterBar {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .admFilterItem {
+    width: 100%;
+  }
+  .admFilterDate .admDateRangeSelect,
+  .admFilterPage .admReportSelect,
+  .admFilterCountry .admReportSelect,
+  .admFilterState .admReportSelect,
+  .admFilterCity .admReportSelect,
+  .admFilterDevice .admReportSelect,
+  .admReportSelect {
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+  }
+  .admReportResetBtn {
+    width: 100%;
+    justify-content: center;
     margin-left: 0;
   }
 }
