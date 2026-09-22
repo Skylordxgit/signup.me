@@ -18,3 +18,4 @@ import './workspaceBranding.test';
 import './ReportingDashboard.test';
 import './adminRouting.test';
 import './adminUiAudit.test';
+import './geoAccuracy.test';

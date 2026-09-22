@@ -6,6 +6,7 @@ import type { WorkspaceBranding } from "@/lib/workspaceBrandingConstants";
 import { NotificationOptIn } from "./NotificationOptIn";
 import { PageRenderer } from "./PageRenderer";
 import { isNotificationPromptEnabled } from "@/lib/notificationPrompt";
+import { getClientGeo } from "@/lib/clientGeo";
 
 /**
  * The public route. All page design lives in PageRenderer, which the admin
@@ -27,21 +28,38 @@ export function PublicPage({
     window.localStorage.setItem("smartlink_visitor", visitorKey);
     let timezone = "";
     try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { /* Ignore */ }
-    void fetch("/api/track/view", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ slug: page.slug, visitorKey, timezone }),
-    });
+
+    void (async () => {
+      const geo = await getClientGeo();
+      void fetch("/api/track/view", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          slug: page.slug,
+          visitorKey,
+          timezone,
+          city: geo.city,
+          country: geo.country,
+        }),
+      });
+    })();
   }, [page.slug, preview]);
 
   async function track(block: PageBlock) {
     if (preview || ["heading", "text", "divider", "image", "video", "youtube"].includes(block.type)) return;
     let timezone = "";
     try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { /* Ignore */ }
+    const geo = await getClientGeo();
     await fetch("/api/track/click", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ pageId: page.id, blockId: block.id, timezone }),
+      body: JSON.stringify({
+        pageId: page.id,
+        blockId: block.id,
+        timezone,
+        city: geo.city,
+        country: geo.country,
+      }),
     });
   }
 
