@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function WorkspaceCampaignsPage() {
-  redirect("/admin/notifications/campaigns");
+import { NotificationsManager } from "@/components/admin/notifications/NotificationsManager";
+
+export default function WorkspaceNotificationCampaignsPageRoute() {
+  return <NotificationsManager initialTab="campaigns" />;
 }

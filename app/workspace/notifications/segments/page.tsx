@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function WorkspaceSegmentsPage() {
-  redirect("/admin/notifications/segments");
+import { NotificationsManager } from "@/components/admin/notifications/NotificationsManager";
+
+export default function WorkspaceNotificationSegmentsPageRoute() {
+  return <NotificationsManager initialTab="segments" />;
 }

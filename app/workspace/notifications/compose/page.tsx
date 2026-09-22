@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function WorkspaceComposePage() {
-  redirect("/admin/notifications/compose");
+import { NotificationsManager } from "@/components/admin/notifications/NotificationsManager";
+
+export default function WorkspaceComposeNotificationPageRoute() {
+  return <NotificationsManager initialTab="compose" />;
 }

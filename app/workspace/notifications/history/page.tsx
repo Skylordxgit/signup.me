@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function WorkspaceNotificationHistoryPage() {
-  redirect("/admin/notifications/history");
+import { NotificationsManager } from "@/components/admin/notifications/NotificationsManager";
+
+export default function WorkspaceNotificationHistoryPageRoute() {
+  return <NotificationsManager initialTab="history" />;
 }

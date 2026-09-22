@@ -1,15 +1,7 @@
 "use client";
 
-import { NotificationNav } from "@/components/admin/notifications/NotificationNav";
-import { CampaignsView } from "@/components/admin/notifications/CampaignsView";
+import { NotificationsManager } from "@/components/admin/notifications/NotificationsManager";
 
-export function CampaignsPageRoute() {
-  return (
-    <div className="admNotificationsModule">
-      <NotificationNav />
-      <CampaignsView />
-    </div>
-  );
+export default function NotificationCampaignsPageRoute() {
+  return <NotificationsManager initialTab="campaigns" />;
 }
-
-export default CampaignsPageRoute;

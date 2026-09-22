@@ -1,15 +1,7 @@
 "use client";
 
-import { NotificationNav } from "@/components/admin/notifications/NotificationNav";
-import { SegmentsView } from "@/components/admin/notifications/SegmentsView";
+import { NotificationsManager } from "@/components/admin/notifications/NotificationsManager";
 
-export function SegmentsPageRoute() {
-  return (
-    <div className="admNotificationsModule">
-      <NotificationNav />
-      <SegmentsView />
-    </div>
-  );
+export default function NotificationSegmentsPageRoute() {
+  return <NotificationsManager initialTab="segments" />;
 }
-
-export default SegmentsPageRoute;
