@@ -282,10 +282,27 @@ function AdminShell({ children }: { children: React.ReactNode }) {
           </form>
           <div className="admHeaderActions">
             {account?.isMaster && (
-              <Link className="admButton" href="/admin/master">
+              <button
+                type="button"
+                className="admButton"
+                title="Return to master control center"
+                aria-label="Return to master control center"
+                onClick={() => {
+                  const targetUrl = (account.platformOrigin && typeof window !== "undefined" && window.location.origin !== account.platformOrigin)
+                    ? `${account.platformOrigin}/admin/master/workspaces`
+                    : "/admin/master/workspaces";
+                  if (activeEditor) {
+                    void activeEditor.save().finally(() => {
+                      window.location.assign(targetUrl);
+                    });
+                  } else {
+                    window.location.assign(targetUrl);
+                  }
+                }}
+              >
                 <ArrowLeft size={16} aria-hidden="true" />
                 <span>All workspaces</span>
-              </Link>
+              </button>
             )}
             {isBuilder && activeEditor?.page && (
               <>

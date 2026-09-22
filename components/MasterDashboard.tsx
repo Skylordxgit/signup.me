@@ -84,6 +84,10 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
   };
 
   const [view, setView] = useState<MasterView>(getComputedView);
+
+  useEffect(() => {
+    setView(getComputedView());
+  }, [rawPathname, initialView]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [workspaces, setWorkspaces] = useState<MasterWorkspace[]>([]);
   const [domains, setDomains] = useState<CustomDomain[]>([]);

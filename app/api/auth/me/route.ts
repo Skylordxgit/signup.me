@@ -15,6 +15,8 @@ export async function GET() {
     ? domains.find(item => item.workspaceId === session.workspaceId && item.isPrimary)
     : undefined;
   const customDomain = domain?.status === 'active' ? domain.hostname : null;
+  const configuredAppUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.DEFAULT_APP_DOMAIN || '';
+  const platformOrigin = configuredAppUrl ? (configuredAppUrl.startsWith('http') ? configuredAppUrl : `https://${configuredAppUrl}`) : null;
   return NextResponse.json({
     email: session.email,
     role: session.role,
@@ -26,5 +28,6 @@ export async function GET() {
     workspaceName: workspace?.name || 'Main workspace',
     customDomain,
     customDomainStatus: domain?.status ?? null,
+    platformOrigin,
   });
 }

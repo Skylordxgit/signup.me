@@ -137,3 +137,9 @@ test("direct route access and URL resolution across all admin sections", () => {
     assert.equal(info.isBuilder, builder, `Failed builder flag for ${path}`);
   }
 });
+
+test("route info for master admin section returns Master Admin heading", () => {
+  const masterInfo = getRouteInfo("/admin/master");
+  assert.equal(masterInfo.heading, "Master Admin");
+  assert.equal(masterInfo.isBuilder, false);
+});

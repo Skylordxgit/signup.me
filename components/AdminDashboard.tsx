@@ -351,7 +351,26 @@ export function AdminDashboard({ initialView }: { initialView?: View } = {}) {
         </div>
         <form className="admHeaderSearch admSearchField" role="search" onSubmit={event => { event.preventDefault(); navigate('pages'); }}><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search pages" placeholder="Search pages..." value={query} onChange={event => setQuery(event.target.value)} /></form>
         <div className="admHeaderActions">
-          {isMaster && <Link className="admButton" href="/admin/master"><ArrowLeft size={16} aria-hidden="true" /><span>All workspaces</span></Link>}
+          {isMaster && (
+            <button
+              type="button"
+              className="admButton"
+              title="Return to master control center"
+              aria-label="Return to master control center"
+              onClick={() => {
+                if (editor.page) {
+                  void run(editor.save).finally(() => {
+                    window.location.assign("/admin/master/workspaces");
+                  });
+                } else {
+                  window.location.assign("/admin/master/workspaces");
+                }
+              }}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>All workspaces</span>
+            </button>
+          )}
           {view === 'builder' && editor.page && <>
             <span className={'admSaveStatus ' + (editor.status === 'Save failed' ? 'admDanger' : '')} role="status">{editor.status === 'Saving' ? <Loader2 className="admSpinner" size={15} aria-hidden="true" /> : editor.status === 'Saved' ? <Check size={15} aria-hidden="true" /> : <span className="admUnsavedDot" aria-hidden="true" />}{editor.status}</span>
             <a className="admButton" aria-label="Preview public page" title="Preview public page" href={'/' + editor.page.slug} target="_blank" rel="noreferrer"><ArrowUpRight size={16} aria-hidden="true" /><span>Preview</span></a>

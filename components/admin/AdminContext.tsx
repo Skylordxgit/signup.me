@@ -17,6 +17,7 @@ export type AdminAccount = {
   workspaceName: string;
   customDomain: string | null;
   customDomainStatus: string | null;
+  platformOrigin?: string | null;
 };
 
 export type ActiveEditorHandle = {
