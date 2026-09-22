@@ -658,9 +658,9 @@ export function AnalyticsView({
     </SectionCard>
 
     <div className="admThreeColumns">
-      <Distribution title="Top links" items={report.topBlocks.map(item => ({ label: item.title, count: item.clicks }))} />
-      <Distribution title="Devices" items={report.devices.map(item => ({ label: item.device, count: item.count }))} />
-      <Distribution title="Top referrers" items={report.referrers.slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
+      <Distribution title="Top links" items={(Array.isArray(report.topBlocks) ? report.topBlocks : []).map(item => ({ label: item.title, count: item.clicks }))} />
+      <Distribution title="Devices" items={(Array.isArray(report.devices) ? report.devices : []).map(item => ({ label: item.device, count: item.count }))} />
+      <Distribution title="Top referrers" items={(Array.isArray(report.referrers) ? report.referrers : []).slice(0, 6).map(item => ({ label: item.referrer, count: item.count }))} />
     </div>
 
     <div className="admHomeGrid">

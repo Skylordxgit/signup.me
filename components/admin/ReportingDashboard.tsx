@@ -1004,7 +1004,7 @@ export function ReportingDashboard({
         <div className="admBreakdownCard">
           <h4 className="admBreakdownTitle">Device Distribution</h4>
           <div className="admBreakdownList">
-            {(analytics?.devices || []).map(d => (
+            {(Array.isArray(analytics?.devices) ? analytics.devices : []).map(d => (
               <div className="admBreakdownItem" key={d.device}>
                 <div className="admBreakdownHeader">
                   <span>{d.device === 'Mobile' ? <Smartphone size={13} style={{ marginRight: 4, display: 'inline' }} /> : <Laptop size={13} style={{ marginRight: 4, display: 'inline' }} />}{d.device}</span>
@@ -1021,7 +1021,7 @@ export function ReportingDashboard({
         <div className="admBreakdownCard">
           <h4 className="admBreakdownTitle">Operating Systems</h4>
           <div className="admBreakdownList">
-            {(analytics?.osBreakdown || []).map(os => (
+            {(Array.isArray(analytics?.osBreakdown) ? analytics.osBreakdown : []).map(os => (
               <div className="admBreakdownItem" key={os.os}>
                 <div className="admBreakdownHeader">
                   <span>{os.os}</span>
@@ -1038,7 +1038,7 @@ export function ReportingDashboard({
         <div className="admBreakdownCard">
           <h4 className="admBreakdownTitle">Web Browsers</h4>
           <div className="admBreakdownList">
-            {(analytics?.browserBreakdown || []).map(b => (
+            {(Array.isArray(analytics?.browserBreakdown) ? analytics.browserBreakdown : []).map(b => (
               <div className="admBreakdownItem" key={b.browser}>
                 <div className="admBreakdownHeader">
                   <span>{b.browser}</span>
@@ -1055,7 +1055,7 @@ export function ReportingDashboard({
         <div className="admBreakdownCard">
           <h4 className="admBreakdownTitle">Traffic Sources</h4>
           <div className="admBreakdownList">
-            {(analytics?.referrers || []).slice(0, 5).map(r => (
+            {(Array.isArray(analytics?.referrers) ? analytics.referrers : []).slice(0, 5).map(r => (
               <div className="admBreakdownItem" key={r.referrer}>
                 <div className="admBreakdownHeader">
                   <span>{r.referrer}</span>

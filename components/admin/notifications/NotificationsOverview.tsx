@@ -368,29 +368,34 @@ export function NotificationsOverview() {
             <div style={{ borderTop: "1px solid var(--c-line, #e2e8f0)", paddingTop: "12px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                 <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--c-muted, #64748b)" }}>SUBSCRIBER GEOGRAPHY</span>
-                <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>{data?.locations?.length || 0} regions</span>
+                <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>
+                  {data?.locations?.countries?.length || 0} countries ({data?.locations?.cities?.length || 0} cities)
+                </span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                {(data?.locations || []).slice(0, 6).map((loc) => (
-                  <span
-                    key={loc.country}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      padding: "3px 8px",
-                      borderRadius: "6px",
-                      fontSize: "11px",
-                      fontWeight: "600",
-                      background: "var(--c-surface-sunken, #f8fafc)",
-                      border: "1px solid var(--c-line, #e2e8f0)",
-                    }}
-                  >
-                    <span>{getCountryFlag(loc.country)}</span>
-                    <span>{loc.country}</span>
-                    <span style={{ color: "var(--c-muted, #64748b)" }}>({loc.cities.length})</span>
-                  </span>
-                ))}
+                {(data?.locations?.countries || []).slice(0, 6).map((country) => {
+                  const cityCount = data?.locations?.hierarchy?.[country]?.cities?.length || 0;
+                  return (
+                    <span
+                      key={country}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "3px 8px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        background: "var(--c-surface-sunken, #f8fafc)",
+                        border: "1px solid var(--c-line, #e2e8f0)",
+                      }}
+                    >
+                      <span>{getCountryFlag(country)}</span>
+                      <span>{country}</span>
+                      {cityCount > 0 && <span style={{ color: "var(--c-muted, #64748b)" }}>({cityCount})</span>}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>
