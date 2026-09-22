@@ -35,6 +35,7 @@ import {
   ChevronRight,
   HelpCircle,
   Link2,
+  Lock,
 } from "lucide-react";
 import { AudienceTargeter } from "./AudienceTargeter";
 import { Button, Dialog, Field, SectionHeading, SectionCard } from "../AdminUI";
@@ -63,12 +64,12 @@ export function NotificationComposer({
   const isWorkspace = pathname.startsWith("/workspace");
   const base = isWorkspace ? "/workspace/notifications" : "/admin/notifications";
 
-  // Meta Ads Style 4-Step Stepper:
-  // 1: Campaign (Objective & Campaign Name)
-  // 2: Ad Set (Audience, Placements & Schedule)
-  // 3: Ad Creative (Headline, Message, Banner Media, CTA, Destination URL)
-  // 4: Review & Publish (Pre-flight delivery check & Broadcast)
+  // Progressive Unlocking Stepper:
+  // Step 2 is only visible/accessible once Step 1 is done
+  // Step 3 is only visible/accessible once Step 2 is done
+  // Step 4 is only visible/accessible once Step 3 is done
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
 
   // Level 1: Campaign Setup
   const [objective, setObjective] = useState<CampaignObjective>("traffic");
@@ -165,6 +166,54 @@ export function NotificationComposer({
       return `${parsed.pathname}${parsed.search}`;
     } catch {
       return rawUrl;
+    }
+  };
+
+  // Step 1 Validation & Progression
+  const handleProceedFromStep1 = () => {
+    setError("");
+    if (!name.trim()) {
+      const defaultName = `${objective.replace("_", " ").toUpperCase()} Campaign - ${new Date().toLocaleDateString()}`;
+      setName(defaultName);
+    }
+    setMaxUnlockedStep((prev) => Math.max(prev, 2));
+    setStep(2);
+  };
+
+  // Step 2 Validation & Progression
+  const handleProceedFromStep2 = () => {
+    setError("");
+    if (sendMode === "schedule") {
+      if (!scheduledDate || !scheduledTime) {
+        setError("Please choose both a schedule date and time.");
+        return;
+      }
+    }
+    setMaxUnlockedStep((prev) => Math.max(prev, 3));
+    setStep(3);
+  };
+
+  // Step 3 Validation & Progression
+  const handleProceedFromStep3 = () => {
+    setError("");
+    if (!title.trim()) {
+      setError("Notification headline / title is required.");
+      return;
+    }
+    if (!body.trim()) {
+      setError("Notification message body is required.");
+      return;
+    }
+    setMaxUnlockedStep((prev) => Math.max(prev, 4));
+    setStep(4);
+  };
+
+  const handleStepClick = (targetStep: 1 | 2 | 3 | 4) => {
+    if (targetStep <= maxUnlockedStep) {
+      setError("");
+      setStep(targetStep);
+    } else {
+      setError(`Please complete Step ${maxUnlockedStep} before advancing.`);
     }
   };
 
@@ -350,11 +399,11 @@ export function NotificationComposer({
                   letterSpacing: "0.5px",
                 }}
               >
-                Push Ad Studio
+                Step {step} of 4
               </span>
             </div>
             <p style={{ margin: "2px 0 0", fontSize: "13px", color: "#94a3b8" }}>
-              {name.trim() ? `Editing: ${name}` : "Create and broadcast high-converting targeted notification campaigns"}
+              {name.trim() ? `Campaign: ${name}` : "Create and broadcast high-converting targeted notification campaigns"}
             </p>
           </div>
         </div>
@@ -403,34 +452,36 @@ export function NotificationComposer({
             <span>Save Draft</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              if (step < 4) setStep(4);
-              else setSafetyModalOpen(true);
-            }}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "8px 18px",
-              borderRadius: "6px",
-              fontSize: "13px",
-              fontWeight: 700,
-              background: "linear-gradient(135deg, #10b981, #059669)",
-              color: "#ffffff",
-              border: "0",
-              boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
-              cursor: "pointer",
-            }}
-          >
-            <Zap size={14} />
-            <span>Publish Campaign</span>
-          </button>
+          {maxUnlockedStep >= 4 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (step < 4) setStep(4);
+                else setSafetyModalOpen(true);
+              }}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 18px",
+                borderRadius: "6px",
+                fontSize: "13px",
+                fontWeight: 700,
+                background: "linear-gradient(135deg, #10b981, #059669)",
+                color: "#ffffff",
+                border: "0",
+                boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
+                cursor: "pointer",
+              }}
+            >
+              <Zap size={14} />
+              <span>Publish Campaign</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Meta Ads 4-Step Hierarchy Bar */}
+      {/* Meta Ads Progressive Hierarchy Stepper */}
       <div
         style={{
           display: "grid",
@@ -451,12 +502,13 @@ export function NotificationComposer({
         ].map((s) => {
           const Icon = s.icon;
           const isActive = step === s.num;
-          const isDone = step > s.num;
+          const isUnlocked = s.num <= maxUnlockedStep;
+          const isDone = s.num < maxUnlockedStep || (s.num === 3 && title.trim() && body.trim());
           return (
             <button
               type="button"
               key={s.num}
-              onClick={() => setStep(s.num as 1 | 2 | 3 | 4)}
+              onClick={() => handleStepClick(s.num as 1 | 2 | 3 | 4)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -471,7 +523,8 @@ export function NotificationComposer({
                 border: isActive
                   ? "1px solid var(--c-accent, #3b82f6)"
                   : "1px solid transparent",
-                cursor: "pointer",
+                cursor: isUnlocked ? "pointer" : "not-allowed",
+                opacity: isUnlocked ? 1 : 0.5,
                 textAlign: "left",
                 transition: "all 0.15s ease",
               }}
@@ -490,25 +543,31 @@ export function NotificationComposer({
                     ? "var(--c-accent, #3b82f6)"
                     : isDone
                     ? "#10b981"
+                    : isUnlocked
+                    ? "#94a3b8"
                     : "#cbd5e1",
                   color: "#ffffff",
                   flexShrink: 0,
                 }}
               >
-                {isDone ? <Check size={14} /> : s.num}
+                {!isUnlocked ? <Lock size={12} /> : isDone ? <Check size={14} /> : s.num}
               </div>
               <div style={{ overflow: "hidden" }}>
                 <strong
                   style={{
                     display: "block",
                     fontSize: "13px",
-                    color: isActive ? "var(--c-accent, #1e40af)" : "var(--c-ink, #0f172a)",
+                    color: isActive
+                      ? "var(--c-accent, #1e40af)"
+                      : isUnlocked
+                      ? "var(--c-ink, #0f172a)"
+                      : "var(--c-muted, #94a3b8)",
                   }}
                 >
                   {s.title}
                 </strong>
                 <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>
-                  {s.sub}
+                  {!isUnlocked ? "Locked (Complete Step " + (s.num - 1) + ")" : isDone ? "✓ Configured" : s.sub}
                 </span>
               </div>
             </button>
@@ -526,7 +585,7 @@ export function NotificationComposer({
       )}
       {message && <p className="admSuccess" role="status">{message}</p>}
 
-      {/* Main Grid: Left Steps + Right Meta Ads Audience & Placements Inspector */}
+      {/* Main Grid: Left Progressive Step + Right Meta Ads Audience & Placements Inspector */}
       <div
         style={{
           display: "grid",
@@ -535,13 +594,13 @@ export function NotificationComposer({
           alignItems: "start",
         }}
       >
-        {/* Left Form: Step Content */}
+        {/* Left Form: Progressive Step Content */}
         <div style={{ display: "grid", gap: "var(--sp-5)" }}>
           {/* STEP 1: CAMPAIGN OBJECTIVE & SETTINGS */}
           {step === 1 && (
             <SectionCard
-              title="Campaign Objective & Hierarchy"
-              description="Select the business objective for this notification campaign (similar to Meta Ads Manager)."
+              title="Step 1: Campaign Objective & Setup"
+              description="Choose your broadcast objective and campaign identity to unlock Audience Targeting."
             >
               <div style={{ display: "grid", gap: "var(--sp-4)" }}>
                 <div>
@@ -627,9 +686,9 @@ export function NotificationComposer({
                   </div>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--sp-2)" }}>
-                  <Button variant="primary" icon={ArrowRight} onClick={() => setStep(2)}>
-                    Next: Audience & Placements
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "var(--sp-3)", borderTop: "1px solid var(--c-line)", paddingTop: "var(--sp-4)" }}>
+                  <Button variant="primary" icon={ArrowRight} onClick={handleProceedFromStep1}>
+                    Save & Continue to Step 2: Audience ➔
                   </Button>
                 </div>
               </div>
@@ -640,7 +699,7 @@ export function NotificationComposer({
           {step === 2 && (
             <div style={{ display: "grid", gap: "var(--sp-5)" }}>
               <SectionCard
-                title="Audience Definition & Location Targeting"
+                title="Step 2: Audience Definition & Location Targeting"
                 description="Target multiple countries, regions, and cities with inclusion and exclusion rules."
               >
                 <AudienceTargeter
@@ -819,12 +878,12 @@ export function NotificationComposer({
                   </div>
                 )}
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--sp-4)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--sp-4)", borderTop: "1px solid var(--c-line)", paddingTop: "var(--sp-4)" }}>
                   <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(1)}>
-                    Back to Campaign
+                    Back to Campaign Setup
                   </Button>
-                  <Button variant="primary" icon={ArrowRight} onClick={() => setStep(3)}>
-                    Next: Ad Creative & Copy
+                  <Button variant="primary" icon={ArrowRight} onClick={handleProceedFromStep2}>
+                    Save & Continue to Step 3: Creative ➔
                   </Button>
                 </div>
               </SectionCard>
@@ -834,8 +893,8 @@ export function NotificationComposer({
           {/* STEP 3: AD CREATIVE & COPY */}
           {step === 3 && (
             <SectionCard
-              title="Ad Creative, Copy & Destination"
-              description="Design the message, upload banner media, and configure CTA button & destination URL."
+              title="Step 3: Ad Creative, Copy & Destination"
+              description="Design the message headline, body copy, CTA button, destination URL, and banner image."
             >
               <div style={{ display: "grid", gap: "var(--sp-4)" }}>
                 {/* Brand Identity */}
@@ -919,12 +978,12 @@ export function NotificationComposer({
                   onChange={setImage}
                 />
 
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--sp-4)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: "var(--sp-4)", borderTop: "1px solid var(--c-line)", paddingTop: "var(--sp-4)" }}>
                   <Button variant="secondary" icon={ArrowLeft} onClick={() => setStep(2)}>
                     Back to Audience
                   </Button>
-                  <Button variant="primary" icon={ArrowRight} onClick={() => setStep(4)}>
-                    Next: Review & Launch
+                  <Button variant="primary" icon={ArrowRight} onClick={handleProceedFromStep3}>
+                    Save & Continue to Step 4: Review ➔
                   </Button>
                 </div>
               </div>
@@ -934,7 +993,7 @@ export function NotificationComposer({
           {/* STEP 4: REVIEW & LAUNCH */}
           {step === 4 && (
             <SectionCard
-              title="Campaign Review & Launch Checklist"
+              title="Step 4: Campaign Review & Launch Checklist"
               description="Verify your campaign settings before broadcasting to subscribers."
             >
               <div style={{ display: "grid", gap: "var(--sp-4)" }}>
