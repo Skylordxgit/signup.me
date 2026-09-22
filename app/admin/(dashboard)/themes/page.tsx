@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { ThemeGallery } from "@/components/admin/BuilderEditor";
-import { Field, PageHeader } from "@/components/admin/AdminUI";
+import { Button, Field, PageHeader } from "@/components/admin/AdminUI";
 import { defaultTheme } from "@/lib/defaults";
 import { adminApi } from "@/lib/admin";
 import type { SmartPage, ThemeSettings } from "@/lib/types";
@@ -54,15 +54,15 @@ export default function ThemesPageRoute() {
             ))}
           </select>
         </Field>
-        <button
-          type="button"
-          className="admButton admPrimary"
+        <Button
+          variant="primary"
+          icon={Check}
           disabled={!themePageId || busy}
+          loading={busy}
           onClick={() => void applyTheme()}
         >
-          <Check size={16} />
           Apply theme
-        </button>
+        </Button>
       </div>
       <ThemeGallery current={themeSelection} onSelect={setThemeSelection} />
     </>

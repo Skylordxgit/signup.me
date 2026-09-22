@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { ArrowUpRight, BarChart3, Bell, Calendar, Check, ChevronDown, Clock3, Copy, Download, ExternalLink, Eye, FileText, FolderOpen, Globe2, History, ImageIcon, Inbox, LayoutGrid, Link2, List, Loader2, LogOut, MousePointer2, Power, UserPlus, Pencil, Plus, RefreshCw, Search, Send, Sparkles, Trash2, User } from "lucide-react";
+import { ArrowUpRight, BarChart3, Bell, Calendar, Check, ChevronDown, Clock3, Copy, Download, ExternalLink, Eye, FileText, FolderOpen, Globe2, History, Inbox, LayoutGrid, Link2, List, LogOut, MousePointer2, Pencil, Plus, RefreshCw, Search, Send, Trash2, User } from "lucide-react";
 import type { AnalyticsReport, NotificationCampaign, NotificationSendResult, NotificationSubscriberSummary, PageSummary } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
 import { isNotificationUrl } from '@/lib/notificationUrl';
@@ -1036,21 +1036,20 @@ export function CampaignHistoryView({
                 )}
 
                 <div className="admCampaignCardFooter">
-                  <button
-                    type="button"
-                    className="admButton admButtonSm"
+                  <Button
+                    size="sm"
                     onClick={() => setSelectedCampaign(c)}
                   >
                     Inspect &amp; preview
-                  </button>
+                  </Button>
                   {onComposeWith && (
-                    <button
-                      type="button"
-                      className="admButton admButtonSm admPrimary"
+                    <Button
+                      size="sm"
+                      variant="primary"
                       onClick={() => onComposeWith(c)}
                     >
                       Reuse in composer
-                    </button>
+                    </Button>
                   )}
                 </div>
               </article>
@@ -1334,9 +1333,15 @@ export function NotificationsView({ pages, initialTab = 'composer' }: { pages: P
             </fieldset>
             <div className="admNotificationSend">
               <span>{loading ? 'Loading audience...' : !recipients ? 'No subscribers in this audience yet' : `${number(recipients)} subscriber${recipients === 1 ? '' : 's'} selected`}</span>
-              <button type="submit" className="admButton admPrimary" disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}>
-                {sending ? <Loader2 className="admSpinner" size={16} aria-hidden="true" /> : <Send size={16} aria-hidden="true" />}{sending ? 'Sending...' : 'Send notification'}
-              </button>
+              <Button
+                type="submit"
+                variant="primary"
+                icon={Send}
+                loading={sending}
+                disabled={sending || loading || !configured || !recipients || !title.trim() || !body.trim() || !url.trim()}
+              >
+                Send notification
+              </Button>
             </div>
           </form>
 
@@ -1529,7 +1534,7 @@ export function SettingsView({
             <Field label="Signed-in email" hint="Contact an admin to change the address on your account."><input type="email" readOnly value={email} /></Field>
             <ImageUploader category="profile" label="Account photo" round value={avatar} onChange={setAvatar} />
             <div className="admActionRow">
-              <button type="submit" className="admButton admPrimary"><Check size={16} aria-hidden="true" />Save preferences</button>
+              <Button type="submit" variant="primary" icon={Check}>Save preferences</Button>
               <span role="status" className="admMuted">{message}</span>
             </div>
           </div>

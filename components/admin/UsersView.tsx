@@ -102,8 +102,10 @@ export function UsersView({ role, permissions, isMaster }: { role: WorkspaceRole
           {error && <p className="admError" role="alert">{error}</p>}
         </div></fieldset>
         <div className="admDialogActions">
-          <button type="button" className="admButton" disabled={busy} onClick={() => { setForm(null); setPassword(''); }}>Cancel</button>
-          <button type="submit" className="admButton admPrimary" disabled={busy}>{busy ? 'Saving...' : creating ? withPassword ? 'Create account' : 'Create invitation link' : 'Save'}</button>
+          <Button disabled={busy} onClick={() => { setForm(null); setPassword(''); }}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={busy}>
+            {creating ? (withPassword ? 'Create account' : 'Create invitation link') : 'Save'}
+          </Button>
         </div>
       </form>
     </Dialog>}

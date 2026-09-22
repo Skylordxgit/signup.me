@@ -490,7 +490,7 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
               <div><span className="masterEyebrow"><ShieldCheck size={14} />Global platform access</span><h2>Everything important, at a glance.</h2><p>Monitor workspaces, accounts, pages and notification reach from one secure control center.</p></div>
               <div className="admActionRow">
                 <Button variant="primary" icon={Plus} disabled={busy} onClick={openCreateWorkspaceModal}>Create workspace</Button>
-                <button type="button" onClick={() => navigate("workspaces")}>Manage workspaces <ArrowRight size={16} /></button>
+                <Button variant="secondary" onClick={() => navigate("workspaces")}>Manage workspaces</Button>
               </div>
             </section>
             <div className="masterMetrics">
@@ -683,10 +683,15 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
           </div>
         </fieldset>
         <div className="admDialogActions">
-          <button type="button" className="admButton" disabled={busy} onClick={() => { setDomainModal(null); setDomainError(""); }}>Cancel</button>
-          <button type="submit" className={`admButton ${domainModal !== "add" && domainModal.action === "delete" ? "admDestructive" : "admPrimary"}`} disabled={busy}>
-            {busy ? "Saving..." : domainModal === "add" ? "Add domain" : domainModal.action === "edit" ? "Save domain" : domainModal.action === "assign" ? "Save assignment" : "Delete domain"}
-          </button>
+          <Button disabled={busy} onClick={() => { setDomainModal(null); setDomainError(""); }}>Cancel</Button>
+          <Button
+            type="submit"
+            variant={domainModal !== "add" && domainModal.action === "delete" ? "danger" : "primary"}
+            loading={busy}
+            disabled={busy}
+          >
+            {domainModal === "add" ? "Add domain" : domainModal.action === "edit" ? "Save domain" : domainModal.action === "assign" ? "Save assignment" : "Delete domain"}
+          </Button>
         </div>
       </form>
     </Dialog>}
@@ -758,10 +763,10 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
           </div>
         </fieldset>
         <div className="admDialogActions">
-          <button type="button" className="admButton" disabled={busy} onClick={() => { setUserModal(null); setUserPassword(""); setError(""); }}>Cancel</button>
-          <button type="submit" className="admButton admPrimary" disabled={busy}>
-            {busy ? "Saving..." : userModal === "create" ? withPassword ? "Create account" : "Create invitation" : "Save changes"}
-          </button>
+          <Button disabled={busy} onClick={() => { setUserModal(null); setUserPassword(""); setError(""); }}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={busy}>
+            {userModal === "create" ? (withPassword ? "Create account" : "Create invitation") : "Save changes"}
+          </Button>
         </div>
       </form>
     </Dialog>}
@@ -843,10 +848,10 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
           </div>
         </fieldset>
         <div className="admDialogActions">
-          <button type="button" className="admButton" disabled={busy} onClick={() => { setWorkspaceModal(null); setWsPassword(""); setError(""); }}>Cancel</button>
-          <button type="submit" className="admButton admPrimary" disabled={busy}>
-            {busy ? "Saving..." : workspaceModal === "create" ? "Create workspace" : "Save workspace"}
-          </button>
+          <Button disabled={busy} onClick={() => { setWorkspaceModal(null); setWsPassword(""); setError(""); }}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={busy} disabled={busy}>
+            {workspaceModal === "create" ? "Create workspace" : "Save workspace"}
+          </Button>
         </div>
       </form>
     </Dialog>}

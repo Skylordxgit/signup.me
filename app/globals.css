@@ -75,7 +75,7 @@ a:focus-visible {
   outline-offset: 2px;
 }
 
-input,
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]),
 textarea,
 select {
   width: 100%;

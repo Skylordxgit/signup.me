@@ -1,36 +1,23 @@
 "use client";
 
-/* eslint-disable @next/next/no-img-element */
 import { useMemo, useState } from "react";
 import {
-  ArrowDownRight,
   ArrowUpRight,
-  BarChart3,
-  Calendar,
-  Check,
-  ChevronDown,
-  Clock3,
   Download,
   Eye,
-  FileText,
   Filter,
   Globe2,
   Laptop,
-  Layers,
-  Link2,
   MousePointer2,
   Plus,
-  RefreshCw,
   Search,
   Smartphone,
-  Sparkles,
-  Tablet,
   TrendingUp,
   User,
   Users,
 } from "lucide-react";
 import type { AnalyticsReport, PageSummary } from "@/lib/types";
-import { Button, EmptyState, IconButton, LoadingState, PageHeader, SectionCard } from "./AdminUI";
+import { Button, PageHeader, SectionCard } from "./AdminUI";
 import { DateRangeFilterControl, getCountryFlag, RecentActivityFeed, TrafficChart } from "./DashboardViews";
 
 const number = (value: number) => value.toLocaleString();

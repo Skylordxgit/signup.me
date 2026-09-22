@@ -562,22 +562,12 @@ export function ImportPagesDialog({
           </div>
         </fieldset>
         <div className="admDialogActions">
-          <button type="button" className="admButton" disabled={busy} onClick={onClose}>
+          <Button disabled={busy} onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" className="admButton admPrimary" disabled={!file || busy}>
-            {busy ? (
-              <>
-                <Loader2 className="admSpinner" size={16} aria-hidden="true" />
-                Importing...
-              </>
-            ) : (
-              <>
-                <Upload size={16} aria-hidden="true" />
-                Import pages
-              </>
-            )}
-          </button>
+          </Button>
+          <Button type="submit" variant="primary" icon={Upload} loading={busy} disabled={!file || busy}>
+            Import pages
+          </Button>
         </div>
       </form>
     </Dialog>
@@ -662,14 +652,15 @@ export function CreatePageForm({
           </div>
         </div>
         <div className="admFormFooter">
-          <button
+          <Button
             type="submit"
-            className="admButton admPrimary"
+            variant="primary"
+            icon={Plus}
+            loading={busy}
             disabled={busy || uploading || !name.trim() || !slug}
           >
-            {busy ? <Loader2 className="admSpinner" size={16} aria-hidden="true" /> : <Plus size={16} aria-hidden="true" />}
             Create page
-          </button>
+          </Button>
           <span className="admMuted">/{slug || "your-page"}</span>
         </div>
       </form>
