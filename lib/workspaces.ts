@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, rename, writeFile } from 'fs/promises';
+import { mkdir, readFile, rename, stat as fsStat, writeFile } from 'fs/promises';
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery, type TransactionQuery } from './mysql';
 import { DEFAULT_WORKSPACE_ID } from './workspaceConstants';
@@ -21,14 +21,14 @@ function file() {
 }
 let queue: Promise<unknown> = Promise.resolve();
 
-function normalizeStatus(value: unknown): WorkspaceStatus {
-  // An unknown or missing status means the record predates the column.
-  return value === 'disabled' ? 'disabled' : 'active';
-}
-
 export function workspaceName(email: string) {
   const handle = email.split('@')[0]?.replace(/[._-]+/g, ' ').trim();
   return `${handle ? handle.charAt(0).toUpperCase() + handle.slice(1) : 'New'} workspace`.slice(0, 190);
+}
+
+function normalizeStatus(value: unknown): WorkspaceStatus {
+  // An unknown or missing status means the record predates the column.
+  return value === 'disabled' ? 'disabled' : 'active';
 }
 
 async function readWorkspaces(): Promise<Workspace[]> {

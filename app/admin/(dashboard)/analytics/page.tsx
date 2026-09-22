@@ -22,16 +22,15 @@ export default function AnalyticsPageRoute() {
   useEffect(() => {
     if (loading || !allowedView("analytics")) return;
     let cancelled = false;
-    const ids = reportKey ? reportKey.split(",").map((item) => Number(item.split(":")[0])) : [];
 
     let queryParam = `?days=${dateRange}`;
     if (dateRange === "custom" && customStartDate && customEndDate) {
       queryParam = `?days=custom&from=${customStartDate}&to=${customEndDate}`;
     }
 
-    Promise.all(ids.map((id) => adminApi<AnalyticsReport>(`/api/pages/${id}/analytics${queryParam}`)))
-      .then((reports) => {
-        if (!cancelled) setReport(combineAnalytics(reports));
+    adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`)
+      .then((data) => {
+        if (!cancelled) setReport(data);
       })
       .catch(() => {
         // Handled gracefully
@@ -39,7 +38,7 @@ export default function AnalyticsPageRoute() {
     return () => {
       cancelled = true;
     };
-  }, [reportKey, loading, dateRange, customStartDate, customEndDate, allowedView]);
+  }, [loading, dateRange, customStartDate, customEndDate, allowedView]);
 
   return (
     <AnalyticsView

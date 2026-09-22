@@ -23,17 +23,18 @@ export default function DashboardPage() {
   useEffect(() => {
     if (loading || !allowedView("analytics")) return;
     let cancelled = false;
-    const ids = reportKey ? reportKey.split(",").map((item) => Number(item.split(":")[0])) : [];
-    const selected = reportPageId !== "all" ? ids.filter((id) => id === Number(reportPageId)) : ids;
 
     let queryParam = `?days=${dateRange}`;
     if (dateRange === "custom" && customStartDate && customEndDate) {
       queryParam = `?days=custom&from=${customStartDate}&to=${customEndDate}`;
     }
+    if (reportPageId !== "all") {
+      queryParam += `&pageId=${reportPageId}`;
+    }
 
-    Promise.all(selected.map((id) => adminApi<AnalyticsReport>(`/api/pages/${id}/analytics${queryParam}`)))
-      .then((reports) => {
-        if (!cancelled) setReport(combineAnalytics(reports));
+    adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`)
+      .then((data) => {
+        if (!cancelled) setReport(data);
       })
       .catch(() => {
         // Analytics error handled gracefully
@@ -41,7 +42,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [reportKey, loading, reportPageId, dateRange, customStartDate, customEndDate, allowedView]);
+  }, [loading, reportPageId, dateRange, customStartDate, customEndDate, allowedView]);
 
   return (
     <DashboardHome

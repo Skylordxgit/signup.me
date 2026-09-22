@@ -114,8 +114,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       adminApi<AdminAccount>("/api/auth/me"),
       fetchBranding(),
       adminApi<WorkspaceBranding>("/api/admin/branding").catch(() => null),
+      adminApi<PageSummary[]>("/api/pages").catch(() => []),
     ])
-      .then(async ([acc, brand, wsBrand]) => {
+      .then(async ([acc, brand, wsBrand, pagesData]) => {
         if (cancelled) return;
         setAccount(acc);
         if (wsBrand) {
@@ -128,7 +129,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           setBranding(brand);
         }
 
-        if (canAccess(acc, "pages") || canAccess(acc, "analytics") || canAccess(acc, "notifications")) {
+        if (pagesData && pagesData.length > 0) {
+          setPages(pagesData);
+        } else if (canAccess(acc, "pages") || canAccess(acc, "analytics") || canAccess(acc, "notifications")) {
           const items = await adminApi<PageSummary[]>("/api/pages");
           if (!cancelled) setPages(items);
         }
