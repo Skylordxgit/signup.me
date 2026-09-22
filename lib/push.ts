@@ -40,8 +40,11 @@ export function notificationPayload(input: NotificationSendInput) {
     body: input.body.trim(),
     url: input.url.trim() || "/",
     campaignId: 'campaignId' in input && typeof input.campaignId === 'number' ? input.campaignId : undefined,
-    icon: "/favicon.png",
-    badge: "/favicon-32x32.png",
+    image: input.image || undefined,
+    icon: input.icon || "/favicon.png",
+    badge: input.badge || "/favicon-32x32.png",
+    actions: input.ctaText ? [{ action: 'open', title: input.ctaText }] : undefined,
+    priority: input.priority || 'normal',
   });
 }
 

@@ -3,7 +3,7 @@
 import { NotificationNav } from "@/components/admin/notifications/NotificationNav";
 import { CampaignsView } from "@/components/admin/notifications/CampaignsView";
 
-export default function NotificationsPageRoute() {
+export function CampaignsPageRoute() {
   return (
     <div className="admNotificationsModule">
       <NotificationNav />
@@ -11,3 +11,5 @@ export default function NotificationsPageRoute() {
     </div>
   );
 }
+
+export default CampaignsPageRoute;

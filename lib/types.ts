@@ -309,8 +309,19 @@ export type SubscriberDetails = {
   browser: string;
   ipAddress: string;
   country: string;
+  countryCode?: string;
+  countryName?: string;
+  region?: string;
+  regionCode?: string;
+  regionName?: string;
   city: string;
   timezone: string;
+  lastActiveAt?: string;
+  source?: string;
+  utmSource?: string;
+  utmCampaign?: string;
+  totalSent?: number;
+  totalClicks?: number;
 };
 
 export type SubscriberListItem = Pick<NotificationSubscriber, 'id' | 'pageId' | 'slug' | 'createdAt' | 'isActive' | 'lastFailedAt'> & SubscriberDetails;
@@ -322,15 +333,47 @@ export type NotificationSubscriberSummary = {
   recent?: SubscriberListItem[];
 };
 
+export type LocationTargeting = {
+  includeCountries: string[];
+  excludeCountries: string[];
+  includeRegions: string[];
+  excludeRegions: string[];
+  includeCities: string[];
+  excludeCities: string[];
+  includeUnknownLocation: boolean;
+};
+
+export type AudienceFilters = {
+  locations?: Partial<LocationTargeting>;
+  pageIds?: number[];
+  subscribedWithinDays?: number | null;
+  subscribedBeforeDays?: number | null;
+  devices?: ('mobile' | 'desktop' | 'tablet')[];
+  browsers?: string[];
+  operatingSystems?: string[];
+  status?: 'active' | 'inactive' | 'all';
+  segmentId?: string | null;
+};
+
+export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'completed' | 'paused' | 'cancelled' | 'failed';
+
 export type NotificationSendInput = {
+  name?: string;
   title: string;
   body: string;
   url: string;
+  image?: string | null;
+  icon?: string | null;
+  badge?: string | null;
+  ctaText?: string | null;
   pageId?: number | null;
-  /** Restricts delivery to pages in this workspace. */
   workspaceId?: string;
-  /** Internal tracking id attached after the campaign row is created. */
   campaignId?: number;
+  status?: CampaignStatus;
+  scheduledAt?: string | null;
+  timezone?: string;
+  priority?: 'normal' | 'high' | 'urgent';
+  targetFilters?: AudienceFilters;
 };
 
 export type NotificationSendResult = {
@@ -345,12 +388,22 @@ export type NotificationSendResult = {
 export type NotificationCampaign = {
   id: number;
   workspaceId: string;
+  name?: string;
   pageId: number | null;
   pageSlug: string | null;
   title: string;
   body: string;
+  image?: string | null;
+  icon?: string | null;
+  badge?: string | null;
+  ctaText?: string | null;
   url: string;
   audience: string;
+  status: CampaignStatus;
+  scheduledAt?: string | null;
+  timezone?: string;
+  priority?: 'normal' | 'high' | 'urgent';
+  targetFilters?: AudienceFilters;
   attempted: number;
   sent: number;
   delivered: number;
@@ -359,6 +412,39 @@ export type NotificationCampaign = {
   clicks: number;
   failed: number;
   removed: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  locationStats?: Record<string, { sent: number; clicked: number; delivered: number }>;
+  deviceStats?: Record<string, { sent: number; clicked: number; delivered: number }>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type NotificationDeliveryLog = {
+  id: string;
+  campaignId: number;
+  campaignName: string;
+  subscriberId: number;
+  endpointHash?: string;
+  pageSlug?: string;
+  country: string;
+  region?: string;
+  city: string;
+  device: string;
+  browser: string;
+  status: 'sent' | 'delivered' | 'clicked' | 'failed';
+  errorReason?: string | null;
+  sentAt: string;
+  clickedAt?: string | null;
+};
+
+export type SubscriberSegment = {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description?: string;
+  filters: AudienceFilters;
+  subscriberCount?: number;
   createdAt: string;
   updatedAt: string;
 };

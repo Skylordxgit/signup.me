@@ -1,13 +1,15 @@
 "use client";
 
 import { NotificationNav } from "@/components/admin/notifications/NotificationNav";
-import { CampaignsView } from "@/components/admin/notifications/CampaignsView";
+import { SegmentsView } from "@/components/admin/notifications/SegmentsView";
 
-export default function NotificationsPageRoute() {
+export function SegmentsPageRoute() {
   return (
     <div className="admNotificationsModule">
       <NotificationNav />
-      <CampaignsView />
+      <SegmentsView />
     </div>
   );
 }
+
+export default SegmentsPageRoute;

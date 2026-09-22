@@ -131,12 +131,12 @@
 /* Pill sub-navigation */
 .admSubNav { display: flex; align-items: center; gap: var(--sp-1); margin-bottom: var(--sp-5); padding: 3px; background: var(--c-surface-sunken); border: 1px solid var(--c-line); border-radius: var(--radius-md); overflow-x: auto; scrollbar-width: none; }
 .admSubNav::-webkit-scrollbar { display: none; }
-.admSubNav button { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); padding: 0 var(--sp-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--c-muted); font-size: var(--text-md); font-weight: 550; white-space: nowrap; }
-.admSubNav button:hover { color: var(--c-ink); }
-.admSubNav button[aria-selected="true"], .admSubNav button[aria-current="page"] { background: var(--c-surface); color: var(--c-ink); font-weight: 650; box-shadow: var(--shadow-sm); }
-.admSubNav button svg { width: 15px; height: 15px; }
+.admSubNav :where(button, a) { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); padding: 0 var(--sp-4); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--c-muted); font-size: var(--text-md); font-weight: 550; white-space: nowrap; text-decoration: none; cursor: pointer; }
+.admSubNav :where(button, a):hover { color: var(--c-ink); }
+.admSubNav :where(button, a)[aria-selected="true"], .admSubNav :where(button, a)[aria-current="page"], .admSubNav .admSubNavActive { background: var(--c-surface); color: var(--c-ink); font-weight: 650; box-shadow: var(--shadow-sm); }
+.admSubNav :where(button, a) svg { width: 15px; height: 15px; }
 .admSubNavBadge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; padding: 1px var(--sp-2); border-radius: var(--radius-pill); background: #e4eaf3; color: var(--c-text); font-size: var(--text-xs); font-weight: 650; font-variant-numeric: tabular-nums; }
-.admSubNav button[aria-selected="true"] .admSubNavBadge { background: var(--c-accent); color: #fff; }
+.admSubNav :where(button, a)[aria-selected="true"] .admSubNavBadge, .admSubNav .admSubNavActive .admSubNavBadge { background: var(--c-accent); color: #fff; }
 
 /* Search input with leading icon */
 .admSearchField {

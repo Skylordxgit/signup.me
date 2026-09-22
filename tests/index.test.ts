@@ -17,3 +17,4 @@ import './concurrencyCache.test';
 import './workspaceBranding.test';
 import './ReportingDashboard.test';
 import './adminRouting.test';
+import './notificationCampaigns.test';

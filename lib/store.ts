@@ -28,5 +28,13 @@ export const savePushSubscription: typeof jsonStore.savePushSubscription = (...a
 export const listPushSubscribers: typeof jsonStore.listPushSubscribers = (...args) => store().listPushSubscribers(...args);
 export const sendPushNotification: typeof jsonStore.sendPushNotification = (...args) => store().sendPushNotification(...args);
 export const listNotificationCampaigns: typeof jsonStore.listNotificationCampaigns = (...args) => store().listNotificationCampaigns(...args);
+export const getNotificationCampaignById: typeof jsonStore.getNotificationCampaignById = (...args) => store().getNotificationCampaignById(...args);
+export const createNotificationCampaign: typeof jsonStore.createNotificationCampaign = (...args) => store().createNotificationCampaign(...args);
+export const updateNotificationCampaign: typeof jsonStore.updateNotificationCampaign = (...args) => store().updateNotificationCampaign(...args);
+export const deleteNotificationCampaign: typeof jsonStore.deleteNotificationCampaign = (...args) => store().deleteNotificationCampaign(...args);
 export const trackNotificationCampaignClick: typeof jsonStore.trackNotificationCampaignClick = (...args) => store().trackNotificationCampaignClick(...args);
 export const recordNotificationCampaignEvent: typeof jsonStore.recordNotificationCampaignEvent = (...args) => store().recordNotificationCampaignEvent(...args);
+export const listNotificationHistory: typeof jsonStore.listNotificationHistory = (...args) => store().listNotificationHistory(...args);
+export const listSubscriberSegments: typeof jsonStore.listSubscriberSegments = (...args) => store().listSubscriberSegments(...args);
+export const saveSubscriberSegment: typeof jsonStore.saveSubscriberSegment = (...args) => store().saveSubscriberSegment(...args);
+export const deleteSubscriberSegment: typeof jsonStore.deleteSubscriberSegment = (...args) => store().deleteSubscriberSegment(...args);
