@@ -44,8 +44,6 @@ import { adminApi } from "@/lib/admin";
 import type { AudienceFilters, CampaignStatus, NotificationCampaign, SubscriberSegment } from "@/lib/types";
 import type { AudienceEstimateResult, WorkspaceDistinctLocations } from "@/lib/audienceTargeting";
 
-export type CampaignObjective = "traffic" | "engagement" | "awareness" | "flash_sale";
-
 export function NotificationComposer({
   pages = [],
   locations,
@@ -72,7 +70,6 @@ export function NotificationComposer({
   const [maxUnlockedStep, setMaxUnlockedStep] = useState<number>(1);
 
   // Level 1: Campaign Setup
-  const [objective, setObjective] = useState<CampaignObjective>("traffic");
   const [name, setName] = useState("");
   const [priority, setPriority] = useState<"normal" | "high" | "urgent">("normal");
   const [autoUtm, setAutoUtm] = useState(true);
@@ -173,7 +170,7 @@ export function NotificationComposer({
   const handleProceedFromStep1 = () => {
     setError("");
     if (!name.trim()) {
-      const defaultName = `${objective.replace("_", " ").toUpperCase()} Campaign - ${new Date().toLocaleDateString()}`;
+      const defaultName = `Notification Campaign - ${new Date().toLocaleDateString()}`;
       setName(defaultName);
     }
     setMaxUnlockedStep((prev) => Math.max(prev, 2));
@@ -317,37 +314,6 @@ export function NotificationComposer({
       : matchRatio < 0.85
       ? "Optimal Audience"
       : "Broad Workspace Audience";
-
-  const objectives = [
-    {
-      id: "traffic",
-      label: "Traffic & Sales",
-      icon: Target,
-      desc: "Drive subscriber clicks directly to your website, store, or landing page.",
-      badge: "Highest Clicks",
-    },
-    {
-      id: "flash_sale",
-      label: "Urgent Flash Deal",
-      icon: Flame,
-      desc: "Limited-time offers, countdown promos, and high-priority instant alerts.",
-      badge: "Urgent Priority",
-    },
-    {
-      id: "engagement",
-      label: "Engagement & Retention",
-      icon: Zap,
-      desc: "Re-engage inactive subscribers and drive repeat visits.",
-      badge: "High Conversion",
-    },
-    {
-      id: "awareness",
-      label: "Announcements & News",
-      icon: Radio,
-      desc: "Broadcast important workspace updates, blog posts, and company news.",
-      badge: "Broad Reach",
-    },
-  ];
 
   return (
     <div className="admMetaNotificationStudio" style={{ display: "grid", gap: "var(--sp-5)", width: "100%" }}>
@@ -596,68 +562,23 @@ export function NotificationComposer({
       >
         {/* Left Form: Progressive Step Content */}
         <div style={{ display: "grid", gap: "var(--sp-5)" }}>
-          {/* STEP 1: CAMPAIGN OBJECTIVE & SETTINGS */}
+          {/* STEP 1: CAMPAIGN SETUP */}
           {step === 1 && (
             <SectionCard
-              title="Step 1: Campaign Objective & Setup"
-              description="Choose your broadcast objective and campaign identity to unlock Audience Targeting."
+              title="Step 1: Campaign Details & Priority"
+              description="Name your push notification broadcast and configure delivery priority."
             >
               <div style={{ display: "grid", gap: "var(--sp-4)" }}>
-                <div>
-                  <label style={{ display: "block", marginBottom: "8px", fontSize: "13px", fontWeight: 650, color: "var(--c-ink)" }}>
-                    Select Campaign Objective
-                  </label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
-                    {objectives.map((obj) => {
-                      const Icon = obj.icon;
-                      const isSelected = objective === obj.id;
-                      return (
-                        <div
-                          key={obj.id}
-                          onClick={() => {
-                            setObjective(obj.id as CampaignObjective);
-                            if (obj.id === "flash_sale") setPriority("urgent");
-                          }}
-                          style={{
-                            padding: "var(--sp-3-5)",
-                            borderRadius: "var(--radius-md)",
-                            border: isSelected ? "2px solid var(--c-accent, #3b82f6)" : "1px solid var(--c-line)",
-                            background: isSelected ? "var(--c-accent-soft, #eff6ff)" : "var(--c-surface)",
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                            position: "relative",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <Icon size={18} color={isSelected ? "var(--c-accent)" : "#64748b"} />
-                              <strong style={{ fontSize: "14px", color: isSelected ? "var(--c-accent)" : "var(--c-ink)" }}>
-                                {obj.label}
-                              </strong>
-                            </div>
-                            <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 6px", borderRadius: "10px", background: "#e2e8f0", color: "#334155" }}>
-                              {obj.badge}
-                            </span>
-                          </div>
-                          <p style={{ margin: 0, fontSize: "12px", color: "var(--c-muted)", lineHeight: 1.35 }}>
-                            {obj.desc}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
                 <Field label="Campaign Name" hint="Internal name used across your reports, analytics, and UTM tags.">
                   <input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Summer Flash Sale - Dhaka & Chittagong"
+                    placeholder="e.g. Flash Sale Announcement or New Product Update"
                   />
                 </Field>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)" }}>
-                  <Field label="Delivery Priority" hint="Urgent priorities bypass device focus modes.">
+                  <Field label="Delivery Priority" hint="Normal is standard delivery; Urgent bypasses device focus modes.">
                     <select
                       value={priority}
                       onChange={(e) => setPriority(e.target.value as "normal" | "high" | "urgent")}
@@ -665,7 +586,7 @@ export function NotificationComposer({
                     >
                       <option value="normal">Normal (Standard Delivery)</option>
                       <option value="high">High (Priority Notification)</option>
-                      <option value="urgent">Urgent (Instant Flash Alert)</option>
+                      <option value="urgent">Urgent (Instant Alert)</option>
                     </select>
                   </Field>
 
@@ -677,7 +598,7 @@ export function NotificationComposer({
                         onChange={(e) => setAutoUtm(e.target.checked)}
                       />
                       <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--c-ink)" }}>
-                        Auto-tag with Meta/Google UTM Parameters
+                        Auto-tag with UTM Campaign Tracking
                       </span>
                     </label>
                     <small style={{ color: "var(--c-muted)", fontSize: "11px", marginLeft: "24px" }}>
@@ -1020,10 +941,10 @@ export function NotificationComposer({
 
                   <div>
                     <span style={{ fontSize: "11px", color: "var(--c-muted)", textTransform: "uppercase", fontWeight: 700 }}>
-                      Objective
+                      Delivery Priority
                     </span>
                     <strong style={{ display: "block", fontSize: "14px", color: "var(--c-accent)", marginTop: "2px", textTransform: "capitalize" }}>
-                      {objective.replace("_", " ")}
+                      {priority} Delivery
                     </strong>
                   </div>
 
