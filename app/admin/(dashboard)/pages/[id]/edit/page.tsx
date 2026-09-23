@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { BuilderEditor, type BuilderTab } from "@/components/admin/BuilderEditor";
@@ -19,15 +19,18 @@ const socialPreset = [
 ];
 
 export default function EditPageBuilderRoute() {
+  const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const pageId = params?.id ? Number(params.id) : null;
   const initialTab = (searchParams?.get("tab") as BuilderTab) || "profile";
 
-  const { busy, setBusy, setError, setPages, navigate, registerEditor, unregisterEditor } = useAdmin();
+  const { busy, setBusy, setError, setPages, registerEditor, unregisterEditor } = useAdmin();
   const [builderTab, setBuilderTab] = useState<BuilderTab>(initialTab);
   const [deleteBlockTarget, setDeleteBlockTarget] = useState<PageBlock | null>(null);
   const [loadingPage, setLoadingPage] = useState(true);
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingDestination, setPendingDestination] = useState("/admin/pages");
 
   const editor = usePageEditor(
     useCallback(
@@ -40,10 +43,13 @@ export default function EditPageBuilderRoute() {
 
   useEffect(() => {
     registerEditor(editor);
+  }, [registerEditor, editor.status, editor.error, editor.page?.id, editor.page?.slug]);
+
+  useEffect(() => {
     return () => {
       unregisterEditor();
     };
-  }, [editor, registerEditor, unregisterEditor]);
+  }, [unregisterEditor]);
 
   const adoptPage = editor.adopt;
 
@@ -67,6 +73,15 @@ export default function EditPageBuilderRoute() {
       cancelled = true;
     };
   }, [pageId, adoptPage, setError]);
+
+  const handleBack = useCallback((destination = "/admin/pages") => {
+    if (editor.hasUnsavedChanges()) {
+      setPendingDestination(destination);
+      setShowUnsavedModal(true);
+      return;
+    }
+    router.push(destination);
+  }, [editor, router]);
 
   async function mutateBlocks(action: () => Promise<unknown>) {
     if (!editor.page) return;
@@ -148,7 +163,7 @@ export default function EditPageBuilderRoute() {
     <>
       <div className="admBuilderHeading">
         <div>
-          <IconButton icon={ArrowLeft} label="Back to pages" onClick={() => void navigate("/admin/pages")} />
+          <IconButton icon={ArrowLeft} label="Back to pages" onClick={() => handleBack("/admin/pages")} />
           <span>
             <h2>{editor.page.name}</h2>
             <small>/{editor.page.slug}</small>
@@ -181,6 +196,43 @@ export default function EditPageBuilderRoute() {
         onDuplicate={duplicateBlock}
         busy={busy}
       />
+
+      {showUnsavedModal && (
+        <Dialog title="Unsaved Changes" onClose={() => setShowUnsavedModal(false)}>
+          <p style={{ margin: 0, fontSize: "14px", color: "var(--c-text)", lineHeight: 1.5 }}>
+            You have unsaved changes on <strong>{editor.page?.name || "this page"}</strong>. Would you like to save them before leaving?
+          </p>
+          <div className="admDialogActions" style={{ marginTop: "16px" }}>
+            <Button onClick={() => setShowUnsavedModal(false)}>
+              Stay
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                editor.discardChanges();
+                setShowUnsavedModal(false);
+                router.push(pendingDestination);
+              }}
+            >
+              Discard & Leave
+            </Button>
+            <Button
+              variant="primary"
+              onClick={async () => {
+                try {
+                  await editor.save();
+                } catch {
+                  // continue
+                }
+                setShowUnsavedModal(false);
+                router.push(pendingDestination);
+              }}
+            >
+              Save & Leave
+            </Button>
+          </div>
+        </Dialog>
+      )}
 
       {deleteBlockTarget && (
         <Dialog title="Delete block" onClose={() => setDeleteBlockTarget(null)}>

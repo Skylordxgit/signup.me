@@ -27,21 +27,22 @@
 
 .admNavGroup { display: grid; gap: 2px; padding-top: var(--sp-3); }
 .admNavLabel { padding: var(--sp-3) var(--sp-2) var(--sp-1); color: var(--c-faint); font-size: var(--text-xs); font-weight: 650; text-transform: uppercase; letter-spacing: .06em; }
-.admSidebar nav button, .admSidebarBottom button, .admDrawer nav button {
+.admSidebar nav :is(button, a), .admSidebarBottom button, .admDrawer nav :is(button, a) {
   display: flex; align-items: center; gap: var(--sp-3);
   width: 100%; min-height: 38px; padding: 0 var(--sp-3);
   border: 0; border-radius: var(--radius-md); background: transparent;
   color: var(--c-text); font-size: var(--text-md); font-weight: 550;
-  text-align: left; white-space: nowrap;
+  text-align: left; white-space: nowrap; text-decoration: none;
   transition: background .12s ease, color .12s ease;
+  box-sizing: border-box; cursor: pointer;
 }
-.admSidebar nav button svg, .admSidebarBottom button svg, .admDrawer nav button svg { flex: none; width: 18px; height: 18px; color: var(--c-muted); }
-.admSidebar nav button span, .admDrawer nav button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.admSidebar nav button:hover, .admSidebarBottom button:hover, .admDrawer nav button:hover { background: var(--c-surface-sunken); color: var(--c-ink); }
-.admSidebar nav button:hover svg, .admDrawer nav button:hover svg { color: var(--c-text); }
+.admSidebar nav :is(button, a) svg, .admSidebarBottom button svg, .admDrawer nav :is(button, a) svg { flex: none; width: 18px; height: 18px; color: var(--c-muted); }
+.admSidebar nav :is(button, a) span, .admDrawer nav :is(button, a) span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.admSidebar nav :is(button, a):hover, .admSidebarBottom button:hover, .admDrawer nav :is(button, a):hover { background: var(--c-surface-sunken); color: var(--c-ink); text-decoration: none; }
+.admSidebar nav :is(button, a):hover svg, .admDrawer nav :is(button, a):hover svg { color: var(--c-text); }
 .admSidebar nav .admNavActive, .admDrawer nav .admNavActive { background: var(--c-accent-soft); color: var(--c-accent-ink); font-weight: 650; }
 .admSidebar nav .admNavActive svg, .admDrawer nav .admNavActive svg { color: var(--c-accent); }
-.admSidebar nav button small, .admDrawer nav button small {
+.admSidebar nav :is(button, a) small, .admDrawer nav :is(button, a) small {
   margin-left: auto; padding: 1px var(--sp-2); border-radius: var(--radius-pill);
   background: var(--c-surface-sunken); color: var(--c-muted);
   font-size: var(--text-xs); font-weight: 650; font-variant-numeric: tabular-nums;
@@ -51,9 +52,9 @@
 
 /* Collapsed rail */
 .admShell[data-collapsed="true"] .admSidebar { padding-inline: var(--sp-2); }
-.admShell[data-collapsed="true"] .admSidebar :where(.admBrand strong, button span, button small, .admNavLabel) { display: none; }
+.admShell[data-collapsed="true"] .admSidebar :where(.admBrand strong, :is(button, a) span, :is(button, a) small, .admNavLabel) { display: none; }
 .admShell[data-collapsed="true"] .admSidebar .admBrand { justify-content: center; padding: 0; }
-.admShell[data-collapsed="true"] .admSidebar button { justify-content: center; padding: 0; }
+.admShell[data-collapsed="true"] .admSidebar :is(button, a) { justify-content: center; padding: 0; }
 .admShell[data-collapsed="true"] .admNavGroup { gap: var(--sp-1); }
 
 /* ---------- Header ---------- */
@@ -446,10 +447,10 @@
 /* Tablet: collapse the rail, stack the dashboard */
 @media (max-width: 1100px) {
   .admShell { --adm-sidebar: 68px; }
-  .admShell .admSidebar :where(.admBrand strong, nav button span, nav button small, .admNavLabel, .admSidebarBottom button span) { display: none; }
+  .admShell .admSidebar :where(.admBrand strong, nav :is(button, a) span, nav :is(button, a) small, .admNavLabel, .admSidebarBottom button span) { display: none; }
   .admShell .admSidebar { padding-inline: var(--sp-2); }
   .admShell .admSidebar .admBrand { justify-content: center; padding: 0; }
-  .admShell .admSidebar button { justify-content: center; padding: 0; }
+  .admShell .admSidebar :is(button, a) { justify-content: center; padding: 0; }
   .admMetrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admHomeGrid { grid-template-columns: minmax(0, 1fr); gap: var(--sp-6); }
   .admBuilder { grid-template-columns: minmax(0, 1fr); }

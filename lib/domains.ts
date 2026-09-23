@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { isIP } from 'node:net';
 import { resolve4, resolveCname, Resolver } from 'node:dns/promises';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, stat as fsStat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { getWorkspace } from './workspaces';
 import { hasMysqlConfig, mysqlQuery, withTransaction, type TransactionQuery } from './mysql';

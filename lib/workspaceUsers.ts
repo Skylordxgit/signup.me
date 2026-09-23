@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { mkdir, readFile, rename, writeFile } from 'fs/promises';
+import { mkdir, readFile, rename, stat as fsStat, writeFile } from 'fs/promises';
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery, type TransactionQuery } from './mysql';
 import { parsePermissions, type WorkspacePermission, type WorkspaceRole } from './permissions';

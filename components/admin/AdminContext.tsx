@@ -26,6 +26,8 @@ export type ActiveEditorHandle = {
   error: string;
   clearError: () => void;
   save: () => Promise<void>;
+  hasUnsavedChanges?: () => boolean;
+  discardChanges?: () => void;
 };
 
 export type AdminContextType = {
@@ -105,6 +107,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const [deleteTarget, setDeleteTarget] = useState<PageSummary | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importNotice, setImportNotice] = useState("");
+  const activeEditorRef = useRef<ActiveEditorHandle | null>(null);
   const [activeEditor, setActiveEditor] = useState<ActiveEditorHandle | null>(null);
   const actionBusy = useRef(false);
 
@@ -168,7 +171,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   const bulkPageStatus = useCallback(async (ids: number[], status: "draft" | "disabled") => {
     const updated: number[] = [];
-    if (activeEditor) await activeEditor.save();
+    const editor = activeEditorRef.current;
+    if (editor && editor.hasUnsavedChanges?.()) {
+      try {
+        await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
+      } catch {
+        // continue
+      }
+    }
     const failed: string[] = [];
     for (const id of ids) {
       try {
@@ -186,10 +196,17 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       throw new Error(`Could not update: ${failed.join(", ")}. These pages remain selected for retry.`);
     }
     return updated;
-  }, [activeEditor, pages]);
+  }, [pages]);
 
   const exportPages = useCallback(async (ids: number[]) => {
-    if (activeEditor) await activeEditor.save();
+    const editor = activeEditorRef.current;
+    if (editor && editor.hasUnsavedChanges?.()) {
+      try {
+        await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
+      } catch {
+        // continue
+      }
+    }
     const response = await fetch("/api/pages/export", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -212,14 +229,21 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     link.remove();
     URL.revokeObjectURL(url);
     return `Exported ${ids.length} page${ids.length === 1 ? "" : "s"} to ${name}`;
-  }, [activeEditor]);
+  }, []);
 
   const duplicatePage = useCallback(async (id: number) => {
-    if (activeEditor) await activeEditor.save();
+    const editor = activeEditorRef.current;
+    if (editor && editor.hasUnsavedChanges?.()) {
+      try {
+        await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
+      } catch {
+        // continue
+      }
+    }
     const duplicated = await adminApi<SmartPage>("/api/pages/" + id + "/duplicate", { method: "POST" });
     await refreshPages();
     return duplicated;
-  }, [activeEditor, refreshPages]);
+  }, [refreshPages]);
 
   const deletePage = useCallback(async (id: number) => {
     if (actionBusy.current) return;
@@ -227,7 +251,14 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     setBusy(true);
     setError("");
     try {
-      if (activeEditor) await activeEditor.save();
+      const editor = activeEditorRef.current;
+      if (editor && editor.hasUnsavedChanges?.()) {
+        try {
+          await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
+        } catch {
+          // continue
+        }
+      }
       await adminApi("/api/pages/" + id, { method: "DELETE" });
       setDeleteTarget(null);
       await refreshPages();
@@ -237,48 +268,62 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
       actionBusy.current = false;
       setBusy(false);
     }
-  }, [activeEditor, refreshPages]);
+  }, [refreshPages]);
 
   const openPage = useCallback((id: number, tab?: string) => {
     const destination = `/admin/pages/${id}/edit${tab ? `?tab=${tab}` : ""}`;
-    if (activeEditor) {
-      void activeEditor.save().finally(() => {
+    const editor = activeEditorRef.current;
+    if (editor && editor.hasUnsavedChanges?.()) {
+      void Promise.race([
+        editor.save(),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]).finally(() => {
         router.push(destination);
       });
     } else {
       router.push(destination);
     }
-  }, [activeEditor, router]);
+  }, [router]);
 
   const navigate = useCallback(async (href: string) => {
-    if (activeEditor) {
+    setDrawerOpen(false);
+    const editor = activeEditorRef.current;
+    if (editor && editor.hasUnsavedChanges?.()) {
       try {
-        await activeEditor.save();
+        await Promise.race([
+          editor.save(),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
       } catch {
         // Continue navigation
       }
     }
-    setDrawerOpen(false);
     router.push(href);
-  }, [activeEditor, router]);
+  }, [router]);
 
   const logout = useCallback(async () => {
-    if (activeEditor) {
+    const editor = activeEditorRef.current;
+    if (editor && editor.hasUnsavedChanges?.()) {
       try {
-        await activeEditor.save();
+        await Promise.race([
+          editor.save(),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]);
       } catch {
         // proceed
       }
     }
     await adminApi("/api/auth/logout", { method: "POST" });
     window.location.replace("/admin/login");
-  }, [activeEditor]);
+  }, []);
 
   const registerEditor = useCallback((handle: ActiveEditorHandle) => {
+    activeEditorRef.current = handle;
     setActiveEditor(handle);
   }, []);
 
   const unregisterEditor = useCallback(() => {
+    activeEditorRef.current = null;
     setActiveEditor(null);
   }, []);
 

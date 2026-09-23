@@ -206,20 +206,21 @@ function AdminShell({ children }: { children: React.ReactNode }) {
                 {items.map((item) => {
                   const active = isNavActive(item, pathname);
                   return (
-                    <button
-                      type="button"
+                    <Link
                       key={item.id}
+                      href={item.href}
                       className={active ? "admNavActive" : ""}
                       aria-current={active ? "page" : undefined}
                       title={item.label}
                       aria-label={item.label}
-                      disabled={busy}
-                      onClick={() => void navigate(item.href)}
+                      onClick={() => {
+                        if (drawer) setDrawerOpen(false);
+                      }}
                     >
                       <item.icon size={18} aria-hidden="true" />
                       <span>{item.label}</span>
                       {item.badge && <small>{pages.length}</small>}
-                    </button>
+                    </Link>
                   );
                 })}
               </div>
@@ -378,8 +379,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
         <main
           className={"admMain " + (isBuilder ? "admMainBuilder" : "")}
-          aria-busy={busy || loading}
-          inert={busy || undefined}
+          aria-busy={loading}
         >
           {(error || activeEditor?.error) && (
             <div className="admError" role="alert">

@@ -89,7 +89,7 @@ test("route heading and builder mode are derived from URL pathname", () => {
   assert.deepEqual(getRouteInfo("/admin/master"), { heading: "Master Admin", isBuilder: false });
 });
 
-test("shared AdminLayout renders unified sidebar, topbar, and page container", () => {
+test("shared AdminLayout renders unified sidebar, topbar, and page container with accessible navigation links", () => {
   const html = renderToStaticMarkup(
     <AdminLayout>
       <div className="testPageContent">Content loaded for route</div>
@@ -106,6 +106,12 @@ test("shared AdminLayout renders unified sidebar, topbar, and page container", (
   assert.ok(html.includes("Branding"));
   assert.ok(html.includes("Settings"));
   assert.ok(html.includes("Logout"));
+  // Ensure sidebar items are real links
+  assert.ok(html.includes('href="/admin/dashboard"'));
+  assert.ok(html.includes('href="/admin/pages"'));
+  assert.ok(html.includes('href="/admin/notifications"'));
+  // Ensure main container is never inert
+  assert.ok(!html.includes("inert="));
 });
 
 test("direct route access and URL resolution across all admin sections", () => {
