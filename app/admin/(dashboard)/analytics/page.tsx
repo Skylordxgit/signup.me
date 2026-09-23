@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { AnalyticsView } from "@/components/admin/DashboardViews";
-import { adminApi, combineAnalytics } from "@/lib/admin";
+import { adminApi } from "@/lib/admin";
 import type { AnalyticsReport } from "@/lib/types";
+
+// Instant in-memory SWR client cache
+const analyticsCache = new Map<string, { data: AnalyticsReport; timestamp: number }>();
 
 export default function AnalyticsPageRoute() {
   const { pages, loading, allowedView } = useAdmin();
@@ -15,9 +18,19 @@ export default function AnalyticsPageRoute() {
     return d.toISOString().slice(0, 10);
   });
   const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [report, setReport] = useState<AnalyticsReport | null>(null);
 
-  const reportKey = pages.map((page) => page.id + ":" + page.views + ":" + page.clicks).join(",");
+  const cacheKey = `analytics:${dateRange}:${customStartDate}:${customEndDate}`;
+
+  const [report, setReport] = useState<AnalyticsReport | null>(() => {
+    return analyticsCache.get(cacheKey)?.data ?? null;
+  });
+
+  useEffect(() => {
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      setReport(cached.data);
+    }
+  }, [cacheKey]);
 
   useEffect(() => {
     if (loading || !allowedView("analytics")) return;
@@ -30,7 +43,10 @@ export default function AnalyticsPageRoute() {
 
     adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`)
       .then((data) => {
-        if (!cancelled) setReport(data);
+        if (!cancelled && data) {
+          analyticsCache.set(cacheKey, { data, timestamp: Date.now() });
+          setReport(data);
+        }
       })
       .catch(() => {
         // Handled gracefully
@@ -38,7 +54,7 @@ export default function AnalyticsPageRoute() {
     return () => {
       cancelled = true;
     };
-  }, [loading, dateRange, customStartDate, customEndDate, allowedView]);
+  }, [loading, dateRange, customStartDate, customEndDate, allowedView, cacheKey]);
 
   return (
     <AnalyticsView

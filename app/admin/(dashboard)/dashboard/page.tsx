@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { DashboardHome } from "@/components/admin/DashboardViews";
-import { adminApi, combineAnalytics } from "@/lib/admin";
+import { adminApi } from "@/lib/admin";
 import type { AnalyticsReport } from "@/lib/types";
+
+// Instant in-memory SWR client cache
+const analyticsCache = new Map<string, { data: AnalyticsReport; timestamp: number }>();
 
 export default function DashboardPage() {
   const { pages, loading, openPage, navigate, allowedView } = useAdmin();
@@ -16,9 +19,19 @@ export default function DashboardPage() {
     return d.toISOString().slice(0, 10);
   });
   const [customEndDate, setCustomEndDate] = useState(() => new Date().toISOString().slice(0, 10));
-  const [report, setReport] = useState<AnalyticsReport | null>(null);
 
-  const reportKey = pages.map((page) => page.id + ":" + page.views + ":" + page.clicks).join(",");
+  const cacheKey = `${reportPageId}:${dateRange}:${customStartDate}:${customEndDate}`;
+
+  const [report, setReport] = useState<AnalyticsReport | null>(() => {
+    return analyticsCache.get(cacheKey)?.data ?? null;
+  });
+
+  useEffect(() => {
+    const cached = analyticsCache.get(cacheKey);
+    if (cached) {
+      setReport(cached.data);
+    }
+  }, [cacheKey]);
 
   useEffect(() => {
     if (loading || !allowedView("analytics")) return;
@@ -34,7 +47,10 @@ export default function DashboardPage() {
 
     adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`)
       .then((data) => {
-        if (!cancelled) setReport(data);
+        if (!cancelled && data) {
+          analyticsCache.set(cacheKey, { data, timestamp: Date.now() });
+          setReport(data);
+        }
       })
       .catch(() => {
         // Analytics error handled gracefully
@@ -42,7 +58,7 @@ export default function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [loading, reportPageId, dateRange, customStartDate, customEndDate, allowedView]);
+  }, [loading, reportPageId, dateRange, customStartDate, customEndDate, allowedView, cacheKey]);
 
   return (
     <DashboardHome
