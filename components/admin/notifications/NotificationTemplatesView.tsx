@@ -44,20 +44,26 @@ export function NotificationTemplatesView({
   const [ctaText, setCtaText] = useState("");
   const [imageBusy, setImageBusy] = useState(false);
 
-  const fetchTemplates = async () => {
-    try {
-      setLoading(true);
-      const res = await adminApi<{ templates: NotificationTemplate[] }>("/api/admin/notifications/templates");
-      setTemplates(res.templates || []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load templates");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void fetchTemplates();
+    let cancelled = false;
+    const controller = new AbortController();
+    setLoading(true);
+    adminApi<{ templates: NotificationTemplate[] }>("/api/admin/notifications/templates", { signal: controller.signal })
+      .then((res) => {
+        if (!cancelled && res) setTemplates(res.templates || []);
+      })
+      .catch((err) => {
+        if (!cancelled && !controller.signal.aborted) {
+          setError(err instanceof Error ? err.message : "Failed to load templates");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   const openCreateModal = (tpl?: NotificationTemplate) => {

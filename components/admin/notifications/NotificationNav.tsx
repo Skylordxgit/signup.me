@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LayoutDashboard, PlusCircle, Send, Users, Layers, FileCode2, ScrollText } from "lucide-react";
 
 export type NotificationTabKey = "overview" | "create" | "campaigns" | "subscribers" | "segments" | "templates" | "logs";
@@ -12,7 +13,6 @@ export function NotificationNav({
   activeTab?: NotificationTabKey;
   onTabChange?: (tab: NotificationTabKey) => void;
 }) {
-  const router = useRouter();
   const pathname = usePathname() || "/admin/notifications";
   const isWorkspace = pathname.startsWith("/workspace");
   const base = isWorkspace ? "/workspace/notifications" : "/admin/notifications";
@@ -40,18 +40,10 @@ export function NotificationNav({
     { key: "logs", href: `${base}/logs`, label: "Delivery Logs", icon: ScrollText },
   ];
 
-  const handleSelect = (tab: (typeof tabs)[number]) => {
-    if (onTabChange) {
-      onTabChange(tab.key);
-    } else {
-      router.push(tab.href);
-    }
-  };
-
   return (
     <nav
       className="admSubNav"
-      role="tablist"
+      role="navigation"
       aria-label="Notification sections"
       style={{
         display: "flex",
@@ -70,12 +62,13 @@ export function NotificationNav({
         const Icon = tab.icon;
         const isActive = current === tab.key;
         return (
-          <button
-            type="button"
-            role="tab"
+          <Link
             key={tab.key}
-            onClick={() => handleSelect(tab)}
-            aria-selected={isActive}
+            href={tab.href}
+            onClick={() => {
+              if (onTabChange) onTabChange(tab.key);
+            }}
+            aria-current={isActive ? "page" : undefined}
             className={`admSubNavLink ${isActive ? "admSubNavActive" : ""}`}
             style={{
               display: "inline-flex",
@@ -88,13 +81,14 @@ export function NotificationNav({
               color: isActive ? "var(--c-accent, #3b82f6)" : "var(--c-muted, #64748b)",
               background: isActive ? "var(--c-accent-soft, rgba(59, 130, 246, 0.1))" : "transparent",
               border: isActive ? "1px solid rgba(59, 130, 246, 0.2)" : "1px solid transparent",
+              textDecoration: "none",
               cursor: "pointer",
               transition: "all 0.15s ease",
             }}
           >
             <Icon size={15} />
             <span>{tab.label}</span>
-          </button>
+          </Link>
         );
       })}
     </nav>

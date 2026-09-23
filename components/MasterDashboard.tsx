@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -145,12 +146,13 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     void Promise.all([
-      adminApi<Payload>("/api/master/workspaces"),
-      adminApi<DomainsPayload>("/api/master/domains"),
-      adminApi<BrandingSettings>("/api/master/branding"),
-      adminApi<SignupSettings>("/api/master/signup"),
-      adminApi<PublicWorkspaceUser[]>("/api/master/users"),
+      adminApi<Payload>("/api/master/workspaces", { signal: controller.signal }),
+      adminApi<DomainsPayload>("/api/master/domains", { signal: controller.signal }),
+      adminApi<BrandingSettings>("/api/master/branding", { signal: controller.signal }),
+      adminApi<SignupSettings>("/api/master/signup", { signal: controller.signal }),
+      adminApi<PublicWorkspaceUser[]>("/api/master/users", { signal: controller.signal }),
     ])
       .then(([data, domainData, brand, signupSettings, accounts]) => {
         if (cancelled) return;
@@ -162,12 +164,15 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
         setUsers(accounts);
       })
       .catch(cause => {
-        if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load platform data.");
+        if (!cancelled && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load platform data.");
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   async function refresh() {
@@ -457,17 +462,27 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
         <div><small>Master administrator</small><strong>{email}</strong></div>
       </div>
       <nav aria-label="Master Admin sections">
-        {views.map(item => <button
-          type="button"
-          key={item.id}
-          className={view === item.id ? "masterNavActive" : ""}
-          aria-current={view === item.id ? "page" : undefined}
-          onClick={() => navigate(item.id)}
-        >
-          <item.icon size={18} />
-          <span><strong>{item.label}</strong><small>{item.description}</small></span>
-          <ArrowRight size={14} />
-        </button>)}
+        {views.map(item => {
+          const href = item.id === "overview" ? "/admin/master" : `/admin/master/${item.id}`;
+          const active = view === item.id;
+          return (
+            <Link
+              key={item.id}
+              href={href}
+              className={active ? "masterNavActive" : ""}
+              aria-current={active ? "page" : undefined}
+              onClick={() => {
+                setView(item.id);
+                setMenuOpen(false);
+                setMessage("");
+              }}
+            >
+              <item.icon size={18} />
+              <span><strong>{item.label}</strong><small>{item.description}</small></span>
+              <ArrowRight size={14} />
+            </Link>
+          );
+        })}
       </nav>
       <button type="button" className="masterLogout" onClick={logout}><LogOut size={17} />Sign out</button>
     </aside>;

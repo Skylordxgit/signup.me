@@ -46,22 +46,33 @@ export function CampaignsView({
   const [deleteTarget, setDeleteTarget] = useState<NotificationCampaign | null>(null);
   const [error, setError] = useState("");
 
-  const fetchCampaigns = async () => {
-    setLoading(true);
-    try {
-      const res = await adminApi<{ campaigns: NotificationCampaign[] }>(
-        `/api/admin/notifications/campaigns?status=${encodeURIComponent(statusFilter)}&query=${encodeURIComponent(search)}`
-      );
-      setCampaigns(res.campaigns || []);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Failed to load campaigns.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void fetchCampaigns();
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setLoading(true);
+      adminApi<{ campaigns: NotificationCampaign[] }>(
+        `/api/admin/notifications/campaigns?status=${encodeURIComponent(statusFilter)}&query=${encodeURIComponent(search)}`,
+        { signal: controller.signal }
+      )
+        .then((res) => {
+          if (!cancelled && res) setCampaigns(res.campaigns || []);
+        })
+        .catch((cause) => {
+          if (!cancelled && !controller.signal.aborted) {
+            setError(cause instanceof Error ? cause.message : "Failed to load campaigns.");
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [statusFilter, search]);
 
   const handleAction = async (id: number, action: "send_now" | "pause" | "resume" | "cancel") => {

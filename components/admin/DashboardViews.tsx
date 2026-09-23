@@ -701,10 +701,15 @@ export function MediaView() {
   }
   useEffect(() => {
     let cancelled = false;
-    adminApi<MediaFile[]>('/api/uploads').then(files => { if (!cancelled) setMedia(files); })
-      .catch(cause => { if (!cancelled) setError(cause instanceof Error ? cause.message : 'Could not load media.'); })
+    const controller = new AbortController();
+    adminApi<MediaFile[]>('/api/uploads', { signal: controller.signal })
+      .then(files => { if (!cancelled) setMedia(files); })
+      .catch(cause => { if (!cancelled && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : 'Could not load media.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
   async function copy(path: string) {
     try { await navigator.clipboard.writeText(new URL(path, window.location.origin).toString()); setCopied(path); }
@@ -1175,8 +1180,14 @@ export function SettingsView({
   const [message, setMessage] = useState('');
   useEffect(() => {
     let cancelled = false;
-    adminApi<{ name: string; avatar: string }>('/api/admin/preferences').then(value => { if (!cancelled) { setName(value.name); setAvatar(value.avatar); } }).catch(cause => { if (!cancelled) setMessage(cause.message); });
-    return () => { cancelled = true; };
+    const controller = new AbortController();
+    adminApi<{ name: string; avatar: string }>('/api/admin/preferences', { signal: controller.signal })
+      .then(value => { if (!cancelled && value) { setName(value.name); setAvatar(value.avatar); } })
+      .catch(cause => { if (!cancelled && !controller.signal.aborted) setMessage(cause.message); });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
   async function save(event: React.FormEvent) {
     event.preventDefault();

@@ -41,16 +41,26 @@ export function NotificationsOverview() {
   } | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
     adminApi<{
       configured: boolean;
       subscribers: NotificationSubscriberSummary;
       campaigns: NotificationCampaign[];
       segments: SubscriberSegment[];
       locations: { country: string; cities: string[] }[];
-    }>("/api/admin/notifications")
-      .then((res) => setData(res))
+    }>("/api/admin/notifications", { signal: controller.signal })
+      .then((res) => {
+        if (!cancelled && res) setData(res);
+      })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   if (loading) {

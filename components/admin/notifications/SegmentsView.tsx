@@ -26,20 +26,22 @@ export function SegmentsView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const fetchSegments = async () => {
-    setLoading(true);
-    try {
-      const res = await adminApi<{ segments: SubscriberSegment[] }>("/api/admin/notifications/segments");
-      setSegments(res.segments || []);
-    } catch {
-      // Fallback
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    void fetchSegments();
+    let cancelled = false;
+    const controller = new AbortController();
+    setLoading(true);
+    adminApi<{ segments: SubscriberSegment[] }>("/api/admin/notifications/segments", { signal: controller.signal })
+      .then((res) => {
+        if (!cancelled && res) setSegments(res.segments || []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, []);
 
   const handleDelete = async () => {

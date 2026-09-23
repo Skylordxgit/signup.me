@@ -41,23 +41,33 @@ export function CampaignDetailView({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!campaign) {
-      setLoading(true);
-      adminApi<{ campaign: NotificationCampaign; logs: NotificationDeliveryLog[] }>(
-        `/api/admin/notifications/campaigns/${campaignId}`
-      )
-        .then((res) => {
+    if (!campaignId) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    setLoading(true);
+    adminApi<{ campaign: NotificationCampaign; logs: NotificationDeliveryLog[] }>(
+      `/api/admin/notifications/campaigns/${campaignId}`,
+      { signal: controller.signal }
+    )
+      .then((res) => {
+        if (!cancelled && res) {
           setCampaign(res.campaign);
           setLogs(res.logs || []);
-        })
-        .catch((cause) => {
+        }
+      })
+      .catch((cause) => {
+        if (!cancelled && !controller.signal.aborted) {
           setError(cause instanceof Error ? cause.message : "Failed to load campaign.");
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    }
-  }, [campaignId, campaign]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [campaignId]);
 
   if (loading) {
     return <LoadingState label="Loading campaign report..." />;

@@ -235,16 +235,16 @@
 .masterIdentity small { color: var(--c-faint); font-size: var(--text-xs); text-transform: uppercase; letter-spacing: .06em; }
 .masterIdentity strong { margin-top: 2px; font-size: var(--text-base); }
 .masterSidebar nav, .masterDrawer nav { display: grid; gap: 2px; }
-.masterSidebar nav button, .masterDrawer nav button {
+.masterSidebar nav :is(button, a), .masterDrawer nav :is(button, a) {
   display: grid; grid-template-columns: 20px minmax(0, 1fr) 14px; align-items: center; gap: var(--sp-3);
   width: 100%; min-height: 42px; padding: 0 var(--sp-3);
   border: 0; border-radius: var(--radius-md); background: transparent;
-  color: var(--c-text); text-align: left;
+  color: var(--c-text); text-align: left; text-decoration: none; box-sizing: border-box; cursor: pointer;
 }
-.masterSidebar nav button > svg:first-child, .masterDrawer nav button > svg:first-child { width: 18px; height: 18px; color: var(--c-muted); }
-.masterSidebar nav button > svg:last-child, .masterDrawer nav button > svg:last-child { opacity: 0; color: var(--c-faint); transition: opacity .15s ease; }
-.masterSidebar nav button:hover, .masterDrawer nav button:hover { background: var(--c-surface-sunken); color: var(--c-ink); }
-.masterSidebar nav button:hover > svg:last-child, .masterDrawer nav button:hover > svg:last-child { opacity: 1; }
+.masterSidebar nav :is(button, a) > svg:first-child, .masterDrawer nav :is(button, a) > svg:first-child { width: 18px; height: 18px; color: var(--c-muted); }
+.masterSidebar nav :is(button, a) > svg:last-child, .masterDrawer nav :is(button, a) > svg:last-child { opacity: 0; color: var(--c-faint); transition: opacity .15s ease; }
+.masterSidebar nav :is(button, a):hover, .masterDrawer nav :is(button, a):hover { background: var(--c-surface-sunken); color: var(--c-ink); text-decoration: none; }
+.masterSidebar nav :is(button, a):hover > svg:last-child, .masterDrawer nav :is(button, a):hover > svg:last-child { opacity: 1; }
 .masterSidebar nav .masterNavActive, .masterDrawer nav .masterNavActive { background: var(--c-accent-soft); color: var(--c-accent-ink); }
 .masterSidebar nav .masterNavActive svg, .masterDrawer nav .masterNavActive svg { color: var(--c-accent); opacity: 1; }
 .masterSidebar nav span, .masterDrawer nav span { min-width: 0; }

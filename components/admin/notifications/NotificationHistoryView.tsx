@@ -32,9 +32,11 @@ export function NotificationHistoryView({
     }
   }, [initialCampaigns]);
 
-  const fetchLogs = async () => {
-    setLoading(true);
-    try {
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setLoading(true);
       const params = new URLSearchParams({
         limit: String(limit),
         offset: String(offset),
@@ -44,20 +46,27 @@ export function NotificationHistoryView({
       if (statusFilter) params.set("status", statusFilter);
       if (deviceFilter) params.set("device", deviceFilter);
 
-      const res = await adminApi<{ items: NotificationDeliveryLog[]; total: number }>(
-        `/api/admin/notifications/history?${params.toString()}`
-      );
-      setLogs(res.items || []);
-      setTotal(res.total || 0);
-    } catch {
-      // History fallback
-    } finally {
-      setLoading(false);
-    }
-  };
+      adminApi<{ items: NotificationDeliveryLog[]; total: number }>(
+        `/api/admin/notifications/history?${params.toString()}`,
+        { signal: controller.signal }
+      )
+        .then((res) => {
+          if (!cancelled && res) {
+            setLogs(res.items || []);
+            setTotal(res.total || 0);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 200);
 
-  useEffect(() => {
-    void fetchLogs();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [search, campaignId, statusFilter, deviceFilter, offset]);
 
   const exportCsv = () => {

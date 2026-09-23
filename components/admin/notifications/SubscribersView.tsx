@@ -48,9 +48,11 @@ export function SubscribersView({
     }
   }, [initialLocations]);
 
-  const fetchSubscribers = async () => {
-    setLoading(true);
-    try {
+  useEffect(() => {
+    let cancelled = false;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setLoading(true);
       const params = new URLSearchParams({
         limit: String(limit),
         offset: String(offset),
@@ -61,20 +63,27 @@ export function SubscribersView({
       selectedCities.forEach((c) => params.append("city", c));
       selectedDevices.forEach((d) => params.append("device", d));
 
-      const res = await adminApi<{ items: SubscriberItem[]; total: number }>(
-        `/api/admin/notifications/subscribers?${params.toString()}`
-      );
-      setSubscribers(res.items || []);
-      setTotal(res.total || 0);
-    } catch {
-      // Fallback
-    } finally {
-      setLoading(false);
-    }
-  };
+      adminApi<{ items: SubscriberItem[]; total: number }>(
+        `/api/admin/notifications/subscribers?${params.toString()}`,
+        { signal: controller.signal }
+      )
+        .then((res) => {
+          if (!cancelled && res) {
+            setSubscribers(res.items || []);
+            setTotal(res.total || 0);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 200);
 
-  useEffect(() => {
-    void fetchSubscribers();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [search, selectedCountries, selectedCities, selectedDevices, statusFilter, offset]);
 
   const exportCsv = () => {
