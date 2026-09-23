@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -193,10 +192,12 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   function requestNavigation(event: React.MouseEvent<HTMLAnchorElement>, href: string, drawer: boolean) {
     if (drawer) setDrawerOpen(false);
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
     if (activeEditor?.hasUnsavedChanges?.()) {
-      event.preventDefault();
       setPendingNavigation(href);
+      return;
     }
+    router.push(href);
   }
 
   function renderSidebar(drawer = false) {
@@ -217,7 +218,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
                 {items.map((item) => {
                   const active = isNavActive(item, pathname);
                   return (
-                    <Link
+                    <a
                       key={item.id}
                       href={item.href}
                       className={active ? "admNavActive" : ""}
@@ -229,7 +230,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
                       <item.icon size={18} aria-hidden="true" />
                       <span>{item.label}</span>
                       {item.badge && <small>{pages.length}</small>}
-                    </Link>
+                    </a>
                   );
                 })}
               </div>

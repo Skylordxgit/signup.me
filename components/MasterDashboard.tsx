@@ -118,6 +118,10 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
   const [userPermissions, setUserPermissions] = useState<WorkspacePermission[]>([]);
   const [withPassword, setWithPassword] = useState(true);
   const [inviteUrl, setInviteUrl] = useState("");
+  const [userQuery, setUserQuery] = useState("");
+  const [userWorkspaceFilter, setUserWorkspaceFilter] = useState("all");
+  const [userRoleFilter, setUserRoleFilter] = useState("all");
+  const [userStatusFilter, setUserStatusFilter] = useState("all");
 
   // Workspace management state
   const [workspaceModal, setWorkspaceModal] = useState<"create" | MasterWorkspace | null>(null);
@@ -449,6 +453,17 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
   }), { pages: 0, admins: 0, subscribers: 0 });
   const activeWorkspaces = workspaces.filter(workspace => workspace.status === "active").length;
   const selected = views.find(item => item.id === view) ?? views[0];
+  const filteredUsers = users.filter(user => {
+    const workspace = workspaces.find(item => item.id === user.workspaceId);
+    const query = userQuery.trim().toLowerCase();
+    const status = user.pending ? "invited" : user.active ? "active" : "disabled";
+    return (
+      (!query || `${user.name} ${user.email} ${workspace?.name || user.workspaceId}`.toLowerCase().includes(query)) &&
+      (userWorkspaceFilter === "all" || user.workspaceId === userWorkspaceFilter) &&
+      (userRoleFilter === "all" || user.role === userRoleFilter) &&
+      (userStatusFilter === "all" || status === userStatusFilter)
+    );
+  });
 
   function navigation(className: string) {
     return <aside className={className}>
@@ -582,24 +597,38 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
 
           {view === "users" && <div className="masterView">
             <div className="masterPageIntro">
-              <div><span>{users.length} accounts</span><h2>All registered users</h2><p>Create, manage, and inspect all user and administrator accounts across all workspaces.</p></div>
-              <Button variant="primary" icon={Plus} disabled={busy} onClick={openCreateUserModal}>Add user / admin</Button>
+              <div><span>{users.length} accounts</span><h2>All users</h2><p>Manage accounts and workspace access across the platform.</p></div>
+              <div className="masterUserToolbarActions">
+                <Button size="sm" icon={RefreshCw} disabled={busy} onClick={() => void refresh()}>Refresh</Button>
+                <Button variant="primary" icon={Plus} disabled={busy} onClick={openCreateUserModal}>Add user / admin</Button>
+              </div>
             </div>
-            <section className="masterPanel">
-              {!users.length ? <EmptyState title="No registered users found" /> : <div className="masterUserList">{users.map(user => <article key={user.id}>
-                <span className="masterUserAvatar">{(user.name || user.email).slice(0, 1).toUpperCase()}</span>
-                <div className="masterUserName"><strong>{user.name || "Unnamed user"}</strong><small>{user.email}</small></div>
-                <div><small>Workspace</small><strong>{workspaces.find(workspace => workspace.id === user.workspaceId)?.name || user.workspaceId}</strong></div>
-                <span className="admBadge">{user.role === "owner" ? "Admin / Owner" : "Member"}</span>
-                <span className={`admBadge admBadge-${user.pending ? "" : user.active ? "published" : "disabled"}`}>{user.pending ? "Invited" : user.active ? "Active" : "Disabled"}</span>
-                <div className="admActionRow">
-                  <IconButton icon={Settings2} label={`Permissions for ${user.email}`} disabled={busy} onClick={() => openEditUserModal(user, "permissions")} />
-                  {!user.pending && <IconButton icon={KeyRound} label={`Reset password for ${user.email}`} disabled={busy} onClick={() => openEditUserModal(user, "password")} />}
-                  <IconButton icon={user.active ? UserX : UserCheck} label={`${user.active ? "Disable" : "Enable"} ${user.email}`} disabled={busy} onClick={() => void run(() => adminApi("/api/master/users", { method: "PATCH", body: JSON.stringify({ id: user.id, action: "access", active: !user.active }) }))} />
-                  <IconButton icon={Trash2} tone="danger" label={`Delete ${user.email}`} disabled={busy} onClick={() => void run(() => adminApi("/api/master/users", { method: "DELETE", body: JSON.stringify({ id: user.id }) }))} />
-                  <IconButton icon={ArrowUpRight} label={`Open workspace for ${user.email}`} onClick={() => { const workspace = workspaces.find(item => item.id === user.workspaceId); if (workspace) void run(() => openWorkspace(workspace)); }} />
-                </div>
-              </article>)}</div>}
+            <section className="masterPanel masterUsersPanel">
+              <div className="masterUserFilters" role="search">
+                <input value={userQuery} onChange={event => setUserQuery(event.target.value)} placeholder="Search users..." aria-label="Search users" />
+                <select value={userWorkspaceFilter} onChange={event => setUserWorkspaceFilter(event.target.value)} aria-label="Filter by workspace"><option value="all">All workspaces</option>{workspaces.map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select>
+                <select value={userRoleFilter} onChange={event => setUserRoleFilter(event.target.value)} aria-label="Filter by role"><option value="all">All roles</option><option value="owner">Admin / Owner</option><option value="member">Member</option></select>
+                <select value={userStatusFilter} onChange={event => setUserStatusFilter(event.target.value)} aria-label="Filter by status"><option value="all">All statuses</option><option value="active">Active</option><option value="disabled">Disabled</option><option value="invited">Invited</option></select>
+              </div>
+              {!users.length ? <EmptyState title="No registered users found" /> : !filteredUsers.length ? <EmptyState title="No users match these filters" description="Try changing your search or filters." /> : <div className="masterUserList">
+                <div className="masterUserTableHead" aria-hidden="true"><span>User</span><span>Workspace</span><span>Role</span><span>Status</span><span>Actions</span></div>
+                {filteredUsers.map(user => {
+                  const workspace = workspaces.find(item => item.id === user.workspaceId);
+                  return <article key={user.id}>
+                    <div className="masterUserIdentity"><span className="masterUserAvatar">{(user.name || user.email).slice(0, 1).toUpperCase()}</span><span className="masterUserName"><strong>{user.name || "Unnamed user"}</strong><small>{user.email}</small></span></div>
+                    <div className="masterUserWorkspace"><small>Workspace</small><strong>{workspace?.name || user.workspaceId}</strong></div>
+                    <div className="masterUserRole"><small>Role</small><span className="admBadge">{user.role === "owner" ? "Admin / Owner" : "Member"}</span></div>
+                    <div className="masterUserStatus"><small>Status</small><span className={`admBadge admBadge-${user.pending ? "" : user.active ? "published" : "disabled"}`}>{user.pending ? "Invited" : user.active ? "Active" : "Disabled"}</span></div>
+                    <div className="masterUserActions">
+                      <IconButton icon={Settings2} label={`Permissions for ${user.email}`} disabled={busy} onClick={() => openEditUserModal(user, "permissions")} />
+                      {!user.pending && <IconButton icon={KeyRound} label={`Reset password for ${user.email}`} disabled={busy} onClick={() => openEditUserModal(user, "password")} />}
+                      <IconButton icon={user.active ? UserX : UserCheck} label={`${user.active ? "Disable" : "Enable"} ${user.email}`} disabled={busy} onClick={() => void run(() => adminApi("/api/master/users", { method: "PATCH", body: JSON.stringify({ id: user.id, action: "access", active: !user.active }) }))} />
+                      <IconButton icon={ArrowUpRight} label={`Open workspace for ${user.email}`} disabled={!workspace} onClick={() => { if (workspace) void run(() => openWorkspace(workspace)); }} />
+                      <IconButton icon={Trash2} tone="danger" label={`Delete ${user.email}`} disabled={busy} onClick={() => void run(() => adminApi("/api/master/users", { method: "DELETE", body: JSON.stringify({ id: user.id }) }))} />
+                    </div>
+                  </article>;
+                })}
+              </div>}
             </section>
           </div>}
 
