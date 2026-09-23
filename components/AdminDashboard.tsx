@@ -195,29 +195,29 @@ export function AdminDashboard({ initialView }: { initialView?: View } = {}) {
   }
 
   function allowedView(next: string) {
-    const permission = ({ dashboard: 'pages', pages: 'pages', create: 'pages', builder: 'pages', themes: 'pages', media: 'media', notifications: 'notifications', branding: 'pages', users: 'team' } as Record<string, WorkspacePermission>)[next];
+    const permission = ({ pages: 'pages', create: 'pages', builder: 'pages', themes: 'pages', media: 'media', notifications: 'notifications', users: 'team' } as Record<string, WorkspacePermission>)[next];
     return !permission || canAccess({ role, permissions, isMaster }, permission);
   }
 
   function navigate(next: string) {
     if (!allowedView(next)) return;
-    void run(async () => {
-      await editor.save();
-      setView(next as View);
-      setDrawerOpen(false);
-      if (accountMenu.current) accountMenu.current.open = false;
-      if (router) {
-        if (next === 'dashboard') router.push('/admin/dashboard');
-        else if (next === 'create') router.push('/admin/pages/new');
-        else if (next === 'pages') router.push('/admin/pages');
-        else if (next === 'media') router.push('/admin/media');
-        else if (next === 'themes') router.push('/admin/themes');
-        else if (next === 'notifications') router.push('/admin/notifications');
-        else if (next === 'branding') router.push('/admin/branding');
-        else if (next === 'users') router.push('/admin/users');
-        else if (next === 'settings') router.push('/admin/settings');
-      }
-    });
+    if (editor.hasUnsavedChanges?.()) {
+      void editor.save().catch(() => {});
+    }
+    setView(next as View);
+    setDrawerOpen(false);
+    if (accountMenu.current) accountMenu.current.open = false;
+    if (router) {
+      if (next === 'dashboard') router.push('/admin/dashboard');
+      else if (next === 'create') router.push('/admin/pages/new');
+      else if (next === 'pages') router.push('/admin/pages');
+      else if (next === 'media') router.push('/admin/media');
+      else if (next === 'themes') router.push('/admin/themes');
+      else if (next === 'notifications') router.push('/admin/notifications');
+      else if (next === 'branding') router.push('/admin/branding');
+      else if (next === 'users') router.push('/admin/users');
+      else if (next === 'settings') router.push('/admin/settings');
+    }
   }
 
   function openPage(id: number, tab: BuilderTab = 'profile') {
@@ -327,7 +327,27 @@ export function AdminDashboard({ initialView }: { initialView?: View } = {}) {
           if (!items.length) return null;
           return <div className="admNavGroup" key={group}>
             <p className="admNavLabel">{group}</p>
-            {items.map(item => <button type="button" key={item.id} className={isActive(item.id) ? 'admNavActive' : ''} aria-current={isActive(item.id) ? 'page' : undefined} title={item.label} aria-label={item.label} disabled={busy} onClick={() => navigate(item.id)}><item.icon size={18} aria-hidden="true" /><span>{item.label}</span>{item.id === 'pages' && <small>{pages.length}</small>}</button>)}
+            {items.map(item => {
+              const href = item.id === 'dashboard' ? '/admin/dashboard' : item.id === 'create' ? '/admin/pages/new' : `/admin/${item.id}`;
+              const active = isActive(item.id);
+              return (
+                <Link
+                  key={item.id}
+                  href={href}
+                  className={active ? 'admNavActive' : ''}
+                  aria-current={active ? 'page' : undefined}
+                  title={item.label}
+                  aria-label={item.label}
+                  onClick={() => {
+                    navigate(item.id);
+                  }}
+                >
+                  <item.icon size={18} aria-hidden="true" />
+                  <span>{item.label}</span>
+                  {item.id === 'pages' && <small>{pages.length}</small>}
+                </Link>
+              );
+            })}
           </div>;
         })}
       </nav>

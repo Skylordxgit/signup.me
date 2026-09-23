@@ -51,7 +51,7 @@ export type NavItem = {
 };
 
 const navigationItems: NavItem[] = [
-  { id: "dashboard", label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard, group: "Overview", permission: "pages" },
+  { id: "dashboard", label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard, group: "Overview" },
   { id: "pages", label: "Pages", href: "/admin/pages", icon: FileText, group: "Content", permission: "pages", badge: true },
   { id: "create", label: "Create Page", href: "/admin/pages/new", icon: Plus, group: "Content", permission: "pages" },
   { id: "media", label: "Media", href: "/admin/media", icon: ImageIcon, group: "Content", permission: "media" },

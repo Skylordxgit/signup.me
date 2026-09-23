@@ -9,6 +9,6 @@ export function parsePermissions(value: unknown): WorkspacePermission[] {
   return [...new Set(value)] as WorkspacePermission[];
 }
 
-export function canAccess(session: { role: WorkspaceRole; isMaster?: boolean; permissions?: WorkspacePermission[] }, permission: WorkspacePermission) {
-  return session.isMaster === true || session.role === 'owner' || session.permissions?.includes(permission) === true;
+export function canAccess(session: { role?: string; isMaster?: boolean; permissions?: WorkspacePermission[] }, permission: WorkspacePermission) {
+  return session.isMaster === true || session.role === 'owner' || session.role === 'admin' || session.permissions?.includes(permission) === true;
 }

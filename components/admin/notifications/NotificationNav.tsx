@@ -65,8 +65,10 @@ export function NotificationNav({
           <Link
             key={tab.key}
             href={tab.href}
-            onClick={() => {
-              if (onTabChange) onTabChange(tab.key);
+            onClick={(e) => {
+              if (onTabChange && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey && e.button === 0) {
+                onTabChange(tab.key);
+              }
             }}
             aria-current={isActive ? "page" : undefined}
             className={`admSubNavLink ${isActive ? "admSubNavActive" : ""}`}
