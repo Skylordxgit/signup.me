@@ -26,7 +26,8 @@ export function BrandingView({
 
   useEffect(() => {
     let cancelled = false;
-    adminApi<WorkspaceBranding>("/api/admin/branding")
+    const controller = new AbortController();
+    adminApi<WorkspaceBranding>("/api/admin/branding", { signal: controller.signal })
       .then(data => {
         if (!cancelled && data) {
           setBranding(data);
@@ -40,6 +41,7 @@ export function BrandingView({
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 

@@ -254,8 +254,8 @@ const migrationStatements = [
   `ALTER TABLE custom_domains ADD INDEX idx_custom_domains_host_status (hostname, status)`,
   `ALTER TABLE pages ADD INDEX idx_pages_ws_slug_status (workspace_id, slug, status)`,
   `ALTER TABLE page_blocks ADD INDEX idx_blocks_page_active_order (page_id, is_active, sort_order)`,
-  `ALTER TABLE page_views ADD INDEX idx_views_ws_created (workspace_id, created_at)`,
-  `ALTER TABLE link_clicks ADD INDEX idx_clicks_ws_created (workspace_id, created_at)`,
+   `ALTER TABLE page_views ADD INDEX idx_views_ws_created (workspace_id, created_at)`,
+   `ALTER TABLE link_clicks ADD INDEX idx_clicks_ws_created (workspace_id, created_at)`,
 ];
 
 /* Errors that mean "this migration already ran". */

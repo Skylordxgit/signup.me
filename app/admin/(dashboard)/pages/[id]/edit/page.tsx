@@ -54,9 +54,14 @@ export default function EditPageBuilderRoute() {
   const adoptPage = editor.adopt;
 
   useEffect(() => {
-    if (!pageId || isNaN(pageId)) return;
+    if (!pageId || isNaN(pageId)) {
+      setError("This page address is invalid.");
+      setLoadingPage(false);
+      return;
+    }
     let cancelled = false;
-    adminApi<SmartPage>(`/api/pages/${pageId}`)
+    const controller = new AbortController();
+    adminApi<SmartPage>(`/api/pages/${pageId}`, { signal: controller.signal })
       .then((page) => {
         if (!cancelled) {
           adoptPage(page);
@@ -71,6 +76,7 @@ export default function EditPageBuilderRoute() {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [pageId, adoptPage, setError]);
 
@@ -155,8 +161,18 @@ export default function EditPageBuilderRoute() {
     });
   }
 
-  if (loadingPage || !editor.page) {
+  if (loadingPage) {
     return <LoadingState label="Loading page editor..." />;
+  }
+
+  if (!editor.page) {
+    return (
+      <div className="admCard admFormStack" role="alert" style={{ maxWidth: "520px" }}>
+        <h2 style={{ margin: 0 }}>Page editor unavailable</h2>
+        <p style={{ margin: 0 }}>The page could not be loaded. Return to Pages and try again.</p>
+        <Button variant="primary" onClick={() => router.push("/admin/pages")}>Back to Pages</Button>
+      </div>
+    );
   }
 
   return (

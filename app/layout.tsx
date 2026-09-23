@@ -41,16 +41,20 @@ export async function generateMetadata(): Promise<Metadata> {
     // Fall back to global master branding
   }
 
-  const branding = await getBranding();
-  return {
-    title: branding.siteTitle,
-    description:
-      `Create mobile-friendly link pages, offers, requests, and analytics with ${branding.name}.`,
-    icons: {
-      icon: [{ url: branding.favicon, sizes: 'any' }],
-      apple: branding.logo,
-    },
-  };
+  try {
+    const branding = await getBranding();
+    return {
+      title: branding.siteTitle,
+      description:
+        `Create mobile-friendly link pages, offers, requests, and analytics with ${branding.name}.`,
+      icons: {
+        icon: [{ url: branding.favicon, sizes: 'any' }],
+        apple: branding.logo,
+      },
+    };
+  } catch {
+    return { title: 'Signup888', description: 'Create mobile-friendly link pages and analytics.' };
+  }
 }
 
 export default function RootLayout({

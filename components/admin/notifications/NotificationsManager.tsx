@@ -65,12 +65,14 @@ export function NotificationsManager({
   }, [pathname]);
 
   useEffect(() => {
-    adminApi<{ locations?: WorkspaceDistinctLocations; segments?: SubscriberSegment[] }>("/api/admin/notifications")
+    const controller = new AbortController();
+    adminApi<{ locations?: WorkspaceDistinctLocations; segments?: SubscriberSegment[] }>("/api/admin/notifications", { signal: controller.signal })
       .then((res) => {
         if (res.locations) setLocations(res.locations);
         if (res.segments) setSegments(res.segments);
       })
       .catch(() => {});
+    return () => controller.abort();
   }, []);
 
   const handleTabChange = (nextTab: NotificationTabKey) => {

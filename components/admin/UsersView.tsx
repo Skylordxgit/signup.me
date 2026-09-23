@@ -36,8 +36,9 @@ export function UsersView({ role, permissions, isMaster }: { role: WorkspaceRole
   const [withPassword, setWithPassword] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    adminApi<TeamUser[]>('/api/admin/users').then(data => { if (!cancelled) setUsers(data); }).catch(cause => { if (!cancelled) setError(cause.message); }).finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    const controller = new AbortController();
+    adminApi<TeamUser[]>('/api/admin/users', { signal: controller.signal }).then(data => { if (!cancelled) setUsers(data); }).catch(cause => { if (!cancelled && !controller.signal.aborted) setError(cause.message); }).finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; controller.abort(); };
   }, []);
   async function update(action: () => Promise<unknown>, success: string) {
     if (busy) return;

@@ -1,10 +1,45 @@
 import type { AnalyticsReport, CityDetailMetric, HourlyMetric, LinkClickLocation, LinkPerformanceItem, LocationMetric, RecentActivityItem, SmartPage } from "./types";
 
+export class AdminApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = "AdminApiError";
+  }
+}
+
 export async function adminApi<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { "content-type": "application/json", ...init?.headers } });
-  const data = await response.json().catch(() => null) as (T & { error?: string }) | null;
-  if (!response.ok) throw new Error(data?.error || (response.status === 401 ? "Your session has expired. Please sign in again." : "The request failed. Please try again."));
-  return data as T;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  const abortFromCaller = () => controller.abort();
+  init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+      headers: { "content-type": "application/json", ...init?.headers },
+    });
+    const data = await response.json().catch(() => null) as (T & { error?: string }) | null;
+    if (!response.ok) {
+      throw new AdminApiError(
+        data?.error || (response.status === 401 ? "Your session has expired. Please sign in again." : `Request failed (${response.status}).`),
+        response.status,
+      );
+    }
+    return data as T;
+  } catch (error) {
+    if (error instanceof AdminApiError) throw error;
+    if (controller.signal.aborted) {
+      throw new AdminApiError(init?.signal?.aborted ? "Request cancelled." : "This request took too long. Please try again.");
+    }
+    throw new AdminApiError("Unable to reach the server. Check your connection and try again.");
+  } finally {
+    window.clearTimeout(timeout);
+    init?.signal?.removeEventListener("abort", abortFromCaller);
+  }
 }
 
 export function editablePage(page: SmartPage) {

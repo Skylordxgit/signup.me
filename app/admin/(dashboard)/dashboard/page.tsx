@@ -36,6 +36,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (loading || !allowedView("analytics")) return;
     let cancelled = false;
+    const controller = new AbortController();
 
     let queryParam = `?days=${dateRange}`;
     if (dateRange === "custom" && customStartDate && customEndDate) {
@@ -45,7 +46,7 @@ export default function DashboardPage() {
       queryParam += `&pageId=${reportPageId}`;
     }
 
-    adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`)
+    adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`, { signal: controller.signal })
       .then((data) => {
         if (!cancelled && data) {
           analyticsCache.set(cacheKey, { data, timestamp: Date.now() });
@@ -57,6 +58,7 @@ export default function DashboardPage() {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [loading, reportPageId, dateRange, customStartDate, customEndDate, allowedView, cacheKey]);
 

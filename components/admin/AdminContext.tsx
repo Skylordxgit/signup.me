@@ -113,11 +113,12 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     Promise.all([
-      adminApi<AdminAccount>("/api/auth/me"),
+      adminApi<AdminAccount>("/api/auth/me", { signal: controller.signal }),
       fetchBranding(),
-      adminApi<WorkspaceBranding>("/api/admin/branding").catch(() => null),
-      adminApi<PageSummary[]>("/api/pages").catch(() => []),
+      adminApi<WorkspaceBranding>("/api/admin/branding", { signal: controller.signal }).catch(() => null),
+      adminApi<PageSummary[]>("/api/pages", { signal: controller.signal }).catch(() => []),
     ])
       .then(async ([acc, brand, wsBrand, pagesData]) => {
         if (cancelled) return;
@@ -132,12 +133,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
           setBranding(brand);
         }
 
-        if (pagesData && pagesData.length > 0) {
-          setPages(pagesData);
-        } else if (canAccess(acc, "pages") || canAccess(acc, "analytics") || canAccess(acc, "notifications")) {
-          const items = await adminApi<PageSummary[]>("/api/pages");
-          if (!cancelled) setPages(items);
-        }
+        // The initial response is authoritative, including an empty workspace.
+        // Do not trigger a second request just because there are no pages yet.
+        setPages(pagesData || []);
       })
       .catch((cause) => {
         if (!cancelled) setError(cause instanceof Error ? cause.message : "Could not load the workspace.");
@@ -148,6 +146,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, []);
 

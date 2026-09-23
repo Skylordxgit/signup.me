@@ -35,13 +35,14 @@ export default function AnalyticsPageRoute() {
   useEffect(() => {
     if (loading || !allowedView("analytics")) return;
     let cancelled = false;
+    const controller = new AbortController();
 
     let queryParam = `?days=${dateRange}`;
     if (dateRange === "custom" && customStartDate && customEndDate) {
       queryParam = `?days=custom&from=${customStartDate}&to=${customEndDate}`;
     }
 
-    adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`)
+    adminApi<AnalyticsReport>(`/api/admin/analytics${queryParam}`, { signal: controller.signal })
       .then((data) => {
         if (!cancelled && data) {
           analyticsCache.set(cacheKey, { data, timestamp: Date.now() });
@@ -53,6 +54,7 @@ export default function AnalyticsPageRoute() {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [loading, dateRange, customStartDate, customEndDate, allowedView, cacheKey]);
 
