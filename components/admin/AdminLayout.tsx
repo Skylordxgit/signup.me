@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -152,6 +152,7 @@ export function getRouteInfo(pathname: string): { heading: string; isBuilder: bo
 }
 
 function AdminShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const rawPathname = usePathname();
   const pathname = rawPathname || "/admin/dashboard";
   const {
@@ -182,11 +183,21 @@ function AdminShell({ children }: { children: React.ReactNode }) {
   } = useAdmin();
 
   const accountMenu = useRef<HTMLDetailsElement>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
   const routeInfo = getRouteInfo(pathname);
   const heading = routeInfo.heading;
   const isBuilder = routeInfo.isBuilder;
 
   const visibleNav = navigationItems.filter((item) => allowedView(item.permission));
+
+  function requestNavigation(event: React.MouseEvent<HTMLAnchorElement>, href: string, drawer: boolean) {
+    if (drawer) setDrawerOpen(false);
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    if (activeEditor?.hasUnsavedChanges?.()) {
+      event.preventDefault();
+      setPendingNavigation(href);
+    }
+  }
 
   function renderSidebar(drawer = false) {
     return (
@@ -213,9 +224,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
                       aria-current={active ? "page" : undefined}
                       title={item.label}
                       aria-label={item.label}
-                      onClick={() => {
-                        if (drawer) setDrawerOpen(false);
-                      }}
+                      onClick={(event) => requestNavigation(event, item.href, drawer)}
                     >
                       <item.icon size={18} aria-hidden="true" />
                       <span>{item.label}</span>
@@ -401,6 +410,37 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       {drawerOpen && (
         <Dialog title="Navigation" onClose={() => setDrawerOpen(false)}>
           <div className="admDrawer">{renderSidebar(true)}</div>
+        </Dialog>
+      )}
+
+      {pendingNavigation && activeEditor && (
+        <Dialog title="Unsaved changes" onClose={() => setPendingNavigation(null)}>
+          <p>You have unsaved page changes. What would you like to do?</p>
+          <div className="admDialogActions">
+            <Button onClick={() => setPendingNavigation(null)}>Stay</Button>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                activeEditor.discardChanges?.();
+                router.push(pendingNavigation);
+                setPendingNavigation(null);
+              }}
+            >
+              Discard and leave
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                const destination = pendingNavigation;
+                void activeEditor.save().finally(() => {
+                  router.push(destination);
+                  setPendingNavigation(null);
+                });
+              }}
+            >
+              Save and leave
+            </Button>
+          </div>
         </Dialog>
       )}
 

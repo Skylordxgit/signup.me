@@ -318,7 +318,16 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
 
   const registerEditor = useCallback((handle: ActiveEditorHandle) => {
     activeEditorRef.current = handle;
-    setActiveEditor(handle);
+    setActiveEditor((current) => {
+      if (
+        current?.page?.id === handle.page?.id &&
+        current?.status === handle.status &&
+        current?.error === handle.error
+      ) {
+        return current;
+      }
+      return handle;
+    });
   }, []);
 
   const unregisterEditor = useCallback(() => {

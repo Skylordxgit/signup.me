@@ -20,7 +20,9 @@
   height: 100dvh; padding: 0 var(--sp-3) var(--sp-4);
   border-right: 1px solid var(--c-line); background: var(--c-surface);
   overflow-y: auto; overflow-x: hidden;
+  pointer-events: auto;
 }
+.admSidebar nav, .admSidebar nav a { position: relative; z-index: 1; pointer-events: auto; }
 .admBrand { display: flex; align-items: center; gap: var(--sp-3); height: var(--adm-header-h); flex: none; padding: 0 var(--sp-2); }
 .admBrandLogo { width: 30px; height: 30px; flex: none; border-radius: var(--radius-md); object-fit: cover; }
 .admBrand strong { font-size: var(--text-lg); font-weight: 700; letter-spacing: -.015em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
