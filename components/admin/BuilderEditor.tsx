@@ -6,7 +6,8 @@ import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "@/lib/types
 import { blockTypes, slugify, slugifyDraft } from "@/lib/utils";
 import { applyThemeDefinition, resolveAlignment, resolveButtonStyle, resolveProfileLayout, themeLibrary } from "@/lib/themes";
 import { ImageUploader } from "../ImageUploader";
-import { PageRenderer, resolveBlockIcon } from "../PageRenderer";
+import { PageRenderer } from "../PageRenderer";
+import { resolveBlockIcon } from "../blockIcons";
 import { PhoneFrame } from "../PhoneFrame";
 import { Button, Dialog, EmptyState, Field, IconButton, SectionHeading } from "./AdminUI";
 import {
