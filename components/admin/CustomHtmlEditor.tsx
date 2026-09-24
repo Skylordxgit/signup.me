@@ -1,15 +1,55 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowLeft, Bell, Code2, Eye, Globe, Info, Link2, RefreshCw, Save, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Bell,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Eye,
+  FileCode,
+  FolderArchive,
+  Info,
+  Layout,
+  Monitor,
+  RefreshCw,
+  Save,
+  Send,
+  ShieldCheck,
+  Smartphone,
+  Tablet,
+  UploadCloud,
+  X,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { AnalyticsReport, SmartPage } from "@/lib/types";
 import { adminApi } from "@/lib/admin";
-import { Button, Field, PageHeader } from "./AdminUI";
+import { Button, Field } from "./AdminUI";
 import { resolveNotificationPrompt, resolveNotificationPromptTheme } from "@/lib/notificationPrompt";
 
 const number = (value: number = 0) => value.toLocaleString();
 const percent = (value: number = 0) => `${Math.round(value)}%`;
+
+function formatVersionDate(dateStr: string) {
+  try {
+    const d = new Date(dateStr);
+    return d
+      .toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .replace(",", " •");
+  } catch {
+    return dateStr;
+  }
+}
 
 type Tab = "content" | "seo" | "notifications" | "analytics" | "settings";
 
@@ -17,9 +57,28 @@ export function CustomHtmlEditor({ initialPage }: { initialPage: SmartPage }) {
   const router = useRouter();
   const [page, setPage] = useState(initialPage);
   const [sourceHtml, setSourceHtml] = useState(initialPage.customHtml?.sourceHtml || "");
+  const [debouncedHtml, setDebouncedHtml] = useState(
+    initialPage.customHtml?.draftHtml || initialPage.customHtml?.sourceHtml || ""
+  );
   const [tab, setTab] = useState<Tab>("content");
   const [preview, setPreview] = useState<"desktop" | "tablet" | "mobile">("desktop");
-  const [status, setStatus] = useState("Saved");
+  const [mobileMode, setMobileMode] = useState<"edit" | "preview">("edit");
+  const [previewKey, setPreviewKey] = useState(1);
+  const [previewingVersion, setPreviewingVersion] = useState<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  // Upload Dropzone states
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadingFileName, setUploadingFileName] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<{ fileName: string; fileCount?: number } | null>(null);
+  const [showSecurityInfo, setShowSecurityInfo] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Analytics states
   const [report, setReport] = useState<AnalyticsReport | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [simulatingPrompt, setSimulatingPrompt] = useState(false);
@@ -27,6 +86,16 @@ export function CustomHtmlEditor({ initialPage }: { initialPage: SmartPage }) {
   const prompt = page.integrations.notificationPrompt;
   const promptCopy = resolveNotificationPrompt(prompt);
   const promptTheme = resolveNotificationPromptTheme(prompt);
+
+  // Debounce live preview update (400ms)
+  useEffect(() => {
+    if (previewingVersion === null) {
+      const timer = setTimeout(() => {
+        setDebouncedHtml(sourceHtml);
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [sourceHtml, previewingVersion]);
 
   function updatePrompt(patch: Partial<NonNullable<typeof prompt>>) {
     setPage({
@@ -51,7 +120,9 @@ export function CustomHtmlEditor({ initialPage }: { initialPage: SmartPage }) {
   }, [tab, page.id]);
 
   async function save(publish = false, restoreVersion?: number) {
-    setStatus(publish ? "Publishing..." : "Saving...");
+    if (publish) setIsPublishing(true);
+    else setIsSaving(true);
+    setSaveStatus(publish ? "Publishing..." : "Saving...");
     try {
       const saved = await adminApi<SmartPage>(`/api/pages/${page.id}/custom-html`, {
         method: "PUT",
@@ -67,140 +138,479 @@ export function CustomHtmlEditor({ initialPage }: { initialPage: SmartPage }) {
         }),
       });
       setPage(saved);
-      setSourceHtml(saved.customHtml?.sourceHtml || sourceHtml);
-      setStatus(publish ? "Published successfully" : restoreVersion ? `Version ${restoreVersion} restored as draft` : "Draft saved");
+      if (saved.customHtml?.sourceHtml) {
+        setSourceHtml(saved.customHtml.sourceHtml);
+        setDebouncedHtml(saved.customHtml.draftHtml || saved.customHtml.sourceHtml);
+        setPreviewingVersion(null);
+      }
+      setSaveStatus(publish ? "Published" : restoreVersion ? `Version ${restoreVersion} restored` : "Saved");
+      setTimeout(() => setSaveStatus(null), 3500);
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save draft.");
+      setSaveStatus(error instanceof Error ? error.message : "Save failed.");
+    } finally {
+      setIsSaving(false);
+      setIsPublishing(false);
     }
   }
 
   async function importSource(file: File) {
-    setStatus("Reading upload...");
+    setIsUploading(true);
+    setUploadingFileName(file.name);
+    setUploadError(null);
+    setUploadSuccess(null);
     const form = new FormData();
     form.set("file", file);
     try {
       const response = await fetch(`/api/pages/${page.id}/custom-html/upload`, { method: "POST", body: form });
-      const body = (await response.json()) as { html?: string; error?: string; warnings?: string[] };
-      if (!response.ok || !body.html) throw new Error(body.error || "Could not read upload.");
+      const body = (await response.json()) as { html?: string; fileCount?: number; error?: string; warnings?: string[] };
+      if (!response.ok || !body.html) {
+        throw new Error(body.error || "Could not read upload.");
+      }
       setSourceHtml(body.html);
-      setStatus(`${file.name} loaded. Click "Save draft" to validate and sanitize.`);
+      setDebouncedHtml(body.html);
+      setPreviewingVersion(null);
+      setUploadSuccess({ fileName: file.name, fileCount: body.fileCount });
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not read upload.");
+      setUploadError(error instanceof Error ? error.message : "Import failed.");
+    } finally {
+      setIsUploading(false);
+      setUploadingFileName(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void importSource(file);
+  };
+
+  const lineCount = sourceHtml ? sourceHtml.split("\n").length : 0;
+  const charCount = sourceHtml ? sourceHtml.length : 0;
+  const versions = page.customHtml?.versions || [];
+
   return (
     <>
-      <PageHeader
-        title={page.name}
-        description={`Custom HTML Landing Page · ${page.status === "published" ? "Published" : page.status === "disabled" ? "Disabled" : "Draft"}`}
-      >
-        <Button icon={ArrowLeft} onClick={() => router.push("/admin/pages")}>
-          Pages
-        </Button>
-        <Button icon={Eye} onClick={() => setTab("content")}>
-          Preview
-        </Button>
-        <Button icon={Save} onClick={() => void save()}>
-          Save draft
-        </Button>
-        <Button variant="primary" icon={Send} onClick={() => void save(true)}>
-          Publish
-        </Button>
-      </PageHeader>
+      <div className="customHtmlHeader">
+        <div className="customHtmlHeaderLeft">
+          <button
+            type="button"
+            className="customHtmlBackBtn"
+            onClick={() => router.push("/admin/pages")}
+            title="Back to Pages"
+          >
+            <ArrowLeft size={16} />
+            <span>Pages</span>
+          </button>
+          <div className="customHtmlTitleGroup">
+            <h2 className="customHtmlPageTitle">{page.name}</h2>
+            <div className="customHtmlStatusBadge">
+              <span
+                className="customHtmlStatusDot"
+                style={{ background: page.status === "published" ? "#10b981" : "#f59e0b" }}
+              />
+              <span>
+                Custom HTML Landing Page • {page.status === "published" ? "Published" : page.status === "disabled" ? "Disabled" : "Draft"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="customHtmlHeaderActions">
+          {saveStatus && (
+            <div className="customHtmlStatusToast">
+              <span>{saveStatus}</span>
+            </div>
+          )}
+          <Button
+            icon={Eye}
+            onClick={() => {
+              setTab("content");
+              setMobileMode("preview");
+              if (previewingVersion) setPreviewingVersion(null);
+            }}
+          >
+            Preview
+          </Button>
+          <Button icon={Save} disabled={isSaving || isPublishing} onClick={() => void save(false)}>
+            {isSaving ? "Saving..." : "Save Draft"}
+          </Button>
+          <Button variant="primary" icon={Send} disabled={isSaving || isPublishing} onClick={() => void save(true)}>
+            {isPublishing ? "Publishing..." : "Publish"}
+          </Button>
+        </div>
+      </div>
 
       <div className="customHtmlTabs">
         {(["content", "seo", "notifications", "analytics", "settings"] as Tab[]).map((item) => (
           <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
-            {item === "content" ? "Content & Preview" : item === "seo" ? "SEO & Social" : item === "notifications" ? "Push Notifications" : item === "analytics" ? "Link Analytics" : "Settings"}
+            {item === "content"
+              ? "Content & Preview"
+              : item === "seo"
+              ? "SEO & Social"
+              : item === "notifications"
+              ? "Push Notifications"
+              : item === "analytics"
+              ? "Link Analytics"
+              : "Settings"}
           </button>
         ))}
       </div>
 
       {tab === "content" && (
-        <div className="customHtmlEditorLayout">
-          <section>
-            <Field
-              label="HTML source / ZIP archive"
-              hint="Upload an HTML or ZIP file (up to 5 MB) or paste source code. Secure HTML mode strips JavaScript, event handlers, and unsafe embeds."
+        <>
+          {/* Mobile Edit / Preview Toggle */}
+          <div className="customHtmlMobileToggle">
+            <button
+              type="button"
+              className={mobileMode === "edit" ? "active" : ""}
+              onClick={() => setMobileMode("edit")}
             >
-              <div style={{ display: "flex", gap: "10px", alignItems: "center", marginBottom: "10px" }}>
-                <input
-                  type="file"
-                  accept=".html,.htm,.zip,text/html,application/zip"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) void importSource(file);
+              <FileCode size={14} />
+              <span>Edit</span>
+            </button>
+            <button
+              type="button"
+              className={mobileMode === "preview" ? "active" : ""}
+              onClick={() => setMobileMode("preview")}
+            >
+              <Eye size={14} />
+              <span>Preview</span>
+            </button>
+          </div>
+
+          <div className={`customHtmlEditorLayout ${mobileMode === "preview" ? "mobileShowPreview" : "mobileShowEdit"}`}>
+            {/* LEFT COLUMN: Content Editor */}
+            <div className="customHtmlLeftPanel">
+              {/* Upload Dropzone Card */}
+              <div className="customHtmlCard">
+                <div
+                  className={`customHtmlDropzone ${isDragging ? "isDragging" : ""} ${isUploading ? "isUploading" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
                   }}
-                />
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => !isUploading && fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".html,.htm,.zip,text/html,application/zip"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void importSource(file);
+                    }}
+                  />
+                  <div className="customHtmlDropzoneIcon">
+                    {isUploading ? <RefreshCw className="admSpin" size={22} /> : <UploadCloud size={22} />}
+                  </div>
+                  <div className="customHtmlDropzoneContent">
+                    <div className="customHtmlDropzoneTitle">
+                      {isUploading
+                        ? (uploadingFileName || "Uploading landing page...")
+                        : "Upload your landing page"}
+                    </div>
+                    <div className="customHtmlDropzoneSubtitle">
+                      {isUploading ? "Processing..." : "Drag & drop HTML or ZIP here"}
+                    </div>
+                    {!isUploading && <div className="customHtmlDropzoneOr">or</div>}
+                    {!isUploading && (
+                      <button
+                        type="button"
+                        className="customHtmlDropzoneBtn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        <FolderArchive size={15} /> Choose File
+                      </button>
+                    )}
+                    <div className="customHtmlDropzoneFootnote">HTML / ZIP • Maximum 5 MB</div>
+                  </div>
+                </div>
+
+                {uploadSuccess && (
+                  <div className="customHtmlAlert customHtmlAlertSuccess">
+                    <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <strong>✓ Import completed</strong>
+                      <div>
+                        {uploadSuccess.fileName}{" "}
+                        {uploadSuccess.fileCount ? `• ${uploadSuccess.fileCount} files processed` : ""}
+                      </div>
+                    </div>
+                    <button type="button" className="admIconButton" onClick={() => setUploadSuccess(null)}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {uploadError && (
+                  <div className="customHtmlAlert customHtmlAlertError">
+                    <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <strong>⚠ ZIP import failed</strong>
+                      <p>{uploadError}</p>
+                      {uploadError.includes("limit") && (
+                        <p style={{ marginTop: "4px", fontSize: "12px", opacity: 0.9 }}>
+                          Maximum allowed: 500 files.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        className="customHtmlAlertActionBtn"
+                        onClick={() => {
+                          setUploadError(null);
+                          fileInputRef.current?.click();
+                        }}
+                      >
+                        Choose Another File
+                      </button>
+                    </div>
+                    <button type="button" className="admIconButton" onClick={() => setUploadError(null)}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
-              <textarea
-                className="customHtmlCode"
-                value={sourceHtml}
-                onChange={(event) => setSourceHtml(event.target.value)}
-                placeholder="<!doctype html><html><head>...</head><body><h1>Hello World</h1></body></html>"
-                spellCheck={false}
-              />
-            </Field>
 
-            <p className="admMuted" role="status">
-              {status}
-            </p>
-
-            {page.customHtml?.warnings && page.customHtml.warnings.length > 0 && (
-              <div className="admFormSection" style={{ borderColor: "#f59e0b", background: "rgba(245, 158, 11, 0.05)" }}>
-                <h4 style={{ margin: "0 0 6px", color: "#d97706", display: "flex", alignItems: "center", gap: 6 }}>
-                  <Info size={16} /> Security Sanitization Warnings
-                </h4>
-                {page.customHtml.warnings.map((warning, idx) => (
-                  <p key={idx} style={{ margin: "4px 0", fontSize: "13px", color: "var(--c-ink)" }}>
-                    • {warning}
-                  </p>
-                ))}
+              {/* OR Divider */}
+              <div className="customHtmlDivider">
+                <span>OR</span>
               </div>
-            )}
 
-            <h3>Version History</h3>
-            {(page.customHtml?.versions || []).length === 0 ? (
-              <p className="admMuted">No prior revisions yet. Saving or publishing will record versions.</p>
-            ) : (
-              (page.customHtml?.versions || [])
-                .slice()
-                .reverse()
-                .map((version) => (
-                  <div className="customHtmlVersion" key={version.version}>
-                    <span>
-                      <strong>v{version.version}</strong> · {new Date(version.createdAt).toLocaleString()} · {version.publishedAt ? "Published" : "Draft"}
-                    </span>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <Button size="sm" onClick={() => void save(false, version.version)}>
-                        Restore as draft
-                      </Button>
-                      <Button size="sm" variant="primary" onClick={() => void save(true, version.version)}>
-                        Publish
-                      </Button>
+              {/* Code Editor Section */}
+              <div className="customHtmlCard">
+                <div className="customHtmlSectionHeader">
+                  <div>
+                    <h3 className="customHtmlSectionTitle">HTML Source</h3>
+                    <p className="customHtmlSectionSubtitle">Paste / Edit Code</p>
+                  </div>
+                  <div className="customHtmlCodeMeta">
+                    {lineCount} lines • {number(charCount)} chars
+                  </div>
+                </div>
+
+                <div className="customHtmlCodeBox">
+                  <textarea
+                    className="customHtmlCode"
+                    value={sourceHtml}
+                    onChange={(e) => {
+                      setSourceHtml(e.target.value);
+                      if (previewingVersion !== null) setPreviewingVersion(null);
+                    }}
+                    placeholder="Paste your HTML code here..."
+                    spellCheck={false}
+                  />
+                </div>
+              </div>
+
+              {/* Simplified Security Info Helper */}
+              <div className="customHtmlSecurityCard">
+                <div className="customHtmlSecurityHeader">
+                  <div className="customHtmlSecurityBadge">
+                    <ShieldCheck size={14} />
+                    <span>Secure HTML mode</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="customHtmlSecurityToggle"
+                    onClick={() => setShowSecurityInfo(!showSecurityInfo)}
+                  >
+                    <span>Learn about Secure HTML</span>
+                    {showSecurityInfo ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                  </button>
+                </div>
+                <div className="customHtmlSecurityNotice">
+                  <Info size={14} style={{ flexShrink: 0 }} />
+                  <span>Unsafe scripts and embeds are automatically removed.</span>
+                </div>
+                {showSecurityInfo && (
+                  <div className="customHtmlSecurityContent">
+                    <p>
+                      To protect your workspace domain and ensure safety for all visitors, custom HTML runs inside a sandboxed environment.
+                    </p>
+                    <ul>
+                      <li>Scripts and active event handlers are safely removed.</li>
+                      <li>CSS styling, custom fonts, images, and responsive layouts are fully preserved.</li>
+                      <li>Relative links and image paths in uploaded ZIP templates are automatically bundled.</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Sanitization warnings (if any) */}
+              {page.customHtml?.warnings && page.customHtml.warnings.length > 0 && (
+                <div className="customHtmlAlert customHtmlAlertWarning">
+                  <Info size={18} style={{ flexShrink: 0 }} />
+                  <div>
+                    <strong>Sanitization Notices</strong>
+                    <ul style={{ margin: "4px 0 0", paddingLeft: "16px" }}>
+                      {page.customHtml.warnings.map((warning, idx) => (
+                        <li key={idx}>{warning}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Version History Section */}
+              <div className="customHtmlCard">
+                <div className="customHtmlSectionHeader">
+                  <div>
+                    <h3 className="customHtmlSectionTitle">Version History</h3>
+                    <p className="customHtmlSectionSubtitle">Saved snapshots and rollback points</p>
+                  </div>
+                  {versions.length > 0 && (
+                    <span className="customHtmlVersionCount">{versions.length} versions</span>
+                  )}
+                </div>
+
+                {versions.length === 0 ? (
+                  <div className="customHtmlEmptyVersions">
+                    <Clock size={20} className="customHtmlEmptyVersionsIcon" />
+                    <div>
+                      <strong>No versions yet</strong>
+                      <p>Your saved and published versions will appear here.</p>
                     </div>
                   </div>
-                ))
-            )}
-          </section>
-
-          <section>
-            <div className="customHtmlPreviewControls">
-              {(["desktop", "tablet", "mobile"] as const).map((mode) => (
-                <button key={mode} type="button" className={preview === mode ? "active" : ""} onClick={() => setPreview(mode)}>
-                  {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                </button>
-              ))}
+                ) : (
+                  <div className="customHtmlVersionsList">
+                    {versions
+                      .slice()
+                      .reverse()
+                      .map((version) => (
+                        <div className="customHtmlVersionCard" key={version.version}>
+                          <div className="customHtmlVersionInfo">
+                            <div className="customHtmlVersionHeaderRow">
+                              <span className="customHtmlVersionName">Version {version.version}</span>
+                              {version.publishedAt ? (
+                                <span className="customHtmlVersionTagPublished">Published</span>
+                              ) : (
+                                <span className="customHtmlVersionTagDraft">Draft</span>
+                              )}
+                            </div>
+                            <span className="customHtmlVersionTime">{formatVersionDate(version.createdAt)}</span>
+                          </div>
+                          <div className="customHtmlVersionActions">
+                            <button
+                              type="button"
+                              className="customHtmlVersionBtn"
+                              onClick={() => {
+                                setDebouncedHtml(version.sanitizedHtml || version.sourceHtml);
+                                setPreviewingVersion(version.version);
+                              }}
+                            >
+                              Preview
+                            </button>
+                            <button
+                              type="button"
+                              className="customHtmlVersionBtn customHtmlVersionBtnPrimary"
+                              onClick={() => void save(false, version.version)}
+                            >
+                              Restore
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <iframe
-              title="Secure HTML draft preview"
-              sandbox=""
-              srcDoc={page.customHtml?.draftHtml || sourceHtml}
-              className={`customHtmlFrame customHtmlPreview-${preview}`}
-            />
-          </section>
-        </div>
+
+            {/* RIGHT COLUMN: Live Preview Panel */}
+            <div className="customHtmlPreviewPane">
+              <div className="customHtmlPreviewToolbar">
+                <div className="customHtmlPreviewToolbarLeft">
+                  <Layout size={15} />
+                  <span>Live Preview</span>
+                  {previewingVersion !== null && (
+                    <span className="customHtmlPreviewVersionTag">
+                      Viewing Version {previewingVersion}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreviewingVersion(null);
+                          setDebouncedHtml(sourceHtml);
+                        }}
+                      >
+                        Reset
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                <div className="customHtmlPreviewToolbarRight">
+                  <div className="customHtmlDeviceControls">
+                    <button
+                      type="button"
+                      className={preview === "desktop" ? "active" : ""}
+                      onClick={() => setPreview("desktop")}
+                      title="Desktop view (full width)"
+                    >
+                      <Monitor size={13} />
+                      <span>Desktop</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={preview === "tablet" ? "active" : ""}
+                      onClick={() => setPreview("tablet")}
+                      title="Tablet view (768px)"
+                    >
+                      <Tablet size={13} />
+                      <span>Tablet</span>
+                    </button>
+                    <button
+                      type="button"
+                      className={preview === "mobile" ? "active" : ""}
+                      onClick={() => setPreview("mobile")}
+                      title="Mobile view (390px)"
+                    >
+                      <Smartphone size={13} />
+                      <span>Mobile</span>
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="customHtmlRefreshBtn"
+                    title="Refresh preview"
+                    onClick={() => setPreviewKey((k) => k + 1)}
+                  >
+                    <RefreshCw size={13} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="customHtmlViewportContainer">
+                {!debouncedHtml?.trim() ? (
+                  <div className="customHtmlEmptyPreview">
+                    <div className="customHtmlEmptyPreviewIcon">
+                      <Eye size={26} />
+                    </div>
+                    <strong>No preview yet</strong>
+                    <p>Upload a landing page or paste HTML to see it here.</p>
+                  </div>
+                ) : (
+                  <div className={`customHtmlFrameWrapper customHtmlFrameWrapper-${preview}`}>
+                    <iframe
+                      key={previewKey}
+                      title="Live landing page preview"
+                      sandbox=""
+                      srcDoc={debouncedHtml}
+                      className="customHtmlFrame"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {tab === "seo" && (

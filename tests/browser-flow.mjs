@@ -117,7 +117,7 @@ async function main() {
     assert.equal(customCreate.json.pageType, "custom_html");
     const customPageId = customCreate.json.id;
 
-    // Build test ZIP archive
+    // Build test ZIP archive (including directory entries and 125 files to exceed old 100 limit)
     const zip = new JSZip();
     const mockPng = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]);
     zip.file("images/logo.png", mockPng);
@@ -128,6 +128,14 @@ async function main() {
       .banner { background-image: url('../images/banner.png?v=2#hero'); }
     `);
     zip.file("scripts/app.js", `console.log("evil js");`); // Should trigger secure exclusion warning
+
+    // Add extra assets and folders to verify 125+ files work seamlessly under 500 limit
+    zip.folder("assets");
+    zip.folder("assets/icons");
+    for (let i = 1; i <= 120; i++) {
+      zip.file(`assets/icons/icon_${i}.png`, mockPng);
+    }
+
     zip.file("index.html", `
       <!DOCTYPE html>
       <html>

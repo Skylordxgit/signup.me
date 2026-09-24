@@ -7,7 +7,7 @@ import { isSafeSvg, ownCustomHtmlAssets, sniffImage, storeStaticAsset } from "@/
 
 const MAX_ARCHIVE_BYTES = 5 * 1024 * 1024;
 const MAX_EXTRACTED_BYTES = 15 * 1024 * 1024;
-const MAX_ENTRIES = 100;
+const MAX_ENTRIES = 500;
 const allowed = new Set([".html", ".htm", ".css", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico", ".woff", ".woff2"]);
 const scripts = new Set([".js", ".mjs", ".cjs"]);
 const rejected = new Set([".php", ".py", ".rb", ".sh", ".exe", ".cgi", ".pl"]);
@@ -73,18 +73,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const form = await request.formData().catch(() => null); const file = form?.get("file");
   if (!(file instanceof File) || file.size > MAX_ARCHIVE_BYTES) return NextResponse.json({ error: "Upload an HTML or ZIP file up to 5 MB." }, { status: 400 });
   try {
-    if (/\.html?$/i.test(file.name)) return NextResponse.json({ html: Buffer.from(await file.arrayBuffer()).toString("utf8"), warnings: [] });
+    if (/\.html?$/i.test(file.name)) {
+      return NextResponse.json({ html: Buffer.from(await file.arrayBuffer()).toString("utf8"), fileCount: 1, warnings: [] });
+    }
     if (!/\.zip$/i.test(file.name)) throw new Error("Only HTML and ZIP files are supported.");
     const zip = await JSZip.loadAsync(await file.arrayBuffer(), { createFolders: false });
-    const entries = Object.values(zip.files).filter(entry => !entry.dir);
-    if (entries.length > MAX_ENTRIES) throw new Error("ZIP archive has too many files.");
+    const entries = Object.values(zip.files).filter(entry => !entry.dir && !entry.name.endsWith("/"));
+    if (entries.length > MAX_ENTRIES) throw new Error("ZIP contains too many files. Maximum 500 files are allowed.");
     let total = 0; const source = new Map<string, Uint8Array>(); const warnings: string[] = [];
-    for (const entry of entries) { const name = safeName(entry.name); if (!name) throw new Error("ZIP contains an unsafe path."); const ext = path.extname(name).toLowerCase(); if (rejected.has(ext)) throw new Error(`ZIP contains unsupported executable file: ${name}`); const data = await entry.async("uint8array"); total += data.byteLength; if (total > MAX_EXTRACTED_BYTES) throw new Error("ZIP extracted content is too large."); if (scripts.has(ext)) { warnings.push("JavaScript files were excluded because this page uses Secure HTML mode."); continue; } if (allowed.has(ext)) source.set(name, data); }
-    const index = [...source.keys()].find(name => /(^|\/)index\.html?$/i.test(name)); if (!index) throw new Error("ZIP must contain index.html.");
+    for (const entry of entries) {
+      const name = safeName(entry.name);
+      if (!name) throw new Error("ZIP contains an unsafe path.");
+      const ext = path.extname(name).toLowerCase();
+      if (rejected.has(ext)) throw new Error(`ZIP contains unsupported executable file: ${name}`);
+      const data = await entry.async("uint8array");
+      total += data.byteLength;
+      if (total > MAX_EXTRACTED_BYTES) throw new Error("ZIP extracted content exceeds the 15 MB limit.");
+      if (scripts.has(ext)) {
+        warnings.push("JavaScript files were excluded because this page uses Secure HTML mode.");
+        continue;
+      }
+      if (allowed.has(ext)) source.set(name, data);
+    }
+    const index = [...source.keys()].find(name => /(^|\/)index\.html?$/i.test(name));
+    if (!index) throw new Error("ZIP must contain index.html.");
     const urls = new Map<string, string>();
     for (const [name, data] of source) {
-      const ext = path.extname(name).toLowerCase(); if ([".html", ".htm", ".css"].includes(ext)) continue;
-      const kind = sniffImage(data); if (kind?.mime === "image/svg+xml" && !isSafeSvg(data)) throw new Error(`Unsafe SVG: ${name}`);
+      const ext = path.extname(name).toLowerCase();
+      if ([".html", ".htm", ".css"].includes(ext)) continue;
+      const kind = sniffImage(data);
+      if (kind?.mime === "image/svg+xml" && !isSafeSvg(data)) throw new Error(`Unsafe SVG: ${name}`);
       urls.set(name, (await storeStaticAsset(data, ext, kind?.mime || mimeFor(ext), page.workspaceId)).path);
     }
     for (const [name, data] of source) if (path.extname(name).toLowerCase() === ".css") {
@@ -94,6 +112,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     const html = rewriteUrls(Buffer.from(source.get(index)!).toString("utf8"), urls, path.posix.dirname(index) === "." ? "" : path.posix.dirname(index));
     await ownCustomHtmlAssets(page.id, page.workspaceId, [...urls.values()]);
-    return NextResponse.json({ html, warnings: [...new Set(warnings)] });
+    return NextResponse.json({ html, fileCount: entries.length, warnings: [...new Set(warnings)] });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Could not read upload." }, { status: 400 }); }
 }

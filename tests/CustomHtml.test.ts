@@ -95,6 +95,64 @@ test("ZIP URL rewriting: resolves relative paths and preserves query strings and
   assert.ok(rewrittenCss.includes("url('/uploads/asset/banner-123.png#main')"));
 });
 
+test("ZIP entry limits: allows up to 500 files, ignores directory entries, and rejects 501+ files", async () => {
+  const MAX_ENTRIES = 500;
+
+  async function buildTestZip(fileCount: number, directoryCount = 0) {
+    const zip = new JSZip();
+    zip.file("index.html", "<h1>Test Index</h1>");
+    // Add directory entries
+    for (let d = 0; d < directoryCount; d++) {
+      zip.folder(`folder_${d}`);
+    }
+    // Add additional files (index.html counts as 1)
+    for (let i = 1; i < fileCount; i++) {
+      zip.file(`assets/asset_${i}.css`, `/* asset ${i} */`);
+    }
+    return zip;
+  }
+
+  function validateEntries(zip: JSZip) {
+    const entries = Object.values(zip.files).filter(entry => !entry.dir && !entry.name.endsWith("/"));
+    if (entries.length > MAX_ENTRIES) {
+      throw new Error("ZIP contains too many files. Maximum 500 files are allowed.");
+    }
+    return entries.length;
+  }
+
+  // 1. Test 99, 100, 101, 499, 500 files -> accepted
+  const zip99 = await buildTestZip(99);
+  assert.equal(validateEntries(zip99), 99);
+
+  const zip100 = await buildTestZip(100);
+  assert.equal(validateEntries(zip100), 100);
+
+  const zip101 = await buildTestZip(101);
+  assert.equal(validateEntries(zip101), 101);
+
+  const zip499 = await buildTestZip(499);
+  assert.equal(validateEntries(zip499), 499);
+
+  const zip500 = await buildTestZip(500);
+  assert.equal(validateEntries(zip500), 500);
+
+  // 2. Test 501 files -> rejected
+  const zip501 = await buildTestZip(501);
+  assert.throws(() => validateEntries(zip501), {
+    message: "ZIP contains too many files. Maximum 500 files are allowed.",
+  });
+
+  // 3. Test 500 safe files + 50 directory entries -> accepted (directories ignored in file count)
+  const zip500WithDirs = await buildTestZip(500, 50);
+  assert.equal(validateEntries(zip500WithDirs), 500);
+
+  // 4. Test 501 actual files + 50 directory entries -> rejected
+  const zip501WithDirs = await buildTestZip(501, 50);
+  assert.throws(() => validateEntries(zip501WithDirs), {
+    message: "ZIP contains too many files. Maximum 500 files are allowed.",
+  });
+});
+
 test("Custom HTML page lifecycle: draft vs published isolation, version restore, duplicate, and delete", async () => {
   const ws = "custom-test-ws-" + Date.now();
   const slug = "promo-test-" + Date.now();
