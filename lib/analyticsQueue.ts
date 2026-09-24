@@ -8,6 +8,11 @@ export interface QueuedPageView {
   referrer: string;
   country: string | null;
   city: string | null;
+  countryCode?: string | null;
+  region?: string | null;
+  regionCode?: string | null;
+  geoSource?: string | null;
+  ipHash?: string | null;
   workspaceId: string;
   createdAt?: string;
   isUnique?: boolean;
@@ -20,6 +25,11 @@ export interface QueuedLinkClick {
   referrer: string;
   country: string | null;
   city: string | null;
+  countryCode?: string | null;
+  region?: string | null;
+  regionCode?: string | null;
+  geoSource?: string | null;
+  ipHash?: string | null;
   workspaceId: string;
   createdAt?: string;
 }
@@ -31,6 +41,11 @@ export interface QueuedCustomHtmlLinkClick {
   referrer: string;
   country: string | null;
   city: string | null;
+  countryCode?: string | null;
+  region?: string | null;
+  regionCode?: string | null;
+  geoSource?: string | null;
+  ipHash?: string | null;
   workspaceId: string;
   createdAt?: string;
 }
@@ -118,7 +133,7 @@ export async function flushAnalytics(): Promise<void> {
         const values: unknown[] = [];
         const placeholders: string[] = [];
         for (const item of viewsToFlush) {
-          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
+          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
           values.push(
             item.pageId,
             item.visitorHash,
@@ -126,12 +141,17 @@ export async function flushAnalytics(): Promise<void> {
             item.referrer || 'Direct',
             item.country || null,
             item.city || null,
+            item.countryCode || null,
+            item.regionCode || null,
+            item.region || null,
+            item.geoSource || 'ip_geo',
+            item.ipHash || item.visitorHash || null,
             item.workspaceId || 'default',
             item.createdAt ? new Date(item.createdAt) : new Date()
           );
         }
         await pool.query(
-          `INSERT INTO page_views (page_id, visitor_hash, device_type, referrer, country, city, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
+          `INSERT INTO page_views (page_id, visitor_hash, device_type, referrer, country, city, country_code, region_code, region, geo_source, ip_hash, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
           values
         );
       }
@@ -141,7 +161,7 @@ export async function flushAnalytics(): Promise<void> {
         const values: unknown[] = [];
         const placeholders: string[] = [];
         for (const item of clicksToFlush) {
-          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
+          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
           values.push(
             item.pageId,
             item.blockId,
@@ -149,12 +169,17 @@ export async function flushAnalytics(): Promise<void> {
             item.referrer || 'Direct',
             item.country || null,
             item.city || null,
+            item.countryCode || null,
+            item.regionCode || null,
+            item.region || null,
+            item.geoSource || 'ip_geo',
+            item.ipHash || null,
             item.workspaceId || 'default',
             item.createdAt ? new Date(item.createdAt) : new Date()
           );
         }
         await pool.query(
-          `INSERT INTO link_clicks (page_id, block_id, device_type, referrer, country, city, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
+          `INSERT INTO link_clicks (page_id, block_id, device_type, referrer, country, city, country_code, region_code, region, geo_source, ip_hash, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
           values
         );
       }
@@ -163,10 +188,27 @@ export async function flushAnalytics(): Promise<void> {
         const values: unknown[] = [];
         const placeholders: string[] = [];
         for (const item of customHtmlClicksToFlush) {
-          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
-          values.push(item.pageId, item.href, item.deviceType || 'desktop', item.referrer || 'Direct', item.country || null, item.city || null, item.workspaceId || 'default', item.createdAt ? new Date(item.createdAt) : new Date());
+          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          values.push(
+            item.pageId,
+            item.href,
+            item.deviceType || 'desktop',
+            item.referrer || 'Direct',
+            item.country || null,
+            item.city || null,
+            item.countryCode || null,
+            item.regionCode || null,
+            item.region || null,
+            item.geoSource || 'ip_geo',
+            item.ipHash || null,
+            item.workspaceId || 'default',
+            item.createdAt ? new Date(item.createdAt) : new Date()
+          );
         }
-        await pool.query(`INSERT INTO custom_html_link_clicks (page_id, href, device_type, referrer, country, city, workspace_id, created_at) VALUES ${placeholders.join(', ')}`, values);
+        await pool.query(
+          `INSERT INTO custom_html_link_clicks (page_id, href, device_type, referrer, country, city, country_code, region_code, region, geo_source, ip_hash, workspace_id, created_at) VALUES ${placeholders.join(', ')}`,
+          values
+        );
       }
 
       // 3. Batch increment page views count

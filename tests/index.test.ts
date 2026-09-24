@@ -19,3 +19,4 @@ import './ReportingDashboard.test';
 import './adminRouting.test';
 import './notificationCampaigns.test';
 import './CustomHtml.test';
+import './geoIpAnalytics.test';

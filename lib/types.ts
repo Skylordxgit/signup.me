@@ -216,9 +216,17 @@ export type DailyMetric = {
 export type LocationMetric = {
   location: string;
   country: string;
+  countryCode?: string;
+  region?: string;
+  regionCode?: string;
   city: string;
   views: number;
+  visitors?: number;
   clicks: number;
+  subscribers?: number;
+  ctr?: number;
+  viewShare?: number;
+  visitorShare?: number;
 };
 
 export type LinkClickLocation = {
@@ -226,25 +234,51 @@ export type LinkClickLocation = {
   blockTitle: string;
   location: string;
   country: string;
+  region?: string;
   city: string;
   clicks: number;
 };
 
 export type CityDetailMetric = {
   city: string;
+  region?: string;
+  country?: string;
   location: string;
   views: number;
+  visitors?: number;
   clicks: number;
+  subscribers?: number;
   ctr: number;
+  viewShare?: number;
+  visitorShare?: number;
   topLinks: { blockId: number; blockTitle: string; url?: string; clicks: number }[];
+};
+
+export type RegionDetailMetric = {
+  regionCode: string;
+  regionName: string;
+  countryName: string;
+  views: number;
+  visitors?: number;
+  clicks: number;
+  subscribers?: number;
+  ctr: number;
+  viewShare?: number;
+  visitorShare?: number;
+  cities: CityDetailMetric[];
 };
 
 export type CountryDetailMetric = {
   countryCode: string;
   countryName: string;
   views: number;
+  visitors?: number;
   clicks: number;
+  subscribers?: number;
   ctr: number;
+  viewShare?: number;
+  visitorShare?: number;
+  regions?: RegionDetailMetric[];
   cities: CityDetailMetric[];
 };
 
@@ -256,6 +290,7 @@ export type RecentActivityItem = {
   blockId?: number;
   blockTitle?: string;
   country: string;
+  region?: string;
   city: string;
   location: string;
   device: string;
@@ -306,6 +341,7 @@ export type AnalyticsReport = {
   referrers: { referrer: string; count: number; percentage?: number }[];
   trafficSources?: { source: string; views: number; clicks: number; ctr: number; percentage?: number }[];
   locations: LocationMetric[];
+  regions?: RegionDetailMetric[];
   linkLocations?: LinkClickLocation[];
   linkStats?: LinkPerformanceItem[];
   customHtmlLinks?: CustomHtmlLinkMetric[];

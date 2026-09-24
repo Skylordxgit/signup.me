@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, SmartPage, SubscriberSegment } from "../types";
+import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
 import { defaultTheme, seedPages, seedTemplates } from "../defaults";
@@ -15,9 +15,57 @@ import { duplicateCustomHtmlAssetOwnership, removeCustomHtmlAssetOwnership } fro
 
 type DatabaseShape = {
   pages: SmartPage[];
-  pageViews: { id: number; workspaceId: string; pageId: number; date: string; device: string; referrer: string; visitorKey: string; country?: string; city?: string; location?: string }[];
-  linkClicks: { id: number; workspaceId: string; pageId: number; blockId: number; date: string; device: string; referrer: string; country?: string; city?: string; location?: string }[];
-  customHtmlLinkClicks: { id: number; workspaceId: string; pageId: number; href: string; date: string; device: string; referrer: string; country?: string; city?: string; location?: string }[];
+  pageViews: {
+    id: number;
+    workspaceId: string;
+    pageId: number;
+    date: string;
+    device: string;
+    referrer: string;
+    visitorKey: string;
+    country?: string;
+    city?: string;
+    location?: string;
+    countryCode?: string;
+    region?: string;
+    regionCode?: string;
+    geoSource?: string;
+    ipHash?: string;
+  }[];
+  linkClicks: {
+    id: number;
+    workspaceId: string;
+    pageId: number;
+    blockId: number;
+    date: string;
+    device: string;
+    referrer: string;
+    country?: string;
+    city?: string;
+    location?: string;
+    countryCode?: string;
+    region?: string;
+    regionCode?: string;
+    geoSource?: string;
+    ipHash?: string;
+  }[];
+  customHtmlLinkClicks: {
+    id: number;
+    workspaceId: string;
+    pageId: number;
+    href: string;
+    date: string;
+    device: string;
+    referrer: string;
+    country?: string;
+    city?: string;
+    location?: string;
+    countryCode?: string;
+    region?: string;
+    regionCode?: string;
+    geoSource?: string;
+    ipHash?: string;
+  }[];
   pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
   notificationCampaigns: NotificationCampaign[];
   notificationDeliveryLogs?: NotificationDeliveryLog[];
@@ -434,6 +482,11 @@ async function trackViewUnlocked(
   city = '',
   location = '',
   workspaceId?: string,
+  countryCode?: string,
+  region?: string,
+  regionCode?: string,
+  geoSource?: string,
+  ipHash?: string,
 ) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.slug === slug && item.status === "published" && inWorkspace(item, workspaceId));
@@ -454,6 +507,11 @@ async function trackViewUnlocked(
     country,
     city,
     location,
+    countryCode,
+    region,
+    regionCode,
+    geoSource,
+    ipHash,
   });
   await writeJsonDb(db);
   return { ok: true };
@@ -468,6 +526,11 @@ async function trackClickUnlocked(
   city = '',
   location = '',
   workspaceId?: string,
+  countryCode?: string,
+  region?: string,
+  regionCode?: string,
+  geoSource?: string,
+  ipHash?: string,
 ) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId && item.status === 'published' && inWorkspace(item, workspaceId));
@@ -486,6 +549,11 @@ async function trackClickUnlocked(
     country,
     city,
     location,
+    countryCode,
+    region,
+    regionCode,
+    geoSource,
+    ipHash,
   });
   await writeJsonDb(db);
   return { ok: true };
@@ -500,6 +568,11 @@ async function trackCustomHtmlLinkClickUnlocked(
   city = '',
   location = '',
   workspaceId?: string,
+  countryCode?: string,
+  region?: string,
+  regionCode?: string,
+  geoSource?: string,
+  ipHash?: string,
 ) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.id === pageId && item.pageType === 'custom_html' && item.status === 'published' && inWorkspace(item, workspaceId));
@@ -516,9 +589,71 @@ async function trackCustomHtmlLinkClickUnlocked(
     country,
     city,
     location,
+    countryCode,
+    region,
+    regionCode,
+    geoSource,
+    ipHash,
   });
   await writeJsonDb(db);
   return { ok: true };
+}
+
+function normalizeGeoRecord(item: {
+  country?: string | null;
+  countryCode?: string | null;
+  region?: string | null;
+  regionCode?: string | null;
+  city?: string | null;
+  location?: string | null;
+  geoSource?: string | null;
+}) {
+  let country = (item.country || '').trim();
+  let city = (item.city || '').trim();
+  let region = (item.region || '').trim();
+  let countryCode = (item.countryCode || '').trim().toUpperCase();
+  let regionCode = (item.regionCode || '').trim();
+  const geoSource = item.geoSource || (country && country !== 'Direct / Local' && country !== 'Direct' ? 'ip_geo' : 'unknown');
+
+  // Strip invalid legacy locations
+  if (!country || country === 'Direct / Local' || country === 'Direct' || country === 'Local') {
+    country = 'Unknown';
+    countryCode = '';
+  }
+  if (!city || city === 'Direct / Local' || city === 'Direct' || city === 'Local') {
+    city = 'Unknown';
+  }
+  if (!region || region === 'Direct / Local' || region === 'Direct' || region === 'Local') {
+    region = 'Unknown';
+  }
+
+  // Parse location string if available and fields are Unknown
+  if (item.location && item.location !== 'Direct / Local' && item.location !== 'Unknown') {
+    const parts = item.location.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length >= 3) {
+      if (city === 'Unknown') city = parts[0];
+      if (region === 'Unknown') region = parts[1];
+      if (country === 'Unknown') country = parts[2];
+    } else if (parts.length === 2) {
+      if (city === 'Unknown') city = parts[0];
+      if (country === 'Unknown') country = parts[1];
+    } else if (parts.length === 1 && country === 'Unknown') {
+      country = parts[0];
+    }
+  }
+
+  let location = 'Unknown';
+  if (city !== 'Unknown' && country !== 'Unknown') {
+    if (region !== 'Unknown' && region !== city && region !== country) {
+      location = `${city}, ${region}, ${country}`;
+    } else {
+      location = `${city}, ${country}`;
+    }
+  } else if (country !== 'Unknown') {
+    location = country;
+  }
+
+  return { country, countryCode, region, regionCode, city, location, geoSource };
 }
 
 export async function analyticsForPage(
@@ -596,8 +731,9 @@ export async function analyticsForPage(
   const totalViews = daysInput === 'all' && !fromDate ? page.views : viewsInRange.length;
   const totalClicks = daysInput === 'all' && !fromDate ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) + db.customHtmlLinkClicks.filter(c => c.pageId === pageId).length : clicksInRange.length + customHtmlClicksInRange.length;
 
-  const uniqueVisitorsSet = new Set(viewsInRange.map(v => v.visitorKey));
+  const uniqueVisitorsSet = new Set(viewsInRange.map(v => v.visitorKey || v.ipHash || String(v.id)));
   const uniqueVisitors = daysInput === 'all' && !fromDate ? page.uniqueVisitors : uniqueVisitorsSet.size;
+  const returningVisitors = Math.max(0, totalViews - uniqueVisitors);
 
   const blockClicksMap = new Map<number, number>();
   for (const click of clicksInRange) {
@@ -607,133 +743,337 @@ export async function analyticsForPage(
     .map(([href, clicks]): CustomHtmlLinkMetric => ({ href, clicks }))
     .sort((a, b) => b.clicks - a.clicks);
 
-  // Location aggregations for link clicks and views
-  const locationMap = new Map<string, { location: string; country: string; city: string; views: number; clicks: number }>();
-  for (const view of viewsInRange) {
-    const loc = view.location || view.country || 'Direct / Local';
-    const current = locationMap.get(loc) || { location: loc, country: view.country || '', city: view.city || '', views: 0, clicks: 0 };
-    current.views += 1;
-    locationMap.set(loc, current);
-  }
-  for (const click of clicksInRange) {
-    const loc = click.location || click.country || 'Direct / Local';
-    const current = locationMap.get(loc) || { location: loc, country: click.country || '', city: click.city || '', views: 0, clicks: 0 };
-    current.clicks += 1;
-    locationMap.set(loc, current);
-  }
+  // Notification subscribers for this page
+  const pageSubscribers = db.pushSubscriptions.filter(s => s.pageId === pageId && s.isActive !== false);
+  const totalSubscribers = pageSubscribers.length;
+  const subscriptionRate = totalViews > 0 ? Number(((totalSubscribers / totalViews) * 100).toFixed(1)) : 0;
 
-  // Link click details by block and location
-  const linkLocationsMap = new Map<string, { blockId: number; blockTitle: string; location: string; country: string; city: string; clicks: number }>();
-  for (const click of clicksInRange) {
-    const block = page.blocks.find(b => b.id === click.blockId);
-    const blockTitle = block?.title || `Block #${click.blockId}`;
-    const loc = click.location || click.country || 'Direct / Local';
-    const key = `${click.blockId}:${loc}`;
-    const current = linkLocationsMap.get(key) || { blockId: click.blockId, blockTitle, location: loc, country: click.country || '', city: click.city || '', clicks: 0 };
-    current.clicks += 1;
-    linkLocationsMap.set(key, current);
-  }
-
-  // In-depth Country and City Hierarchy
+  // Geographic Hierarchy Accumulators
   type CityAcc = {
     city: string;
+    region: string;
+    country: string;
     location: string;
     views: number;
     clicks: number;
+    subscribers: number;
+    visitorsSet: Set<string>;
     links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
   };
+
+  type RegionAcc = {
+    regionCode: string;
+    regionName: string;
+    countryName: string;
+    views: number;
+    clicks: number;
+    subscribers: number;
+    visitorsSet: Set<string>;
+    cities: Map<string, CityAcc>;
+  };
+
   type CountryAcc = {
     countryCode: string;
     countryName: string;
     views: number;
     clicks: number;
+    subscribers: number;
+    visitorsSet: Set<string>;
+    regions: Map<string, RegionAcc>;
     cities: Map<string, CityAcc>;
   };
 
   const countriesAcc = new Map<string, CountryAcc>();
+  const regionsAcc = new Map<string, RegionAcc>();
+  const flatCitiesAcc = new Map<string, CityAcc>();
 
-  function getOrInitCountry(rawCountry: string, rawCity: string): { country: CountryAcc; city: CityAcc } {
-    const cName = rawCountry || 'Direct / Local';
-    let countryItem = countriesAcc.get(cName);
-    if (!countryItem) {
-      countryItem = {
-        countryCode: cName,
-        countryName: cName,
+  function getOrInitCountry(geo: ReturnType<typeof normalizeGeoRecord>): CountryAcc {
+    let cItem = countriesAcc.get(geo.country);
+    if (!cItem) {
+      cItem = {
+        countryCode: geo.countryCode,
+        countryName: geo.country,
         views: 0,
         clicks: 0,
-        cities: new Map<string, CityAcc>(),
+        subscribers: 0,
+        visitorsSet: new Set(),
+        regions: new Map(),
+        cities: new Map(),
       };
-      countriesAcc.set(cName, countryItem);
+      countriesAcc.set(geo.country, cItem);
     }
-    const cityName = rawCity || 'Direct';
-    let cityItem = countryItem.cities.get(cityName);
-    if (!cityItem) {
-      const locStr = rawCity && rawCountry && rawCity !== rawCountry ? `${rawCity}, ${rawCountry}` : (rawCity || rawCountry || 'Direct / Local');
-      cityItem = {
-        city: cityName,
-        location: locStr,
+    if (!cItem.countryCode && geo.countryCode) {
+      cItem.countryCode = geo.countryCode;
+    }
+    return cItem;
+  }
+
+  function getOrInitRegion(cItem: CountryAcc, geo: ReturnType<typeof normalizeGeoRecord>): RegionAcc {
+    const regKey = `${cItem.countryName}:${geo.region}`;
+    let rItem = cItem.regions.get(geo.region);
+    if (!rItem) {
+      rItem = {
+        regionCode: geo.regionCode,
+        regionName: geo.region,
+        countryName: cItem.countryName,
         views: 0,
         clicks: 0,
-        links: new Map<number, { blockId: number; blockTitle: string; clicks: number }>(),
+        subscribers: 0,
+        visitorsSet: new Set(),
+        cities: new Map(),
       };
-      countryItem.cities.set(cityName, cityItem);
+      cItem.regions.set(geo.region, rItem);
+      regionsAcc.set(regKey, rItem);
     }
-    return { country: countryItem, city: cityItem };
+    return rItem;
+  }
+
+  function getOrInitCity(cItem: CountryAcc, rItem: RegionAcc, geo: ReturnType<typeof normalizeGeoRecord>): CityAcc {
+    const cityKey = `${cItem.countryName}:${geo.region}:${geo.city}`;
+    let ctItem = cItem.cities.get(geo.city);
+    if (!ctItem) {
+      ctItem = {
+        city: geo.city,
+        region: geo.region,
+        country: geo.country,
+        location: geo.location,
+        views: 0,
+        clicks: 0,
+        subscribers: 0,
+        visitorsSet: new Set(),
+        links: new Map(),
+      };
+      cItem.cities.set(geo.city, ctItem);
+      rItem.cities.set(geo.city, ctItem);
+      flatCitiesAcc.set(cityKey, ctItem);
+    }
+    return ctItem;
   }
 
   for (const view of viewsInRange) {
-    const cName = view.country || (view.location && view.location.includes(',') ? view.location.split(',')[1].trim() : view.location) || 'Direct / Local';
-    const cityName = view.city || (view.location && view.location.includes(',') ? view.location.split(',')[0].trim() : '');
-    const { country, city } = getOrInitCountry(cName, cityName);
-    country.views += 1;
-    city.views += 1;
+    const geo = normalizeGeoRecord(view);
+    const cItem = getOrInitCountry(geo);
+    const rItem = getOrInitRegion(cItem, geo);
+    const ctItem = getOrInitCity(cItem, rItem, geo);
+    const vKey = view.visitorKey || view.ipHash || String(view.id);
+
+    cItem.views += 1;
+    cItem.visitorsSet.add(vKey);
+
+    rItem.views += 1;
+    rItem.visitorsSet.add(vKey);
+
+    ctItem.views += 1;
+    ctItem.visitorsSet.add(vKey);
   }
 
   for (const click of clicksInRange) {
-    const cName = click.country || (click.location && click.location.includes(',') ? click.location.split(',')[1].trim() : click.location) || 'Direct / Local';
-    const cityName = click.city || (click.location && click.location.includes(',') ? click.location.split(',')[0].trim() : '');
-    const { country, city } = getOrInitCountry(cName, cityName);
-    country.clicks += 1;
-    city.clicks += 1;
+    const geo = normalizeGeoRecord(click);
+    const cItem = getOrInitCountry(geo);
+    const rItem = getOrInitRegion(cItem, geo);
+    const ctItem = getOrInitCity(cItem, rItem, geo);
+
+    cItem.clicks += 1;
+    rItem.clicks += 1;
+    ctItem.clicks += 1;
 
     const block = page.blocks.find(b => b.id === click.blockId);
     const blockTitle = block?.title || `Block #${click.blockId}`;
-    const linkItem = city.links.get(click.blockId) || { blockId: click.blockId, blockTitle, clicks: 0 };
+    const linkItem = ctItem.links.get(click.blockId) || { blockId: click.blockId, blockTitle, clicks: 0 };
     linkItem.clicks += 1;
-    city.links.set(click.blockId, linkItem);
+    ctItem.links.set(click.blockId, linkItem);
+  }
+
+  for (const sub of pageSubscribers) {
+    const details = sub.details || ({} as Partial<SubscriberDetails>);
+    const geo = normalizeGeoRecord({
+      country: details.countryName || details.country,
+      countryCode: details.countryCode,
+      region: details.regionName || details.region,
+      regionCode: details.regionCode,
+      city: details.city,
+    });
+    const cItem = getOrInitCountry(geo);
+    const rItem = getOrInitRegion(cItem, geo);
+    const ctItem = getOrInitCity(cItem, rItem, geo);
+
+    cItem.subscribers += 1;
+    rItem.subscribers += 1;
+    ctItem.subscribers += 1;
   }
 
   const countriesResult: CountryDetailMetric[] = [...countriesAcc.values()].map(c => {
-    const citiesList: CityDetailMetric[] = [...c.cities.values()].map(ct => ({
-      city: ct.city,
-      location: ct.location,
-      views: ct.views,
-      clicks: ct.clicks,
-      ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
-      topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
-    })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+    const cVisitors = c.visitorsSet.size;
+    const regionsList: RegionDetailMetric[] = [...c.regions.values()].map(r => {
+      const rVisitors = r.visitorsSet.size;
+      const citiesList: CityDetailMetric[] = [...r.cities.values()].map(ct => {
+        const ctVisitors = ct.visitorsSet.size;
+        return {
+          city: ct.city,
+          region: ct.region,
+          country: ct.country,
+          location: ct.location,
+          views: ct.views,
+          visitors: ctVisitors,
+          clicks: ct.clicks,
+          subscribers: ct.subscribers,
+          ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+          viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
+          visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+          topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+        };
+      }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
+
+      return {
+        regionCode: r.regionCode,
+        regionName: r.regionName,
+        countryName: r.countryName,
+        views: r.views,
+        visitors: rVisitors,
+        clicks: r.clicks,
+        subscribers: r.subscribers,
+        ctr: r.views > 0 ? Number(((r.clicks / r.views) * 100).toFixed(1)) : (r.clicks > 0 ? 100 : 0),
+        viewShare: totalViews > 0 ? Number(((r.views / totalViews) * 100).toFixed(1)) : 0,
+        visitorShare: uniqueVisitors > 0 ? Number(((rVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+        cities: citiesList,
+      };
+    }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
+
+    const allCitiesInCountry: CityDetailMetric[] = [...c.cities.values()].map(ct => {
+      const ctVisitors = ct.visitorsSet.size;
+      return {
+        city: ct.city,
+        region: ct.region,
+        country: ct.country,
+        location: ct.location,
+        views: ct.views,
+        visitors: ctVisitors,
+        clicks: ct.clicks,
+        subscribers: ct.subscribers,
+        ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+        viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
+        visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+        topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+      };
+    }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
     return {
       countryCode: c.countryCode,
       countryName: c.countryName,
       views: c.views,
+      visitors: cVisitors,
       clicks: c.clicks,
+      subscribers: c.subscribers,
       ctr: c.views > 0 ? Number(((c.clicks / c.views) * 100).toFixed(1)) : (c.clicks > 0 ? 100 : 0),
+      viewShare: totalViews > 0 ? Number(((c.views / totalViews) * 100).toFixed(1)) : 0,
+      visitorShare: uniqueVisitors > 0 ? Number(((cVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+      regions: regionsList,
+      cities: allCitiesInCountry,
+    };
+  }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
+
+  const regionsResult: RegionDetailMetric[] = [...regionsAcc.values()].map(r => {
+    const rVisitors = r.visitorsSet.size;
+    const citiesList: CityDetailMetric[] = [...r.cities.values()].map(ct => {
+      const ctVisitors = ct.visitorsSet.size;
+      return {
+        city: ct.city,
+        region: ct.region,
+        country: ct.country,
+        location: ct.location,
+        views: ct.views,
+        visitors: ctVisitors,
+        clicks: ct.clicks,
+        subscribers: ct.subscribers,
+        ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+        viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
+        visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+        topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+      };
+    }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
+
+    return {
+      regionCode: r.regionCode,
+      regionName: r.regionName,
+      countryName: r.countryName,
+      views: r.views,
+      visitors: rVisitors,
+      clicks: r.clicks,
+      subscribers: r.subscribers,
+      ctr: r.views > 0 ? Number(((r.clicks / r.views) * 100).toFixed(1)) : (r.clicks > 0 ? 100 : 0),
+      viewShare: totalViews > 0 ? Number(((r.views / totalViews) * 100).toFixed(1)) : 0,
+      visitorShare: uniqueVisitors > 0 ? Number(((rVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
       cities: citiesList,
     };
-  }).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+  }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
+
+  const flatLocationsResult: LocationMetric[] = [...flatCitiesAcc.values()].map(ct => {
+    const ctVisitors = ct.visitorsSet.size;
+    return {
+      location: ct.location,
+      country: ct.country,
+      region: ct.region,
+      city: ct.city,
+      views: ct.views,
+      visitors: ctVisitors,
+      clicks: ct.clicks,
+      subscribers: ct.subscribers,
+      ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+      viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
+      visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+    };
+  }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
+
+  // Traffic sources from referrer (separated from geography!)
+  const trafficSources = Object.entries(
+    viewsInRange.reduce<Record<string, { views: number; clicks: number }>>((acc, view) => {
+      const src = view.referrer || 'Direct';
+      const curr = acc[src] || { views: 0, clicks: 0 };
+      curr.views += 1;
+      acc[src] = curr;
+      return acc;
+    }, {})
+  ).map(([source, stats]) => ({
+    source,
+    views: stats.views,
+    clicks: stats.clicks,
+    ctr: stats.views > 0 ? Number(((stats.clicks / stats.views) * 100).toFixed(1)) : 0,
+    percentage: totalViews > 0 ? Number(((stats.views / totalViews) * 100).toFixed(1)) : 0,
+  })).sort((a, b) => b.views - a.views);
+
+  // Link click details by block and location
+  const linkLocationsMap = new Map<string, { blockId: number; blockTitle: string; location: string; country: string; region?: string; city: string; clicks: number }>();
+  for (const click of clicksInRange) {
+    const block = page.blocks.find(b => b.id === click.blockId);
+    const blockTitle = block?.title || `Block #${click.blockId}`;
+    const geo = normalizeGeoRecord(click);
+    const key = `${click.blockId}:${geo.location}`;
+    const current = linkLocationsMap.get(key) || {
+      blockId: click.blockId,
+      blockTitle,
+      location: geo.location,
+      country: geo.country,
+      region: geo.region,
+      city: geo.city,
+      clicks: 0,
+    };
+    current.clicks += 1;
+    linkLocationsMap.set(key, current);
+  }
 
   // Recent activity stream (top 30 newest events)
   const recentEvents: RecentActivityItem[] = [];
   for (const view of viewsInRange) {
+    const geo = normalizeGeoRecord(view);
     recentEvents.push({
       id: `v-${view.id}`,
       type: 'view',
       pageId: view.pageId,
       pageName: page.name,
-      country: view.country || '',
-      city: view.city || '',
-      location: view.location || view.country || 'Direct / Local',
+      country: geo.country,
+      region: geo.region,
+      city: geo.city,
+      location: geo.location,
       device: view.device || 'desktop',
       referrer: view.referrer || 'Direct',
       date: view.date,
@@ -741,6 +1081,7 @@ export async function analyticsForPage(
   }
   for (const click of clicksInRange) {
     const block = page.blocks.find(b => b.id === click.blockId);
+    const geo = normalizeGeoRecord(click);
     recentEvents.push({
       id: `c-${click.id}`,
       type: 'click',
@@ -748,9 +1089,10 @@ export async function analyticsForPage(
       pageName: page.name,
       blockId: click.blockId,
       blockTitle: block?.title || `Block #${click.blockId}`,
-      country: click.country || '',
-      city: click.city || '',
-      location: click.location || click.country || 'Direct / Local',
+      country: geo.country,
+      region: geo.region,
+      city: geo.city,
+      location: geo.location,
       device: click.device || 'desktop',
       referrer: click.referrer || 'Direct',
       date: click.date,
@@ -762,8 +1104,11 @@ export async function analyticsForPage(
   return {
     views: totalViews,
     uniqueVisitors,
+    returningVisitors,
     clicks: totalClicks,
     ctr: totalViews ? Number(((totalClicks / totalViews) * 100).toFixed(1)) : 0,
+    subscribers: totalSubscribers,
+    subscriptionRate,
     topBlocks: [...page.blocks]
       .map((block) => ({ id: block.id, title: block.title, clicks: blockClicksMap.get(block.id) ?? block.clicks }))
       .sort((a, b) => b.clicks - a.clicks)
@@ -773,17 +1118,27 @@ export async function analyticsForPage(
       views: viewsInRange.filter((view) => view.date.startsWith(date)).length,
       clicks: clicksInRange.filter((click) => click.date.startsWith(date)).length,
     })),
-    devices: ["mobile", "desktop", "tablet"].map((device) => ({
-      device,
-      count: viewsInRange.filter((view) => view.device === device).length,
-    })),
+    devices: ["mobile", "desktop", "tablet"].map((device) => {
+      const count = viewsInRange.filter((view) => view.device === device).length;
+      return {
+        device,
+        count,
+        percentage: totalViews > 0 ? Number(((count / totalViews) * 100).toFixed(1)) : 0,
+      };
+    }),
     referrers: Object.entries(
       viewsInRange.reduce<Record<string, number>>((acc, view) => {
         acc[view.referrer] = (acc[view.referrer] ?? 0) + 1;
         return acc;
       }, {}),
-    ).map(([referrer, count]) => ({ referrer, count })).sort((a, b) => b.count - a.count),
-    locations: [...locationMap.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
+    ).map(([referrer, count]) => ({
+      referrer,
+      count,
+      percentage: totalViews > 0 ? Number(((count / totalViews) * 100).toFixed(1)) : 0,
+    })).sort((a, b) => b.count - a.count),
+    trafficSources,
+    locations: flatLocationsResult,
+    regions: regionsResult,
     linkLocations: [...linkLocationsMap.values()].sort((a, b) => b.clicks - a.clicks),
     countries: countriesResult,
     customHtmlLinks,

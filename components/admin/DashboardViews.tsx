@@ -512,8 +512,8 @@ export function LocationChart({ report }: { report: AnalyticsReport | null }) {
               <div className="admLocationChartItemHead">
                 <div className="admLocationChartName">
                   <span className="admFlagSmall">{flag}</span>
-                  <span title={item.location || item.country || 'Direct / Local'}>
-                    {item.location || item.country || 'Direct / Local'}
+                  <span title={item.location || item.country || 'Unknown'}>
+                    {item.location || item.country || 'Unknown'}
                   </span>
                 </div>
                 <div className="admLocationChartStats">
@@ -558,7 +558,7 @@ export function LocationDetailsCard({ report }: { report: AnalyticsReport | null
         {locations.map((item, index) => (
           <div key={`${item.location}-${index}`}>
             <div>
-              <span><Globe2 size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6, opacity: 0.7 }} />{item.location || item.country || 'Direct / Local'}</span>
+              <span><Globe2 size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: 6, opacity: 0.7 }} />{item.location || item.country || 'Unknown'}</span>
               <strong>{number(item.clicks)} click{item.clicks === 1 ? '' : 's'}</strong>
             </div>
             <progress max={peak} value={item.clicks} aria-label={item.location} />
@@ -586,7 +586,7 @@ export function LocationDetailsCard({ report }: { report: AnalyticsReport | null
               </span>
               <span role="cell" className="admLocationPlace">
                 <span className="admFlagSmall">{flag}</span>
-                {item.location || item.country || 'Direct / Local'}
+                {item.location || item.country || 'Unknown'}
               </span>
               <span role="cell" className="admLocationCount">
                 <strong>{number(item.clicks)}</strong>

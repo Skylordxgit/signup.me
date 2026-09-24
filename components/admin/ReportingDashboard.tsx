@@ -80,7 +80,7 @@ export function ReportingDashboard({
   const [selectedState, setSelectedState] = useState<string>('all');
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedDevice, setSelectedDevice] = useState<string>('all');
-  const [locationTab, setLocationTab] = useState<'city' | 'country'>('city');
+  const [locationTab, setLocationTab] = useState<'city' | 'region' | 'country'>('city');
   const [chartMode, setChartMode] = useState<'daily' | 'hourly'>('daily');
   const [locationSearch, setLocationSearch] = useState<string>('');
   const [linkSortBy, setLinkSortBy] = useState<'clicks' | 'views' | 'ctr' | 'title'>('clicks');
@@ -100,25 +100,50 @@ export function ReportingDashboard({
     const set = new Set<string>();
     if (analytics?.countries) {
       for (const c of analytics.countries) {
-        if (c.countryName) set.add(c.countryName);
+        if (c.countryName && c.countryName !== 'Direct / Local' && c.countryName !== 'Direct' && c.countryName !== 'Local') {
+          set.add(c.countryName);
+        }
       }
     }
     if (analytics?.locations) {
       for (const loc of analytics.locations) {
-        if (loc.country) set.add(loc.country);
+        if (loc.country && loc.country !== 'Direct / Local' && loc.country !== 'Direct' && loc.country !== 'Local') {
+          set.add(loc.country);
+        }
       }
     }
     return Array.from(set).sort();
   }, [analytics]);
 
   const availableStates = useMemo(() => {
-    if (!analytics?.locations) return [];
     const set = new Set<string>();
-    for (const loc of analytics.locations) {
-      if (selectedCountry === 'all' || loc.country === selectedCountry || loc.location.includes(selectedCountry)) {
-        const st = extractState(loc.location, loc.country, loc.city);
-        if (st && st !== loc.city && st !== loc.country) {
-          set.add(st);
+    if (analytics?.regions) {
+      for (const r of analytics.regions) {
+        if (selectedCountry === 'all' || r.countryName === selectedCountry) {
+          if (r.regionName && r.regionName !== 'Unknown' && r.regionName !== 'Direct') {
+            set.add(r.regionName);
+          }
+        }
+      }
+    }
+    if (analytics?.countries) {
+      for (const c of analytics.countries) {
+        if (selectedCountry === 'all' || c.countryName === selectedCountry) {
+          for (const r of c.regions || []) {
+            if (r.regionName && r.regionName !== 'Unknown' && r.regionName !== 'Direct') {
+              set.add(r.regionName);
+            }
+          }
+        }
+      }
+    }
+    if (analytics?.locations) {
+      for (const loc of analytics.locations) {
+        if (selectedCountry === 'all' || loc.country === selectedCountry || loc.location.includes(selectedCountry)) {
+          const st = loc.region && loc.region !== 'Unknown' ? loc.region : extractState(loc.location, loc.country, loc.city);
+          if (st && st !== loc.city && st !== loc.country && st !== 'Direct') {
+            set.add(st);
+          }
         }
       }
     }
@@ -131,8 +156,8 @@ export function ReportingDashboard({
       for (const c of analytics.countries) {
         if (selectedCountry === 'all' || c.countryName === selectedCountry) {
           for (const ct of c.cities) {
-            if (ct.city && ct.city !== 'Direct') {
-              if (selectedState === 'all' || ct.location.includes(selectedState)) {
+            if (ct.city && ct.city !== 'Direct' && ct.city !== 'Unknown') {
+              if (selectedState === 'all' || (ct.region && ct.region === selectedState) || ct.location.includes(selectedState)) {
                 set.add(ct.city);
               }
             }
@@ -143,8 +168,10 @@ export function ReportingDashboard({
     if (analytics?.locations) {
       for (const loc of analytics.locations) {
         if (selectedCountry === 'all' || loc.country === selectedCountry || loc.location.includes(selectedCountry)) {
-          if (selectedState === 'all' || loc.location.includes(selectedState)) {
-            if (loc.city && loc.city !== 'Direct') set.add(loc.city);
+          if (selectedState === 'all' || loc.region === selectedState || loc.location.includes(selectedState)) {
+            if (loc.city && loc.city !== 'Direct' && loc.city !== 'Unknown') {
+              set.add(loc.city);
+            }
           }
         }
       }
@@ -152,65 +179,94 @@ export function ReportingDashboard({
     return Array.from(set).sort();
   }, [analytics, selectedCountry, selectedState]);
 
-  // Filtered dataset calculations based on active filters
+  // Filtered dataset calculations based on active filters (exact recorded metrics, NO synthetic multipliers)
   const filteredData = useMemo(() => {
     if (!analytics) return null;
     let views = analytics.views;
     let clicks = analytics.clicks;
     let visitors = analytics.uniqueVisitors;
+    let subscribers = analytics.subscribers ?? 0;
 
     // Apply country/state/city filtering adjustments
     if (selectedCountry !== 'all' || selectedState !== 'all' || selectedCity !== 'all') {
       if (selectedCity !== 'all') {
-        const matchCity = analytics.countries?.flatMap(c => c.cities).find(ct => ct.city === selectedCity);
+        const matchCity = analytics.countries?.flatMap(c => c.cities).find(ct => ct.city === selectedCity) ||
+                          analytics.locations?.find(l => l.city === selectedCity);
         if (matchCity) {
           views = matchCity.views;
           clicks = matchCity.clicks;
-          visitors = Math.round(views * 0.85);
+          visitors = matchCity.visitors ?? matchCity.views;
+          subscribers = matchCity.subscribers ?? 0;
         } else {
-          const matchLoc = analytics.locations?.find(l => l.city === selectedCity);
-          views = matchLoc?.views ?? 0;
-          clicks = matchLoc?.clicks ?? 0;
-          visitors = Math.round(views * 0.85);
+          views = 0;
+          clicks = 0;
+          visitors = 0;
+          subscribers = 0;
         }
       } else if (selectedState !== 'all') {
-        const stateLocs = (analytics.locations || []).filter(l => l.location.includes(selectedState));
-        if (stateLocs.length > 0) {
-          views = stateLocs.reduce((s, l) => s + l.views, 0);
-          clicks = stateLocs.reduce((s, l) => s + l.clicks, 0);
-          visitors = Math.round(views * 0.85);
+        const matchRegion = analytics.regions?.find(r => r.regionName === selectedState) ||
+                            analytics.countries?.flatMap(c => c.regions || []).find(r => r.regionName === selectedState);
+        if (matchRegion) {
+          views = matchRegion.views;
+          clicks = matchRegion.clicks;
+          visitors = matchRegion.visitors ?? matchRegion.views;
+          subscribers = matchRegion.subscribers ?? 0;
         } else {
-          views = Math.round(analytics.views * 0.4);
-          clicks = Math.round(analytics.clicks * 0.4);
-          visitors = Math.round(views * 0.85);
+          const stateLocs = (analytics.locations || []).filter(l => l.region === selectedState || l.location.includes(selectedState));
+          if (stateLocs.length > 0) {
+            views = stateLocs.reduce((s, l) => s + l.views, 0);
+            clicks = stateLocs.reduce((s, l) => s + l.clicks, 0);
+            visitors = stateLocs.reduce((s, l) => s + (l.visitors ?? l.views), 0);
+            subscribers = stateLocs.reduce((s, l) => s + (l.subscribers ?? 0), 0);
+          } else {
+            views = 0;
+            clicks = 0;
+            visitors = 0;
+            subscribers = 0;
+          }
         }
       } else if (selectedCountry !== 'all') {
         const matchC = analytics.countries?.find(c => c.countryName === selectedCountry);
         if (matchC) {
           views = matchC.views;
           clicks = matchC.clicks;
-          visitors = Math.round(views * 0.85);
+          visitors = matchC.visitors ?? matchC.views;
+          subscribers = matchC.subscribers ?? 0;
         } else {
           const countryLocs = (analytics.locations || []).filter(l => l.country === selectedCountry);
-          views = countryLocs.reduce((s, l) => s + l.views, 0);
-          clicks = countryLocs.reduce((s, l) => s + l.clicks, 0);
-          visitors = Math.round(views * 0.85);
+          if (countryLocs.length > 0) {
+            views = countryLocs.reduce((s, l) => s + l.views, 0);
+            clicks = countryLocs.reduce((s, l) => s + l.clicks, 0);
+            visitors = countryLocs.reduce((s, l) => s + (l.visitors ?? l.views), 0);
+            subscribers = countryLocs.reduce((s, l) => s + (l.subscribers ?? 0), 0);
+          } else {
+            views = 0;
+            clicks = 0;
+            visitors = 0;
+            subscribers = 0;
+          }
         }
       }
     }
 
     if (selectedDevice !== 'all') {
       const devMatch = analytics.devices.find(d => d.device.toLowerCase() === selectedDevice.toLowerCase());
-      const devRatio = (devMatch?.percentage || 30) / 100;
-      views = Math.round(views * devRatio);
-      clicks = Math.round(clicks * devRatio);
-      visitors = Math.round(visitors * devRatio);
+      if (selectedCountry === 'all' && selectedState === 'all' && selectedCity === 'all') {
+        views = devMatch?.count ?? 0;
+        clicks = Math.min(clicks, Math.round(views * (analytics.ctr / 100)));
+        visitors = Math.min(views, visitors);
+      } else {
+        const devRatio = (devMatch?.percentage || 0) / 100;
+        views = Math.round(views * devRatio);
+        clicks = Math.round(clicks * devRatio);
+        visitors = Math.min(views, Math.round(visitors * devRatio));
+      }
     }
 
     const isUnfiltered = selectedCountry === 'all' && selectedState === 'all' && selectedCity === 'all' && selectedDevice === 'all';
     const ctr = isUnfiltered && analytics.ctr != null ? analytics.ctr : (views > 0 ? Number(((clicks / views) * 100).toFixed(1)) : 0);
-    const subscribers = isUnfiltered && analytics.subscribers != null ? analytics.subscribers : Math.max(0, Math.round(views * 0.082));
-    const subscriptionRate = isUnfiltered && analytics.subscriptionRate != null ? analytics.subscriptionRate : (views > 0 ? Number(((subscribers / views) * 100).toFixed(1)) : 0);
+    const finalSubscribers = isUnfiltered ? (analytics.subscribers ?? subscribers) : subscribers;
+    const subscriptionRate = isUnfiltered && analytics.subscriptionRate != null ? analytics.subscriptionRate : (views > 0 ? Number(((finalSubscribers / views) * 100).toFixed(1)) : 0);
     const returningVisitors = isUnfiltered && analytics.returningVisitors != null ? analytics.returningVisitors : Math.max(0, views - visitors);
 
     return {
@@ -219,7 +275,7 @@ export function ReportingDashboard({
       visitors,
       returningVisitors,
       ctr,
-      subscribers,
+      subscribers: finalSubscribers,
       subscriptionRate,
     };
   }, [analytics, selectedCountry, selectedState, selectedCity, selectedDevice]);
@@ -257,61 +313,86 @@ export function ReportingDashboard({
     if (onDateRangeChange && dateRange !== '30') onDateRangeChange('30');
   };
 
-  // Location share ratios
+  // Exact location reporting (Cities, States/Regions, Countries)
   const locationList = useMemo(() => {
-    if (!analytics?.countries) return [];
+    if (!analytics) return [];
+    const totalViews = Math.max(1, analytics.views || 1);
+
     if (locationTab === 'country') {
-      const totalViews = Math.max(1, analytics.countries.reduce((sum, c) => sum + c.views, 0));
+      if (!analytics.countries) return [];
       return analytics.countries.map(c => ({
         name: c.countryName,
         country: c.countryName,
         flag: getCountryFlag(c.countryName),
         views: c.views,
-        visitors: Math.round(c.views * 0.85),
+        visitors: c.visitors ?? c.views,
         clicks: c.clicks,
         ctr: c.ctr,
-        subscribers: Math.round(c.views * 0.08),
-        subscriptionRate: c.views > 0 ? Number(((c.views * 0.08 / c.views) * 100).toFixed(1)) : 0,
-        percentage: Number(((c.views / totalViews) * 100).toFixed(1)),
-      }));
+        subscribers: c.subscribers ?? 0,
+        percentage: c.viewShare ?? Number(((c.views / totalViews) * 100).toFixed(1)),
+      })).sort((a, b) => b.views - a.views);
+    } else if (locationTab === 'region') {
+      const regions = analytics.regions || analytics.countries?.flatMap(c => c.regions || []) || [];
+      return regions.map(r => ({
+        name: r.regionName,
+        country: r.countryName,
+        flag: getCountryFlag(r.countryName),
+        views: r.views,
+        visitors: r.visitors ?? r.views,
+        clicks: r.clicks,
+        ctr: r.ctr,
+        subscribers: r.subscribers ?? 0,
+        percentage: r.viewShare ?? Number(((r.views / totalViews) * 100).toFixed(1)),
+      })).sort((a, b) => b.views - a.views);
     } else {
       const allCities: {
         name: string;
         country: string;
+        location: string;
         flag: string;
         views: number;
         visitors: number;
         clicks: number;
         ctr: number;
         subscribers: number;
-        subscriptionRate: number;
         percentage: number;
       }[] = [];
-      let totalViews = 0;
 
-      for (const c of analytics.countries) {
-        for (const ct of c.cities) {
-          totalViews += ct.views;
+      if (analytics.countries) {
+        for (const c of analytics.countries) {
+          for (const ct of c.cities) {
+            allCities.push({
+              name: ct.city || 'Unknown',
+              country: ct.country || c.countryName || 'Unknown',
+              location: ct.location || (ct.city ? `${ct.city}, ${c.countryName}` : 'Unknown'),
+              flag: getCountryFlag(ct.country || c.countryName),
+              views: ct.views,
+              visitors: ct.visitors ?? ct.views,
+              clicks: ct.clicks,
+              ctr: ct.ctr,
+              subscribers: ct.subscribers ?? 0,
+              percentage: ct.viewShare ?? Number(((ct.views / totalViews) * 100).toFixed(1)),
+            });
+          }
+        }
+      } else if (analytics.locations) {
+        for (const loc of analytics.locations) {
           allCities.push({
-            name: ct.city || 'Direct',
-            country: c.countryName,
-            flag: getCountryFlag(c.countryName),
-            views: ct.views,
-            visitors: Math.round(ct.views * 0.85),
-            clicks: ct.clicks,
-            ctr: ct.ctr,
-            subscribers: Math.round(ct.views * 0.08),
-            subscriptionRate: ct.views > 0 ? Number(((ct.views * 0.08 / ct.views) * 100).toFixed(1)) : 0,
-            percentage: 0,
+            name: loc.city || 'Unknown',
+            country: loc.country || 'Unknown',
+            location: loc.location || 'Unknown',
+            flag: getCountryFlag(loc.country),
+            views: loc.views,
+            visitors: loc.visitors ?? loc.views,
+            clicks: loc.clicks,
+            ctr: loc.ctr ?? (loc.views > 0 ? Number(((loc.clicks / loc.views) * 100).toFixed(1)) : 0),
+            subscribers: loc.subscribers ?? 0,
+            percentage: loc.viewShare ?? Number(((loc.views / totalViews) * 100).toFixed(1)),
           });
         }
       }
 
-      totalViews = Math.max(1, totalViews);
-      return allCities.map(ct => ({
-        ...ct,
-        percentage: Number(((ct.views / totalViews) * 100).toFixed(1)),
-      })).sort((a, b) => b.views - a.views);
+      return allCities.sort((a, b) => b.views - a.views);
     }
   }, [analytics, locationTab]);
 
@@ -321,7 +402,7 @@ export function ReportingDashboard({
     return locationList.filter(l => l.name.toLowerCase().includes(q) || l.country.toLowerCase().includes(q));
   }, [locationList, locationSearch]);
 
-  // Synthetic link performance list from pages blocks
+  // Real link performance list from page blocks
   const linkPerformance = useMemo(() => {
     const list: {
       blockId: number;
@@ -337,13 +418,11 @@ export function ReportingDashboard({
     }[] = [];
 
     for (const page of pages) {
-      const pViews = page.views || 100;
+      const pViews = page.views || 0;
       for (const block of page.blocks || []) {
         if (['heading', 'text', 'divider', 'spacer'].includes(block.type)) continue;
-        const clicks = block.clicks || Math.round(pViews * 0.15);
-        const uniqueClicks = Math.round(clicks * 0.88);
+        const clicks = block.clicks || 0;
         const ctr = pViews > 0 ? Number(((clicks / pViews) * 100).toFixed(1)) : 0;
-        const conversion = Math.round(clicks * 0.22);
         list.push({
           blockId: block.id,
           title: block.title || `${block.type} action`,
@@ -352,9 +431,9 @@ export function ReportingDashboard({
           pageSlug: page.slug,
           views: pViews,
           clicks,
-          uniqueClicks,
+          uniqueClicks: clicks,
           ctr,
-          conversion,
+          conversion: 0,
         });
       }
     }
@@ -367,26 +446,24 @@ export function ReportingDashboard({
     });
   }, [pages, linkSortBy]);
 
-  // Page Performance list
+  // Real page performance list
   const pagePerformance = useMemo(() => {
     return pages.map(p => {
-      const views = p.views;
-      const clicks = p.clicks;
+      const views = p.views || 0;
+      const clicks = p.clicks || 0;
       const ctr = views > 0 ? Number(((clicks / views) * 100).toFixed(1)) : 0;
-      const subscribers = Math.round(views * 0.08);
-      const conversion = views > 0 ? Number(((subscribers / views) * 100).toFixed(1)) : 0;
-      const topCity = analytics?.countries?.[0]?.cities?.[0]?.city || 'Direct';
+      const topCity = analytics?.countries?.[0]?.cities?.[0]?.city || '—';
       return {
         id: p.id,
         name: p.name,
         slug: p.slug,
         status: p.status,
         views,
-        visitors: p.uniqueVisitors || Math.round(views * 0.85),
+        visitors: p.uniqueVisitors || views,
         clicks,
         ctr,
-        subscribers,
-        conversion,
+        subscribers: 0,
+        conversion: 0,
         topCity,
       };
     }).sort((a, b) => {
@@ -456,15 +533,15 @@ export function ReportingDashboard({
       rows.push([]);
     }
 
-    // 5. Geographic Location Report
-    if (exportOptions.locations) {
-      rows.push(['--- 5. GEOGRAPHIC LOCATION INTELLIGENCE ---']);
-      rows.push(['Location', 'Country', 'Views', 'Visitors', 'Clicks', 'CTR %', 'Subscribers', 'Share %']);
-      locationList.forEach((loc) => {
-        rows.push([loc.name, loc.country, loc.views, loc.visitors, loc.clicks, `${loc.ctr}%`, loc.subscribers, `${loc.percentage}%`]);
-      });
-      rows.push([]);
-    }
+      // 5. Geographic Location Report
+      if (exportOptions.locations) {
+        rows.push(['--- 5. GEOGRAPHIC LOCATION INTELLIGENCE ---']);
+        rows.push(['Location', 'Country', 'Views', 'Visitors', 'Clicks', 'CTR %', 'Subscribers', 'View Share %']);
+        locationList.forEach((loc) => {
+          rows.push([loc.name, loc.country, loc.views, loc.visitors, loc.clicks, `${loc.ctr}%`, loc.subscribers, `${loc.percentage}%`]);
+        });
+        rows.push([]);
+      }
 
     // 6. Devices & Browsers
     if (exportOptions.devices) {
@@ -860,6 +937,13 @@ export function ReportingDashboard({
               </button>
               <button
                 type="button"
+                className={locationTab === 'region' ? 'active' : ''}
+                onClick={() => setLocationTab('region')}
+              >
+                States / Regions
+              </button>
+              <button
+                type="button"
                 className={locationTab === 'country' ? 'active' : ''}
                 onClick={() => setLocationTab('country')}
               >
@@ -913,7 +997,7 @@ export function ReportingDashboard({
                 <th className="admTableNum">Clicks</th>
                 <th className="admTableNum">CTR</th>
                 <th className="admTableNum">Subscribers</th>
-                <th className="admTableNum">Share %</th>
+                <th className="admTableNum">View Share %</th>
               </tr>
             </thead>
             <tbody>
