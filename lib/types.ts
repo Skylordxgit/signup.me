@@ -1,4 +1,5 @@
 export type BlockType =
+  | "button"
   | "link"
   | "whatsapp"
   | "telegram"
@@ -18,6 +19,27 @@ export type BlockType =
   | "socials";
 
 export type PageStatus = "published" | "draft" | "disabled";
+export type PageType = "standard" | "custom_html";
+
+export type CustomHtmlVersion = {
+  version: number;
+  sourceHtml: string;
+  sanitizedHtml: string;
+  createdAt: string;
+  publishedAt?: string;
+  warnings: string[];
+};
+
+export type CustomHtmlSettings = {
+  sourceHtml: string;
+  draftHtml: string;
+  publishedHtml: string;
+  warnings: string[];
+  draftVersion: number;
+  publishedVersion: number;
+  versions: CustomHtmlVersion[];
+  uploadedMetadata?: { title?: string; description?: string; socialTitle?: string; socialDescription?: string; ogImage?: string; canonicalUrl?: string };
+};
 
 /** Presets still stored on pages created before the theme library existed. */
 export type LegacyThemePreset = "glass-dark" | "purple-glass" | "midnight" | "gradient" | "neon-glass";
@@ -103,20 +125,23 @@ export type ThemeSettings = {
   titleY?: number;
   bioX?: number;
   bioY?: number;
+  footerText?: string;
 };
 
 export type SeoSettings = {
   seoTitle: string;
   metaDescription: string;
-  socialTitle: string;
-  socialDescription: string;
+  socialTitle?: string;
+  socialDescription?: string;
   ogImage: string;
   favicon: string;
+  canonicalUrl?: string;
+  noindex?: boolean;
 };
 
 export type IntegrationSettings = {
-  metaPixelId: string;
-  gtmId: string;
+  metaPixelId?: string;
+  gtmId?: string;
   notificationPrompt?: import('./notificationPrompt').NotificationPromptSettings;
 };
 
@@ -161,17 +186,25 @@ export type SmartPage = {
   createdAt: string;
   updatedAt: string;
   blocks: PageBlock[];
+  /** Standard pages keep their existing renderer; custom HTML pages use the
+   * separate static-document editor and never enter the block builder. */
+  pageType?: PageType;
+  customHtml?: CustomHtmlSettings;
 };
 
 export type PageSummary = {
   id: number;
   name: string;
+  title?: string;
   slug: string;
   status: PageStatus;
   views: number;
   uniqueVisitors: number;
   clicks: number;
+  ctr?: number;
   updatedAt: string;
+  blocks?: Pick<PageBlock, "id" | "pageId" | "type" | "title" | "clicks" | "isActive" | "sortOrder">[];
+  pageType?: PageType;
 };
 
 export type DailyMetric = {
@@ -251,6 +284,11 @@ export type LinkPerformanceItem = {
   conversion: number;
 };
 
+export type CustomHtmlLinkMetric = {
+  href: string;
+  clicks: number;
+};
+
 export type AnalyticsReport = {
   views: number;
   uniqueVisitors: number;
@@ -270,6 +308,7 @@ export type AnalyticsReport = {
   locations: LocationMetric[];
   linkLocations?: LinkClickLocation[];
   linkStats?: LinkPerformanceItem[];
+  customHtmlLinks?: CustomHtmlLinkMetric[];
   countries?: CountryDetailMetric[];
   recentActivity?: RecentActivityItem[];
   previousPeriod?: { views: number; clicks: number; uniqueVisitors: number; ctr: number; subscribers: number };

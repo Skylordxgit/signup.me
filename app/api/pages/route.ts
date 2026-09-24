@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { protectedJson, requireAdmin } from "@/lib/auth";
 import { canAccess } from '@/lib/permissions';
-import { createPage, listPages } from "@/lib/store";
+import { createCustomHtmlPage, createPage, listPages } from "@/lib/store";
 
 export async function GET() {
   // Scoped to the session's workspace, never a workspace id from the client.
@@ -19,13 +19,15 @@ export async function POST(request: NextRequest) {
     for (const key of ["slug", "title", "bio", "profileImage"]) {
       if (body[key] !== undefined && typeof body[key] !== "string") throw new Error(`Invalid ${key}`);
     }
+    const workspaceId = session.isMaster && typeof body.workspaceId === "string" ? body.workspaceId : session.workspaceId;
+    if (body.pageType === "custom_html") return createCustomHtmlPage({ name: body.name, slug: (body.slug as string) || "", title: (body.title as string) || body.name, workspaceId });
     return createPage({
       name: body.name,
       slug: (body.slug as string) || "",
       title: (body.title as string) || "",
       bio: (body.bio as string) || "",
       profileImage: (body.profileImage as string) || "",
-      workspaceId: session.isMaster && typeof body.workspaceId === "string" ? body.workspaceId : session.workspaceId,
+      workspaceId,
     });
   });
 }

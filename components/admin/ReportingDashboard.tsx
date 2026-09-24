@@ -224,6 +224,22 @@ export function ReportingDashboard({
     };
   }, [analytics, selectedCountry, selectedState, selectedCity, selectedDevice]);
 
+  const funnelStages = [
+    { label: 'Views', count: filteredData?.views ?? 0, conversionRate: 100, dropOffRate: 0 },
+    {
+      label: 'Clicks',
+      count: filteredData?.clicks ?? 0,
+      conversionRate: filteredData?.ctr ?? 0,
+      dropOffRate: Math.max(0, 100 - (filteredData?.ctr ?? 0)),
+    },
+    {
+      label: 'Subscribers',
+      count: filteredData?.subscribers ?? 0,
+      conversionRate: filteredData?.subscriptionRate ?? 0,
+      dropOffRate: Math.max(0, 100 - (filteredData?.subscriptionRate ?? 0)),
+    },
+  ];
+
   const isAnyFilterActive =
     selectedCountry !== 'all' ||
     selectedState !== 'all' ||
@@ -454,9 +470,14 @@ export function ReportingDashboard({
     if (exportOptions.devices) {
       rows.push(['--- 6. DEVICES & BROWSERS REPORT ---']);
       rows.push(['Platform Category', 'Type / Name', 'Share %', 'Estimated Users']);
-      rows.push(['Device', 'Mobile', `${analytics?.devices?.mobile || 68}%`, Math.round((filteredData?.visitors || 0) * 0.68)]);
-      rows.push(['Device', 'Desktop', `${analytics?.devices?.desktop || 26}%`, Math.round((filteredData?.visitors || 0) * 0.26)]);
-      rows.push(['Device', 'Tablet', `${analytics?.devices?.tablet || 6}%`, Math.round((filteredData?.visitors || 0) * 0.06)]);
+      const devicePercentage = (device: string, fallback: number) =>
+        analytics?.devices.find((item) => item.device.toLowerCase() === device)?.percentage ?? fallback;
+      const mobile = devicePercentage('mobile', 68);
+      const desktop = devicePercentage('desktop', 26);
+      const tablet = devicePercentage('tablet', 6);
+      rows.push(['Device', 'Mobile', `${mobile}%`, Math.round((filteredData?.visitors || 0) * mobile / 100)]);
+      rows.push(['Device', 'Desktop', `${desktop}%`, Math.round((filteredData?.visitors || 0) * desktop / 100)]);
+      rows.push(['Device', 'Tablet', `${tablet}%`, Math.round((filteredData?.visitors || 0) * tablet / 100)]);
       rows.push(['Operating System', 'Android', '54%', '-']);
       rows.push(['Operating System', 'iOS', '28%', '-']);
       rows.push(['Operating System', 'Windows', '14%', '-']);

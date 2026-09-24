@@ -159,14 +159,23 @@ export function Metrics({
   );
 }
 
-export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, onExport, onCreate, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; onExport?: (ids: number[]) => Promise<string>; onCreate?: () => void; busy?: boolean }) {
+export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus, onExport, onCreate, publicOrigin, busy = false }: { pages: PageSummary[]; onOpen: (id: number) => void; onDuplicate?: (id: number) => void; onDelete?: (page: PageSummary) => void; onBulkStatus?: (ids: number[], status: 'draft' | 'disabled') => Promise<number[]>; onExport?: (ids: number[]) => Promise<string>; onCreate?: () => void; publicOrigin?: string | null; busy?: boolean }) {
   const [selected, setSelected] = useState<number[]>([]);
   const [message, setMessage] = useState('');
   const selectedIds = pages.filter(page => selected.includes(page.id)).map(page => page.id);
   const allSelected = pages.length > 0 && selectedIds.length === pages.length;
+  function publicUrl(page: PageSummary) { return new URL('/' + page.slug, publicOrigin || (typeof window === "undefined" ? "http://localhost" : window.location.origin)).href; }
+  function domainLabel(page: PageSummary) {
+    try {
+      const url = new URL(publicUrl(page));
+      return `${url.host}/${page.slug}`;
+    } catch {
+      return `/${page.slug}`;
+    }
+  }
   async function copyLink(page: PageSummary) {
     try {
-      await navigator.clipboard.writeText(new URL('/' + page.slug, window.location.origin).href);
+      await navigator.clipboard.writeText(publicUrl(page));
       setMessage(`Link copied for ${page.name}`);
     } catch { setMessage('Could not copy the link. Open Preview and copy the address.'); }
   }
@@ -186,12 +195,15 @@ export function PagesTable({ pages, onOpen, onDuplicate, onDelete, onBulkStatus,
     {onBulkStatus && <div className="admBulkActions"><span>{selectedIds.length} selected</span><Button size="sm" icon={FileText} disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('draft')}>Move to draft</Button><Button size="sm" icon={Eye} disabled={busy || !selectedIds.length} onClick={() => void bulkStatus('disabled')}>Unpublish</Button>{onExport && <Button size="sm" icon={Download} disabled={busy || !selectedIds.length} onClick={() => void exportSelected()}>Export selected</Button>}{selectedIds.length > 0 && <button type="button" className="admTextButton" disabled={busy} onClick={() => setSelected([])}>Clear selection</button>}</div>}
     {message && <p className="admMuted" role="status">{message}</p>}
     <div className={`admPageTable ${onBulkStatus ? 'admPageTableManage' : ''}`} role="table" aria-label="Pages">
-    <div className="admPageTableHead" role="row"><span role="columnheader" className="admPageSelect">{onBulkStatus && <input type="checkbox" aria-label="Select all visible pages" disabled={busy} checked={allSelected} ref={node => { if (node) node.indeterminate = selectedIds.length > 0 && !allSelected; }} onChange={() => setSelected(allSelected ? [] : pages.map(page => page.id))} />}Page</span><span role="columnheader">Status</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader"><span className="admSrOnly">Actions</span></span></div>
+    <div className="admPageTableHead" role="row"><span role="columnheader" className="admPageSelect">{onBulkStatus && <input type="checkbox" aria-label="Select all visible pages" disabled={busy} checked={allSelected} ref={node => { if (node) node.indeterminate = selectedIds.length > 0 && !allSelected; }} onChange={() => setSelected(allSelected ? [] : pages.map(page => page.id))} />}Page</span><span role="columnheader">Type</span><span role="columnheader">Status</span><span role="columnheader">Domain</span><span role="columnheader">Views</span><span role="columnheader">Clicks</span><span role="columnheader">Updated</span><span role="columnheader"><span className="admSrOnly">Actions</span></span></div>
     {pages.map(page => <div className="admPageRow" role="row" key={page.id}>
       <div role="cell" className="admPageSelect">{onBulkStatus && <input type="checkbox" aria-label={`Select ${page.name}`} disabled={busy} checked={selectedIds.includes(page.id)} onChange={event => setSelected(current => event.target.checked ? [...current, page.id] : current.filter(id => id !== page.id))} />}<button type="button" className="admPageIdentity" onClick={() => onOpen(page.id)} disabled={busy}><span className="admPageGlyph"><Link2 size={18} /></span><span><strong>{page.name}</strong><small>/{page.slug}</small></span></button></div>
-      <div role="cell"><StatusBadge status={page.status} /></div><span role="cell" className="admTableNumber">{number(page.views)}</span><span role="cell" className="admTableNumber">{number(page.clicks)}</span>
+      <div role="cell"><span className="admTypeBadge">{page.pageType === "custom_html" ? "Custom HTML" : "Standard"}</span></div>
+      <div role="cell"><StatusBadge status={page.status} /></div>
+      <div role="cell" className="admDomainCell" title={publicUrl(page)}><span className="admDomainText">{domainLabel(page)}</span></div>
+      <span role="cell" className="admTableNumber">{number(page.views)}</span><span role="cell" className="admTableNumber">{number(page.clicks)}</span>
       <time role="cell" dateTime={page.updatedAt}>{new Date(page.updatedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</time>
-      <div role="cell" className="admActionRow">{onBulkStatus && <><a className="admIconButton" href={'/' + page.slug} target="_blank" rel="noreferrer" title={`Preview ${page.name}`} aria-label={`Preview ${page.name}`}><Eye size={18} /></a><IconButton icon={Link2} label={`Copy link for ${page.name}`} onClick={() => void copyLink(page)} /></>}{onDuplicate && <IconButton icon={Copy} label={`Duplicate ${page.name}`} disabled={busy} onClick={() => onDuplicate(page.id)} />}{onDelete && <IconButton icon={Trash2} label={`Delete ${page.name}`} disabled={busy} onClick={() => onDelete(page)} />}<IconButton icon={onBulkStatus ? Pencil : ArrowUpRight} label={`Edit ${page.name}`} disabled={busy} onClick={() => onOpen(page.id)} /></div>
+       <div role="cell" className="admActionRow">{onBulkStatus && <><a className="admIconButton" href={publicUrl(page)} target="_blank" rel="noreferrer" title={`Preview ${page.name}`} aria-label={`Preview ${page.name}`}><Eye size={18} /></a><IconButton icon={Link2} label={`Copy link for ${page.name}`} onClick={() => void copyLink(page)} /></>}{onDuplicate && <IconButton icon={Copy} label={`Duplicate ${page.name}`} disabled={busy} onClick={() => onDuplicate(page.id)} />}{onDelete && <IconButton icon={Trash2} label={`Delete ${page.name}`} disabled={busy} onClick={() => onDelete(page)} />}<IconButton icon={onBulkStatus ? Pencil : ArrowUpRight} label={page.pageType === "custom_html" ? `Edit HTML for ${page.name}` : `Edit ${page.name}`} disabled={busy} onClick={() => onOpen(page.id)} /></div>
     </div>)}
   </div></>;
 }

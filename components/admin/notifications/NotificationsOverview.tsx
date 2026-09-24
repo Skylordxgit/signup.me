@@ -22,6 +22,7 @@ import {
   Calendar,
 } from "lucide-react";
 import type { NotificationCampaign, NotificationSubscriberSummary, SubscriberSegment } from "@/lib/types";
+import type { WorkspaceDistinctLocations } from "@/lib/audienceTargeting";
 import { adminApi } from "@/lib/admin";
 import { Button, EmptyState, LoadingState } from "../AdminUI";
 import { NotificationNav } from "./NotificationNav";
@@ -37,7 +38,7 @@ export function NotificationsOverview() {
     subscribers: NotificationSubscriberSummary;
     campaigns: NotificationCampaign[];
     segments: SubscriberSegment[];
-    locations: { country: string; cities: string[] }[];
+    locations: WorkspaceDistinctLocations;
   } | null>(null);
 
   useEffect(() => {
@@ -48,7 +49,7 @@ export function NotificationsOverview() {
       subscribers: NotificationSubscriberSummary;
       campaigns: NotificationCampaign[];
       segments: SubscriberSegment[];
-      locations: { country: string; cities: string[] }[];
+      locations: WorkspaceDistinctLocations;
     }>("/api/admin/notifications", { signal: controller.signal })
       .then((res) => {
         if (!cancelled && res) setData(res);
@@ -379,12 +380,12 @@ export function NotificationsOverview() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
                 <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--c-muted, #64748b)" }}>SUBSCRIBER GEOGRAPHY</span>
                 <span style={{ fontSize: "11px", color: "var(--c-muted, #64748b)" }}>
-                  {data?.locations?.countries?.length || 0} countries ({data?.locations?.cities?.length || 0} cities)
+                  {data?.locations?.countries.length || 0} countries ({data?.locations?.cities.length || 0} cities)
                 </span>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
                 {(data?.locations?.countries || []).slice(0, 6).map((country) => {
-                  const cityCount = data?.locations?.hierarchy?.[country]?.cities?.length || 0;
+                  const cityCount = data?.locations?.hierarchy[country]?.cities.length || 0;
                   return (
                     <span
                       key={country}

@@ -103,7 +103,7 @@ export function NotificationsManager({
 
       {activeTab === "subscribers" && <SubscribersView />}
 
-      {activeTab === "segments" && <SegmentsView onCompose={() => handleTabChange("create")} />}
+      {activeTab === "segments" && <SegmentsView onUseSegment={() => handleTabChange("create")} />}
 
       {activeTab === "templates" && <NotificationTemplatesView />}
 

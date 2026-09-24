@@ -2508,6 +2508,18 @@ so the card reads as the theme it applies. */
   transition: transform 0.2s ease, opacity 0.2s ease;
 }
 
+.pushPromptWidget[open] { position: fixed; inset: auto; margin: 0; max-width: min(390px, calc(100vw - 32px)); border-radius: var(--prompt-radius, 16px); box-shadow: var(--prompt-shadow); font-size: var(--prompt-size, 16px); z-index: 10000; }
+.pushPrompt-top-left[open] { top: var(--prompt-offset-y); left: var(--prompt-offset-x); }
+.pushPrompt-top-right[open] { top: var(--prompt-offset-y); right: var(--prompt-offset-x); }
+.pushPrompt-bottom-left[open] { bottom: var(--prompt-offset-y); left: var(--prompt-offset-x); }
+.pushPrompt-bottom-right[open] { bottom: var(--prompt-offset-y); right: var(--prompt-offset-x); }
+.pushPromptWidget::backdrop { display: none; }
+.pushPromptIcon img { width: 30px; height: 30px; object-fit: contain; }
+.pushPromptDismiss { margin-top: 8px; border: 0; background: transparent; color: var(--prompt-text-color); text-decoration: underline; cursor: pointer; }
+@media (min-width: 1025px) { .pushPromptWidget[data-show-desktop="false"] { display: none; } }
+@media (min-width: 641px) and (max-width: 1024px) { .pushPromptWidget[data-show-tablet="false"] { display: none; } }
+@media (max-width: 640px) { .pushPromptWidget[data-show-mobile="false"] { display: none; } }
+
 .pushPrompt::backdrop {
   background: rgba(17, 24, 39, 0.75);
   backdrop-filter: blur(4px);

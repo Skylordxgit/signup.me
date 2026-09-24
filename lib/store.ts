@@ -15,6 +15,8 @@ export const createPage: typeof jsonStore.createPage = (...args) => store().crea
 export const updatePage: typeof jsonStore.updatePage = (...args) => store().updatePage(...args);
 export const deletePage: typeof jsonStore.deletePage = (...args) => store().deletePage(...args);
 export const duplicatePage: typeof jsonStore.duplicatePage = (...args) => store().duplicatePage(...args);
+export const createCustomHtmlPage: typeof jsonStore.createCustomHtmlPage = (...args) => store().createCustomHtmlPage(...args);
+export const saveCustomHtmlDraft: typeof jsonStore.saveCustomHtmlDraft = (...args) => store().saveCustomHtmlDraft(...args);
 export const createBlock: typeof jsonStore.createBlock = (...args) => store().createBlock(...args);
 export const blockPageId: typeof jsonStore.blockPageId = (...args) => store().blockPageId(...args);
 export const updateBlock: typeof jsonStore.updateBlock = (...args) => store().updateBlock(...args);
@@ -23,6 +25,7 @@ export const duplicateBlock: typeof jsonStore.duplicateBlock = (...args) => stor
 export const reorderBlocks: typeof jsonStore.reorderBlocks = (...args) => store().reorderBlocks(...args);
 export const trackView: typeof jsonStore.trackView = (...args) => store().trackView(...args);
 export const trackClick: typeof jsonStore.trackClick = (...args) => store().trackClick(...args);
+export const trackCustomHtmlLinkClick: typeof jsonStore.trackCustomHtmlLinkClick = (...args) => store().trackCustomHtmlLinkClick(...args);
 export const analyticsForPage: typeof jsonStore.analyticsForPage = (...args) => store().analyticsForPage(...args);
 export const savePushSubscription: typeof jsonStore.savePushSubscription = (...args) => store().savePushSubscription(...args);
 export const listPushSubscribers: typeof jsonStore.listPushSubscribers = (...args) => store().listPushSubscribers(...args);

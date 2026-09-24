@@ -204,7 +204,7 @@ function PageCover({
   );
 }
 
-function ProfileIdentity({ page, showAvatar, src }: { page: SmartPage; showAvatar: boolean; src: string }) {
+function ProfileIdentity({ page, showAvatar, src }: { page: SmartPage; showAvatar: boolean; src?: string }) {
   const theme = page.theme;
   const avatarX = theme.avatarX ?? 0;
   const avatarY = theme.avatarY ?? -19;
@@ -232,7 +232,7 @@ function ProfileIdentity({ page, showAvatar, src }: { page: SmartPage; showAvata
 
   return (
     <>
-      {showAvatar && <ProfileAvatar key={src} name={page.title || page.name} src={src} style={avatarStyle} />}
+      {showAvatar && <ProfileAvatar key={src} name={page.title || page.name} src={src || ""} style={avatarStyle} />}
       {(page.title || page.bio) && (
         <div className="pageIdentityText">
           {page.title && <h1 className="pageTitle" style={titleStyle}>{page.title}</h1>}

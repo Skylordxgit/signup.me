@@ -66,6 +66,19 @@ export type NotificationPromptSettings = Partial<Record<NotificationPromptCopyKe
   iconColor?: string;
   iconBackground?: string;
   buttonAnimation?: NotificationPromptAnimation;
+  widgetType?: 'floating-bell' | 'pill' | 'icon-text' | 'minimal';
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  offsetX?: number;
+  offsetY?: number;
+  iconMode?: 'default' | 'workspace' | 'custom';
+  iconUrl?: string;
+  borderRadius?: number;
+  shadow?: number;
+  size?: number;
+  showDesktop?: boolean;
+  showTablet?: boolean;
+  showMobile?: boolean;
+  notNowLabel?: string;
 };
 
 export function isNotificationPromptEnabled(settings?: NotificationPromptSettings) {
@@ -86,6 +99,7 @@ export function resolveNotificationPrompt(settings?: NotificationPromptSettings)
 }
 
 export function resolveNotificationPromptTheme(settings?: NotificationPromptSettings) {
+  const bounded = (value: unknown, fallback: number, maximum: number) => Math.max(0, Math.min(maximum, Number.isFinite(Number(value)) ? Number(value) : fallback));
   return {
     buttonColor: settings?.buttonColor || '#2465d7',
     buttonTextColor: settings?.buttonTextColor || '#ffffff',
@@ -95,5 +109,18 @@ export function resolveNotificationPromptTheme(settings?: NotificationPromptSett
     iconBackground: settings?.iconBackground || '#edf4ff',
     buttonAnimation: (settings?.buttonAnimation || 'pulse') as NotificationPromptAnimation,
     required: settings?.required === true,
+    widgetType: settings?.widgetType || 'pill',
+    position: settings?.position || 'bottom-right',
+    offsetX: bounded(settings?.offsetX, 20, 120),
+    offsetY: bounded(settings?.offsetY, 20, 120),
+    iconMode: settings?.iconMode || 'default',
+    iconUrl: settings?.iconUrl || '',
+    borderRadius: bounded(settings?.borderRadius, 16, 48),
+    shadow: bounded(settings?.shadow, 24, 80),
+    size: bounded(settings?.size, 16, 24),
+    showDesktop: settings?.showDesktop !== false,
+    showTablet: settings?.showTablet !== false,
+    showMobile: settings?.showMobile !== false,
+    notNowLabel: settings?.notNowLabel || 'Not now',
   };
 }

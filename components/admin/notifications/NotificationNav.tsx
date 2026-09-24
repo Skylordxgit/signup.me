@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, PlusCircle, Send, Users, Layers, FileCode2, ScrollText } from "lucide-react";
 
-export type NotificationTabKey = "overview" | "create" | "campaigns" | "subscribers" | "segments" | "templates" | "logs";
+export type NotificationTabKey = "overview" | "create" | "compose" | "campaigns" | "subscribers" | "segments" | "templates" | "logs" | "history";
 
 export function NotificationNav({
   activeTab,

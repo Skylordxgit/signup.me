@@ -92,6 +92,21 @@ export async function invalidatePublishedPageCache(slug: string, workspaceId?: s
 }
 
 /**
+ * Rebuild / warm published snapshot cache on publish.
+ * Fails safely without interrupting publishing flow.
+ */
+export async function warmPublishedPageCache(slug: string, workspaceId?: string) {
+  try {
+    await Promise.allSettled([
+      getCachedPublicPage(slug, workspaceId),
+      getCachedPrimaryPublicPage(workspaceId),
+    ]);
+  } catch (error) {
+    console.warn('[Cache Warm] Failed to warm cache for page:', slug, error);
+  }
+}
+
+/**
  * Invalidate domain cache when domain assignments change.
  */
 export async function invalidateDomainCache(hostname?: string) {

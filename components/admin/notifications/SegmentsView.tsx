@@ -26,6 +26,16 @@ export function SegmentsView({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  const fetchSegments = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi<{ segments: SubscriberSegment[] }>("/api/admin/notifications/segments");
+      setSegments(res.segments || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();

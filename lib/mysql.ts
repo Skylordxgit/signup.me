@@ -113,6 +113,22 @@ const schemaStatements = [
     INDEX idx_blocks_page_order (page_id, sort_order),
     INDEX idx_blocks_page_active (page_id, is_active)
   )`,
+  `CREATE TABLE IF NOT EXISTS custom_html_pages (
+    page_id BIGINT UNSIGNED PRIMARY KEY,
+    content JSON NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_custom_html_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
+  )`,
+  `CREATE TABLE IF NOT EXISTS custom_html_assets (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    workspace_id CHAR(36) NOT NULL,
+    page_id BIGINT UNSIGNED NOT NULL,
+    storage_path VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_custom_html_asset_reference (page_id, storage_path),
+    INDEX idx_custom_html_asset_path (workspace_id, storage_path),
+    CONSTRAINT fk_custom_html_asset_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
+  )`,
   `CREATE TABLE IF NOT EXISTS page_views (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
     page_id BIGINT UNSIGNED NOT NULL,
@@ -139,6 +155,20 @@ const schemaStatements = [
     CONSTRAINT fk_clicks_block FOREIGN KEY (block_id) REFERENCES page_blocks(id) ON DELETE CASCADE,
     INDEX idx_clicks_page_date (page_id, created_at),
     INDEX idx_clicks_block_date (block_id, created_at)
+  )`,
+  `CREATE TABLE IF NOT EXISTS custom_html_link_clicks (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    page_id BIGINT UNSIGNED NOT NULL,
+    href VARCHAR(2048) NOT NULL,
+    device_type VARCHAR(30) NOT NULL,
+    referrer VARCHAR(255) NOT NULL DEFAULT 'Direct',
+    country VARCHAR(100) NULL,
+    city VARCHAR(100) NULL,
+    workspace_id CHAR(36) NOT NULL DEFAULT 'default',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_custom_html_clicks_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE,
+    INDEX idx_custom_html_clicks_page_date (page_id, created_at),
+    INDEX idx_custom_html_clicks_workspace (workspace_id)
   )`,
   `CREATE TABLE IF NOT EXISTS uploads (
     id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
@@ -234,6 +264,7 @@ const migrationStatements = [
   `ALTER TABLE workspace_users ADD INDEX idx_workspace_users_workspace (workspace_id)`,
   `ALTER TABLE workspace_users MODIFY COLUMN password_hash VARCHAR(255) NOT NULL DEFAULT ''`,
   `ALTER TABLE pages ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE pages ADD COLUMN page_type VARCHAR(24) NOT NULL DEFAULT 'standard'`,
   `ALTER TABLE pages ADD INDEX idx_pages_workspace (workspace_id)`,
   `ALTER TABLE uploads ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
   `ALTER TABLE media_files ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
@@ -244,6 +275,19 @@ const migrationStatements = [
     `ALTER TABLE ${table} ADD INDEX idx_${table}_workspace (workspace_id)`,
     `UPDATE ${table} child INNER JOIN pages p ON p.id = child.page_id SET child.workspace_id = p.workspace_id WHERE child.workspace_id <> p.workspace_id`,
   ]),
+  `ALTER TABLE custom_html_link_clicks ADD COLUMN workspace_id CHAR(36) NOT NULL DEFAULT 'default'`,
+  `ALTER TABLE custom_html_link_clicks ADD INDEX idx_custom_html_clicks_workspace (workspace_id)`,
+  `UPDATE custom_html_link_clicks child INNER JOIN pages p ON p.id = child.page_id SET child.workspace_id = p.workspace_id WHERE child.workspace_id <> p.workspace_id`,
+  `CREATE TABLE IF NOT EXISTS custom_html_assets (
+    id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+    workspace_id CHAR(36) NOT NULL,
+    page_id BIGINT UNSIGNED NOT NULL,
+    storage_path VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_custom_html_asset_reference (page_id, storage_path),
+    INDEX idx_custom_html_asset_path (workspace_id, storage_path),
+    CONSTRAINT fk_custom_html_asset_page FOREIGN KEY (page_id) REFERENCES pages(id) ON DELETE CASCADE
+  )`,
   // This table only holds platform settings. Page-specific settings live on
   // pages (workspace_id) and blocks (workspace_id), never in the global table.
   `ALTER TABLE settings ADD COLUMN workspace_id CHAR(36) NULL DEFAULT NULL`,

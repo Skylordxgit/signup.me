@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import type { AnalyticsReport, BlockType, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
+import type { AnalyticsReport, BlockType, CustomHtmlLinkMetric, CustomHtmlSettings, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, SmartPage } from "../types";
 import { defaultTheme } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
@@ -7,12 +7,15 @@ import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
 import { DEFAULT_WORKSPACE_ID } from '../workspaces';
-import { invalidatePublishedPageCache } from "../pageSnapshot";
-import { enqueueLinkClick, enqueuePageView } from "../analyticsQueue";
+import { invalidatePublishedPageCache, warmPublishedPageCache } from "../pageSnapshot";
+import { enqueueCustomHtmlLinkClick, enqueueLinkClick, enqueuePageView } from "../analyticsQueue";
+import { emptyCustomHtml } from "../customHtml";
+import { duplicateCustomHtmlAssetOwnership, removeCustomHtmlAssetOwnership } from "../uploads";
 
 type PageRow = {
   id: number;
   workspace_id?: string | null;
+  page_type?: "standard" | "custom_html";
   name: string;
   slug: string;
   title: string;
@@ -132,7 +135,7 @@ function mapBlock(row: BlockRow): PageBlock {
   };
 }
 
-function mapPage(row: PageRow, blocks: PageBlock[]): SmartPage {
+function mapPage(row: PageRow, blocks: PageBlock[], customHtml?: CustomHtmlSettings): SmartPage {
   return {
     id: row.id,
     // Rows migrated from the single-workspace schema default to 'default'.
@@ -159,6 +162,8 @@ function mapPage(row: PageRow, blocks: PageBlock[]): SmartPage {
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
     blocks: blocks.sort((a, b) => a.sortOrder - b.sortOrder),
+    pageType: row.page_type || "standard",
+    customHtml,
   };
 }
 
@@ -170,7 +175,10 @@ async function blocksForPage(pageId: number) {
 async function loadPage(pageId: number, workspaceId?: string) {
   const rows = await mysqlQuery<PageRow[]>(`SELECT * FROM pages WHERE id = ?${workspaceId !== undefined ? ' AND workspace_id = ?' : ''}`, [pageId, ...(workspaceId !== undefined ? [workspaceId] : [])]);
   if (!rows[0]) return null;
-  return mapPage(rows[0], await blocksForPage(pageId));
+  const custom = rows[0].page_type === "custom_html"
+    ? (await mysqlQuery<{ content: unknown }[]>("SELECT content FROM custom_html_pages WHERE page_id = ?", [pageId]))[0]
+    : null;
+  return mapPage(rows[0], await blocksForPage(pageId), custom ? toJson(custom.content, emptyCustomHtml()) : undefined);
 }
 
 function visitorHash(visitorKey: string) {
@@ -289,6 +297,7 @@ export async function listPages(workspaceId?: string) {
     uniqueVisitors: row.unique_visitors,
     clicks: Number(row.clicks),
     updatedAt: toIso(row.updated_at),
+    pageType: row.page_type || "standard",
   }));
 }
 
@@ -305,13 +314,13 @@ export async function pagesByWorkspace() {
 export async function getPublicPageBySlug(slug: string, workspaceId?: string) {
   const rows = await mysqlQuery<PageRow[]>(`SELECT * FROM pages WHERE slug = ? AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''}`, [slug, ...(workspaceId ? [workspaceId] : [])]);
   if (!rows[0]) return null;
-  return mapPage(rows[0], await blocksForPage(rows[0].id));
+  return loadPage(rows[0].id, workspaceId);
 }
 
 export async function getPrimaryPublicPage(workspaceId: string) {
   const rows = await mysqlQuery<PageRow[]>("SELECT * FROM pages WHERE workspace_id = ? AND status = 'published' ORDER BY id LIMIT 1", [workspaceId]);
   if (!rows[0]) return null;
-  return mapPage(rows[0], await blocksForPage(rows[0].id));
+  return loadPage(rows[0].id, workspaceId);
 }
 
 export async function createPage(input: {
@@ -359,6 +368,36 @@ export async function createPage(input: {
   if (!page) throw new Error("Failed to create page");
   void invalidatePublishedPageCache(page.slug, page.workspaceId);
   return page;
+}
+
+export async function createCustomHtmlPage(input: { name: string; slug: string; title?: string; workspaceId?: string }): Promise<SmartPage> {
+  const slug = slugify(input.slug || input.name);
+  if (!isValidSlug(slug)) throw new Error("Invalid slug");
+  if ((await mysqlQuery<{ id: number }[]>("SELECT id FROM pages WHERE slug = ?", [slug])).length) throw new Error("Slug already exists");
+  const result = await withTransaction(async query => {
+    const created = await query<{ insertId: number }>(
+      `INSERT INTO pages (workspace_id, page_type, name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
+       VALUES (?, 'custom_html', ?, ?, ?, '', '', '', 'draft', ?, ?, ?, 0, 0)`,
+      [input.workspaceId || DEFAULT_WORKSPACE_ID, input.name.trim(), slug, input.title?.trim() || input.name.trim(), JSON.stringify(defaultTheme), JSON.stringify({ seoTitle: input.title || input.name, metaDescription: "", socialTitle: "", socialDescription: "", ogImage: "", favicon: "" }), JSON.stringify({ metaPixelId: "", gtmId: "" })],
+    );
+    await query("INSERT INTO custom_html_pages (page_id, content) VALUES (?, ?)", [created.insertId, JSON.stringify(emptyCustomHtml())]);
+    return created.insertId;
+  });
+  const page = await loadPage(result);
+  if (!page) throw new Error("Failed to create Custom HTML page");
+  return page;
+}
+
+export async function saveCustomHtmlDraft(id: number, customHtml: CustomHtmlSettings) {
+  const current = await loadPage(id);
+  if (!current || current.pageType !== "custom_html") return null;
+  await mysqlQuery("UPDATE custom_html_pages SET content = ? WHERE page_id = ?", [JSON.stringify(customHtml), id]);
+  await mysqlQuery("UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id]);
+  void invalidatePublishedPageCache(current.slug, current.workspaceId);
+  if (customHtml.publishedHtml) {
+    void warmPublishedPageCache(current.slug, current.workspaceId);
+  }
+  return loadPage(id);
 }
 
 export async function updatePage(id: number, patch: Partial<SmartPage>) {
@@ -411,6 +450,9 @@ export async function updatePage(id: number, patch: Partial<SmartPage>) {
   if (nextSlug !== current.slug) {
     void invalidatePublishedPageCache(nextSlug, current.workspaceId);
   }
+  if (merged.status === "published") {
+    void warmPublishedPageCache(nextSlug, current.workspaceId);
+  }
 
   return loadPage(id);
 }
@@ -419,6 +461,9 @@ export async function deletePage(id: number) {
   const current = await loadPage(id);
   if (current) {
     void invalidatePublishedPageCache(current.slug, current.workspaceId);
+    if (current.pageType === "custom_html") {
+      await removeCustomHtmlAssetOwnership(id, current.workspaceId);
+    }
   }
   const result = await mysqlQuery<{ affectedRows: number }>("DELETE FROM pages WHERE id = ?", [id]);
   return result.affectedRows > 0;
@@ -438,10 +483,11 @@ export async function duplicatePage(id: number) {
 
   const newId = await withTransaction(async (query) => {
     const result = await query<{ insertId: number }>(
-      `INSERT INTO pages (workspace_id, name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, 0, 0)`,
+      `INSERT INTO pages (workspace_id, page_type, name, slug, title, bio, profile_image, logo_image, status, theme_settings, seo_settings, integration_settings, views, unique_visitors)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, 0, 0)`,
       [
         page.workspaceId,
+        page.pageType || "standard",
         `${page.name} Copy`,
         duplicateSlug,
         page.title,
@@ -454,6 +500,10 @@ export async function duplicatePage(id: number) {
       ],
     );
     const newPageId = result.insertId;
+
+    if (page.pageType === "custom_html" && page.customHtml) {
+      await query("INSERT INTO custom_html_pages (page_id, content) VALUES (?, ?)", [newPageId, JSON.stringify({ ...page.customHtml, publishedHtml: "", publishedVersion: 0 })]);
+    }
 
     for (const block of page.blocks) {
       await query(
@@ -480,6 +530,10 @@ export async function duplicatePage(id: number) {
 
     return newPageId;
   });
+
+  if (page.pageType === "custom_html") {
+    await duplicateCustomHtmlAssetOwnership(page.id, newId, page.workspaceId);
+  }
 
   return loadPage(newId);
 }
@@ -687,6 +741,33 @@ export async function trackClick(
   return { ok: true };
 }
 
+export async function trackCustomHtmlLinkClick(
+  pageId: number,
+  href: string,
+  userAgent: string,
+  referrer: string | null,
+  country = '',
+  city = '',
+  location = '',
+  workspaceId?: string,
+) {
+  void location;
+  const rows = await mysqlQuery<{ id: number; workspace_id: string }[]>(`SELECT id, workspace_id FROM pages WHERE id = ? AND page_type = 'custom_html' AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''} LIMIT 1`, [pageId, ...(workspaceId ? [workspaceId] : [])]);
+  const row = rows[0];
+  if (!row) return null;
+
+  enqueueCustomHtmlLinkClick({
+    pageId,
+    href,
+    deviceType: detectDevice(userAgent),
+    referrer: safeReferrer(referrer),
+    country: country || null,
+    city: city || null,
+    workspaceId: row.workspace_id || workspaceId || 'default',
+  });
+  return { ok: true };
+}
+
 export async function analyticsForPage(
   pageId: number,
   daysInput: number | string = 30,
@@ -768,6 +849,14 @@ export async function analyticsForPage(
      GROUP BY DATE(created_at)`,
     [pageId, startDate, endDateTime],
   );
+  const customHtmlDailyClicks = await mysqlQuery<{ date: string | Date; count: number }[]>(
+    `SELECT DATE(created_at) AS date, COUNT(*) AS count FROM custom_html_link_clicks WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY DATE(created_at)`,
+    [pageId, startDate, endDateTime],
+  );
+  const customHtmlLinks = await mysqlQuery<{ href: string; count: number }[]>(
+    `SELECT href, COUNT(*) AS count FROM custom_html_link_clicks WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY href ORDER BY count DESC`,
+    [pageId, startDate, endDateTime],
+  );
   const deviceRows = await mysqlQuery<{ device_type: string; count: number }[]>(
     `SELECT device_type, COUNT(*) AS count FROM page_views WHERE page_id = ? AND created_at >= ? AND created_at <= ? GROUP BY device_type`,
     [pageId, startDate, endDateTime],
@@ -791,10 +880,16 @@ export async function analyticsForPage(
 
   const viewsByDate = new Map(dailyViews.map((row) => [toDateKey(row.date), Number(row.count)]));
   const clicksByDate = new Map(dailyClicks.map((row) => [toDateKey(row.date), Number(row.count)]));
+  for (const row of customHtmlDailyClicks) {
+    const date = toDateKey(row.date);
+    clicksByDate.set(date, (clicksByDate.get(date) || 0) + Number(row.count));
+  }
   const blockClicksMap = new Map(blockClickRows.map(row => [row.block_id, Number(row.count)]));
 
   const totalViews = daysInput === 'all' && !fromDate ? page.views : dailyViews.reduce((sum, r) => sum + Number(r.count), 0);
-  const totalClicks = daysInput === 'all' && !fromDate ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : dailyClicks.reduce((sum, r) => sum + Number(r.count), 0);
+  const totalClicks = daysInput === 'all' && !fromDate
+    ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) + Number((await mysqlQuery<{ count: number }[]>('SELECT COUNT(*) AS count FROM custom_html_link_clicks WHERE page_id = ?', [pageId]))[0]?.count ?? 0)
+    : [...clicksByDate.values()].reduce((sum, count) => sum + count, 0);
 
   // Group locations
   const locationMap = new Map<string, { location: string; country: string; city: string; views: number; clicks: number }>();
@@ -912,6 +1007,7 @@ export async function analyticsForPage(
     locations: [...locationMap.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
     linkLocations: [...linkLocationsMap.values()].sort((a, b) => b.clicks - a.clicks),
     countries: countriesResult,
+    customHtmlLinks: customHtmlLinks.map((row): CustomHtmlLinkMetric => ({ href: row.href, clicks: Number(row.count) })),
     days: daysInput,
     startDate,
     endDate,

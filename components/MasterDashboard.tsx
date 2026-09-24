@@ -616,9 +616,9 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
                   const workspace = workspaces.find(item => item.id === user.workspaceId);
                   return <article key={user.id}>
                     <div className="masterUserIdentity"><span className="masterUserAvatar">{(user.name || user.email).slice(0, 1).toUpperCase()}</span><span className="masterUserName"><strong>{user.name || "Unnamed user"}</strong><small>{user.email}</small></span></div>
-                    <div className="masterUserWorkspace"><small>Workspace</small><strong>{workspace?.name || user.workspaceId}</strong></div>
-                    <div className="masterUserRole"><small>Role</small><span className="admBadge">{user.role === "owner" ? "Admin / Owner" : "Member"}</span></div>
-                    <div className="masterUserStatus"><small>Status</small><span className={`admBadge admBadge-${user.pending ? "" : user.active ? "published" : "disabled"}`}>{user.pending ? "Invited" : user.active ? "Active" : "Disabled"}</span></div>
+                    <div className="masterUserWorkspace" data-label="Workspace"><strong>{workspace?.name || user.workspaceId}</strong></div>
+                    <div className="masterUserRole" data-label="Role"><span className="admBadge">{user.role === "owner" ? "Admin / Owner" : "Member"}</span></div>
+                    <div className="masterUserStatus" data-label="Status"><span className={`admBadge admBadge-${user.pending ? "" : user.active ? "published" : "disabled"}`}>{user.pending ? "Invited" : user.active ? "Active" : "Disabled"}</span></div>
                     <div className="masterUserActions">
                       <IconButton icon={Settings2} label={`Permissions for ${user.email}`} disabled={busy} onClick={() => openEditUserModal(user, "permissions")} />
                       {!user.pending && <IconButton icon={KeyRound} label={`Reset password for ${user.email}`} disabled={busy} onClick={() => openEditUserModal(user, "password")} />}

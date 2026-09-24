@@ -46,6 +46,18 @@ export function CampaignsView({
   const [deleteTarget, setDeleteTarget] = useState<NotificationCampaign | null>(null);
   const [error, setError] = useState("");
 
+  const fetchCampaigns = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi<{ campaigns: NotificationCampaign[] }>(
+        `/api/admin/notifications/campaigns?status=${encodeURIComponent(statusFilter)}&query=${encodeURIComponent(search)}`
+      );
+      setCampaigns(res.campaigns || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();

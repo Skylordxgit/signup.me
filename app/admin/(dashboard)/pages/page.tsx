@@ -25,6 +25,7 @@ export default function PagesPage() {
     openPage,
     navigate,
     refreshPages,
+    account,
   } = useAdmin();
 
   const filtered = pages
@@ -112,6 +113,7 @@ export default function PagesPage() {
         }}
         onDelete={setDeleteTarget}
         busy={busy}
+        publicOrigin={account?.customDomain ? `https://${account.customDomain}` : account?.platformOrigin}
         onCreate={() => void navigate("/admin/pages/new")}
       />
     </>

@@ -36,6 +36,7 @@ export function SubscribersView({
   const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("all");
   const [offset, setOffset] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const limit = 50;
 
   useEffect(() => {
@@ -84,7 +85,12 @@ export function SubscribersView({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [search, selectedCountries, selectedCities, selectedDevices, statusFilter, offset]);
+  }, [search, selectedCountries, selectedCities, selectedDevices, statusFilter, offset, refreshKey]);
+
+  const fetchSubscribers = () => {
+    setOffset(0);
+    setRefreshKey((current) => current + 1);
+  };
 
   const exportCsv = () => {
     const params = new URLSearchParams({ format: "csv" });
@@ -205,7 +211,7 @@ export function SubscribersView({
           <table className="admTable">
             <thead>
               <tr>
-                <th scope="col">Subscriber</th>
+                <th scope="col">Sr. No.</th>
                 <th scope="col">Status</th>
                 <th scope="col">Country</th>
                 <th scope="col">State / Region</th>
@@ -216,10 +222,10 @@ export function SubscribersView({
               </tr>
             </thead>
             <tbody>
-              {subscribers.map((s) => (
+              {subscribers.map((s, rowIndex) => (
                 <tr key={s.id}>
                   <td>
-                    <strong>#{s.id}</strong>
+                    <strong>{offset + rowIndex + 1}</strong>
                   </td>
                   <td>
                     <span className={`admBadge ${s.status === "active" ? "admBadge-published" : "admBadge-disabled"}`}>

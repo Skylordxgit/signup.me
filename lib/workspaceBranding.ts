@@ -295,6 +295,6 @@ export function resolveEffectivePageBranding(page: SmartPage, workspaceBranding?
     ogImage: page.seo?.ogImage || page.profileImage || page.logoImage || ws.logoUrl,
     logoImage: page.logoImage || page.profileImage || ws.logoUrl,
     buttonColor: page.theme?.buttonBackground || ws.buttonColor || ws.primaryColor,
-    footerText: page.theme?.footerText || ws.footerText,
+    footerText: page.theme.footerText || ws.footerText,
   };
 }

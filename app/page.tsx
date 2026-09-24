@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from "next/navigation";
 import { notFound } from 'next/navigation';
 import { PublicPage } from '@/components/PublicPage';
+import { CustomHtmlPublicPage } from '@/components/CustomHtmlPublicPage';
 import { publicPageMetadata, resolveCurrentHost, resolveCustomDomainRoot } from '@/lib/domainRouting';
 import { getCachedWorkspaceBranding } from '@/lib/workspaceBranding';
 
@@ -31,7 +32,7 @@ export default async function Home() {
     const page = await resolveCustomDomainRoot(host);
     if (!page) notFound();
     const wsBranding = await getCachedWorkspaceBranding(page.workspaceId);
-    return <PublicPage page={page} workspaceBranding={wsBranding} />;
+    return page.pageType === "custom_html" ? <CustomHtmlPublicPage page={page} /> : <PublicPage page={page} workspaceBranding={wsBranding} />;
   }
 
   if (host.kind === 'unknown') {

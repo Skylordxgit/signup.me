@@ -45,6 +45,21 @@ test('a new signup gets its own workspace and never joins the default one', asyn
   });
 });
 
+test('Custom HTML link clicks persist separately from Standard Builder clicks', async () => {
+  await withDataDirectory(async () => {
+    const page = await store.createCustomHtmlPage({ name: 'HTML page', slug: 'html-page' });
+    await store.updatePage(page.id, { status: 'published' });
+
+    assert.deepEqual(await store.trackCustomHtmlLinkClick(page.id, 'https://example.test/offer', 'Mozilla/5.0', null), { ok: true });
+    assert.equal(await store.trackCustomHtmlLinkClick(page.id, 'https://example.test/offer', 'Mozilla/5.0', null, '', '', '', 'another-workspace'), null);
+
+    const report = await store.analyticsForPage(page.id, 'all');
+    assert.equal(report?.clicks, 1);
+    assert.deepEqual(report?.customHtmlLinks, [{ href: 'https://example.test/offer', clicks: 1 }]);
+    assert.deepEqual(report?.topBlocks, []);
+  });
+});
+
 test('an invited email joins the inviting workspace instead of creating one', async () => {
   await withDataDirectory(async () => {
 

@@ -44,6 +44,16 @@ export function NotificationTemplatesView({
   const [ctaText, setCtaText] = useState("");
   const [imageBusy, setImageBusy] = useState(false);
 
+  const fetchTemplates = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi<{ templates: NotificationTemplate[] }>("/api/admin/notifications/templates");
+      setTemplates(res.templates || []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -172,12 +182,11 @@ export function NotificationTemplatesView({
           icon={FileCode2}
           title="No notification templates yet"
           description="Create reusable notification copy and assets to speed up your future campaigns."
-          action={
-            <Button variant="primary" icon={Plus} onClick={() => openCreateModal()}>
-              Create First Template
-            </Button>
-          }
-        />
+        >
+          <Button variant="primary" icon={Plus} onClick={() => openCreateModal()}>
+            Create First Template
+          </Button>
+        </EmptyState>
       ) : (
         <div
           style={{
@@ -392,14 +401,14 @@ export function NotificationTemplatesView({
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
               <ImageUploader
-                category="general"
+                category="icon"
                 label="Notification Icon"
                 value={icon}
                 onChange={setIcon}
                 onBusyChange={setImageBusy}
               />
               <ImageUploader
-                category="general"
+                category="banner"
                 label="16:9 Banner Image"
                 value={image}
                 onChange={setImage}

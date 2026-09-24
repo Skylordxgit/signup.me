@@ -24,8 +24,20 @@ export interface QueuedLinkClick {
   createdAt?: string;
 }
 
+export interface QueuedCustomHtmlLinkClick {
+  pageId: number;
+  href: string;
+  deviceType: string;
+  referrer: string;
+  country: string | null;
+  city: string | null;
+  workspaceId: string;
+  createdAt?: string;
+}
+
 const viewBuffer: QueuedPageView[] = [];
 const clickBuffer: QueuedLinkClick[] = [];
+const customHtmlClickBuffer: QueuedCustomHtmlLinkClick[] = [];
 const pageViewIncrements = new Map<number, { views: number; uniqueVisitors: number }>();
 const blockClickIncrements = new Map<number, number>();
 
@@ -73,19 +85,25 @@ export function enqueueLinkClick(click: QueuedLinkClick): void {
   }
 }
 
+export function enqueueCustomHtmlLinkClick(click: QueuedCustomHtmlLinkClick): void {
+  customHtmlClickBuffer.push(click);
+  if (customHtmlClickBuffer.length >= BATCH_SIZE_THRESHOLD) void flushAnalytics();
+}
+
 /**
  * Flushes buffered analytics to MySQL using high-efficiency batch INSERTs.
  * 1,000 events = 1 batch query instead of 1,000 individual queries!
  */
 export async function flushAnalytics(): Promise<void> {
   if (isFlushing) return;
-  if (viewBuffer.length === 0 && clickBuffer.length === 0 && pageViewIncrements.size === 0 && blockClickIncrements.size === 0) {
+  if (viewBuffer.length === 0 && clickBuffer.length === 0 && customHtmlClickBuffer.length === 0 && pageViewIncrements.size === 0 && blockClickIncrements.size === 0) {
     return;
   }
 
   isFlushing = true;
   const viewsToFlush = viewBuffer.splice(0, viewBuffer.length);
   const clicksToFlush = clickBuffer.splice(0, clickBuffer.length);
+  const customHtmlClicksToFlush = customHtmlClickBuffer.splice(0, customHtmlClickBuffer.length);
   const pageIncrementsToFlush = new Map(pageViewIncrements);
   pageViewIncrements.clear();
   const blockIncrementsToFlush = new Map(blockClickIncrements);
@@ -141,6 +159,16 @@ export async function flushAnalytics(): Promise<void> {
         );
       }
 
+      if (customHtmlClicksToFlush.length > 0) {
+        const values: unknown[] = [];
+        const placeholders: string[] = [];
+        for (const item of customHtmlClicksToFlush) {
+          placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?)');
+          values.push(item.pageId, item.href, item.deviceType || 'desktop', item.referrer || 'Direct', item.country || null, item.city || null, item.workspaceId || 'default', item.createdAt ? new Date(item.createdAt) : new Date());
+        }
+        await pool.query(`INSERT INTO custom_html_link_clicks (page_id, href, device_type, referrer, country, city, workspace_id, created_at) VALUES ${placeholders.join(', ')}`, values);
+      }
+
       // 3. Batch increment page views count
       for (const [pageId, inc] of pageIncrementsToFlush.entries()) {
         await pool.query(
@@ -161,6 +189,7 @@ export async function flushAnalytics(): Promise<void> {
     // If MySQL failed (e.g. timeout), requeue items so analytics are never lost
     viewBuffer.unshift(...viewsToFlush);
     clickBuffer.unshift(...clicksToFlush);
+    customHtmlClickBuffer.unshift(...customHtmlClicksToFlush);
     for (const [pageId, inc] of pageIncrementsToFlush.entries()) {
       const current = pageViewIncrements.get(pageId) || { views: 0, uniqueVisitors: 0 };
       current.views += inc.views;

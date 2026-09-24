@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { pageForSession } from "@/lib/workspaceAccess";
 import { createNotificationCampaign, listNotificationCampaigns, sendPushNotification } from "@/lib/store";
 import { isNotificationUrl } from "@/lib/notificationUrl";
-import type { AudienceFilters, CampaignStatus } from "@/lib/types";
+import type { AudienceFilters, CampaignStatus, NotificationSendInput } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
   const session = await requireAdmin("notifications");
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     if (pageId !== null) await pageForSession(session, pageId);
 
-    const input = {
+    const input: NotificationSendInput = {
       name: name || title,
       title,
       body: message,

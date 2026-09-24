@@ -194,6 +194,7 @@ test("campaign history renders KPI metrics, visual funnel cards, and tabs correc
     body: 'Grab your limited discount code now before it ends!',
     url: 'https://example.com/deal',
     audience: 'All subscribers',
+    status: 'completed' as const,
     attempted: 100,
     sent: 100,
     delivered: 95,
@@ -325,4 +326,3 @@ test("dashboard provides custom date picker, detailed country/city breakdown, an
   assert.match(feedHtml, /Viewed/);
   assert.match(feedHtml, /Dhaka, Bangladesh/);
 });
-

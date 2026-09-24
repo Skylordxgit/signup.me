@@ -165,8 +165,11 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
 
   return <dialog
     ref={dialog}
-    className={`pushPrompt ${shake ? 'pushPromptShakeModal' : ''} ${unlocked ? 'pushPromptUnlocked' : ''}`}
+    className={`pushPrompt pushPromptWidget pushPrompt-${theme.position} pushPrompt-${theme.widgetType} ${shake ? 'pushPromptShakeModal' : ''} ${unlocked ? 'pushPromptUnlocked' : ''}`}
     data-gated={isGated ? 'true' : 'false'}
+    data-show-desktop={String(theme.showDesktop)}
+    data-show-tablet={String(theme.showTablet)}
+    data-show-mobile={String(theme.showMobile)}
     dir="auto"
     aria-label={copy.heading}
     style={{
@@ -176,6 +179,11 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
       ['--prompt-btn-color' as string]: theme.buttonTextColor,
       ['--prompt-icon-color' as string]: theme.iconColor,
       ['--prompt-icon-bg' as string]: theme.iconBackground,
+      ['--prompt-offset-x' as string]: `${theme.offsetX}px`,
+      ['--prompt-offset-y' as string]: `${theme.offsetY}px`,
+      ['--prompt-radius' as string]: `${theme.borderRadius}px`,
+      ['--prompt-shadow' as string]: `0 ${Math.round(theme.shadow / 2)}px ${theme.shadow}px rgba(0,0,0,.28)`,
+      ['--prompt-size' as string]: `${theme.size}px`,
     }}
     onCancel={event => {
       event.preventDefault();
@@ -195,7 +203,7 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
     </div>}
 
     <span className="pushPromptIcon" aria-hidden="true">
-      {unlocked ? <CheckCircle2 size={32} /> : isGated ? <Lock size={30} /> : <Bell size={30} />}
+      {unlocked ? <CheckCircle2 size={32} /> : isGated ? <Lock size={30} /> : theme.iconMode === 'custom' && theme.iconUrl ? <img src={theme.iconUrl} alt="" /> : <Bell size={30} />}
     </span>
 
     <strong>{unlocked ? (copy.successHeading || "You're subscribed!") : copy.heading}</strong>
@@ -231,5 +239,6 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
         {busy ? copy.busyLabel : error ? copy.retryLabel : copy.allowLabel}
       </button>
     )}
+    {!isGated && !unlocked && <button type="button" className="pushPromptDismiss" onClick={dismiss}>{theme.notNowLabel}</button>}
   </dialog>;
 }

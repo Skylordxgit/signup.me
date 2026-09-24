@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { existsSync } from "fs";
-import { mkdir, readFile, readdir, stat, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import { hasMysqlConfig, mysqlQuery } from "./mysql";
@@ -93,6 +93,7 @@ export const uploadCategories = [
   "icon",
   "og",
   "favicon",
+  "asset",
 ] as const;
 
 export type UploadCategory = (typeof uploadCategories)[number];
@@ -244,6 +245,148 @@ export async function storeUpload(
   return stored;
 }
 
+/** Stores a validated static page asset. The caller owns MIME validation; this
+ * deliberately bypasses image-only sniffing for CSS and web fonts from ZIPs. */
+export async function storeStaticAsset(bytes: Uint8Array, ext: string, mime: string, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<StoredUpload> {
+  const name = safeFileName(ext.replace(/^\./, ""));
+  const stored = { path: `/uploads/asset/${name}`, bytes: bytes.byteLength, mime };
+  if (hasMysqlConfig()) {
+    await persistMedia({ ...stored, name, category: "asset", updatedAt: new Date().toISOString() }, bytes, workspaceId);
+    return stored;
+  }
+  const directory = path.join(uploadRoot, "asset");
+  await mkdir(directory, { recursive: true });
+  await writeFile(path.join(directory, name), bytes);
+  await rememberMediaWorkspace(stored.path, workspaceId);
+  return stored;
+}
+
+function customHtmlAssetsFile() {
+  return path.join(process.cwd(), "data", "custom-html-assets.json");
+}
+
+type CustomHtmlAssetRecord = {
+  workspaceId: string;
+  pageId: number;
+  storagePath: string;
+};
+
+async function readCustomHtmlAssetsIndex(): Promise<CustomHtmlAssetRecord[]> {
+  try {
+    return JSON.parse(await readFile(customHtmlAssetsFile(), "utf8")) as CustomHtmlAssetRecord[];
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function writeCustomHtmlAssetsIndex(records: CustomHtmlAssetRecord[]) {
+  const target = customHtmlAssetsFile();
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, JSON.stringify(records));
+}
+
+export async function ownCustomHtmlAssets(pageId: number, workspaceId: string, paths: string[]) {
+  const unique = [...new Set(paths.filter((p) => p.startsWith("/uploads/asset/")))];
+  if (!unique.length) return;
+  if (hasMysqlConfig()) {
+    for (const storagePath of unique) {
+      await mysqlQuery(
+        "INSERT IGNORE INTO custom_html_assets (workspace_id, page_id, storage_path) VALUES (?, ?, ?)",
+        [workspaceId, pageId, storagePath],
+      );
+    }
+  }
+  const index = await readCustomHtmlAssetsIndex();
+  let changed = false;
+  for (const storagePath of unique) {
+    if (!index.some((r) => r.pageId === pageId && r.storagePath === storagePath)) {
+      index.push({ workspaceId, pageId, storagePath });
+      changed = true;
+    }
+  }
+  if (changed) {
+    await writeCustomHtmlAssetsIndex(index);
+  }
+}
+
+export async function duplicateCustomHtmlAssetOwnership(sourcePageId: number, destinationPageId: number, workspaceId: string) {
+  if (hasMysqlConfig()) {
+    await mysqlQuery(
+      "INSERT IGNORE INTO custom_html_assets (workspace_id, page_id, storage_path) SELECT workspace_id, ?, storage_path FROM custom_html_assets WHERE page_id = ? AND workspace_id = ?",
+      [destinationPageId, sourcePageId, workspaceId],
+    );
+  }
+  const index = await readCustomHtmlAssetsIndex();
+  const sourceAssets = index.filter((r) => r.pageId === sourcePageId && (r.workspaceId === workspaceId || !r.workspaceId));
+  let changed = false;
+  for (const item of sourceAssets) {
+    if (!index.some((r) => r.pageId === destinationPageId && r.storagePath === item.storagePath)) {
+      index.push({ workspaceId, pageId: destinationPageId, storagePath: item.storagePath });
+      changed = true;
+    }
+  }
+  if (changed) {
+    await writeCustomHtmlAssetsIndex(index);
+  }
+}
+
+export async function removeCustomHtmlAssetOwnership(pageId: number, workspaceId: string) {
+  if (hasMysqlConfig()) {
+    const rows = await mysqlQuery<{ storage_path: string }[]>(
+      "SELECT storage_path FROM custom_html_assets WHERE page_id = ? AND workspace_id = ?",
+      [pageId, workspaceId],
+    );
+    await mysqlQuery("DELETE FROM custom_html_assets WHERE page_id = ? AND workspace_id = ?", [pageId, workspaceId]);
+    for (const { storage_path } of rows) {
+      const refs = await mysqlQuery<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM custom_html_assets WHERE workspace_id = ? AND storage_path = ?",
+        [workspaceId, storage_path],
+      );
+      if (!refs[0]?.count) {
+        await mysqlQuery(
+          "DELETE FROM media_files WHERE workspace_id = ? AND storage_path = ? AND category = 'asset'",
+          [workspaceId, storage_path],
+        );
+      }
+    }
+  }
+  const index = await readCustomHtmlAssetsIndex();
+  const owned = index.filter((r) => r.pageId === pageId && (r.workspaceId === workspaceId || !r.workspaceId));
+  const remaining = index.filter((r) => !(r.pageId === pageId && (r.workspaceId === workspaceId || !r.workspaceId)));
+  await writeCustomHtmlAssetsIndex(remaining);
+
+  // Cleanup orphans from disk for JSON fallback
+  for (const { storagePath } of owned) {
+    const isStillReferenced = remaining.some((r) => r.storagePath === storagePath && (r.workspaceId === workspaceId || !r.workspaceId));
+    if (!isStillReferenced && storagePath.startsWith("/uploads/asset/")) {
+      const fileName = storagePath.slice("/uploads/asset/".length);
+      for (const root of uploadRoots) {
+        const filePath = path.join(root, "asset", fileName);
+        try {
+          if (existsSync(filePath)) {
+            await unlink(filePath);
+          }
+        } catch {
+          // Non-blocking cleanup
+        }
+      }
+    }
+  }
+}
+
+export async function getCustomHtmlAssetsForPage(pageId: number, workspaceId: string = DEFAULT_WORKSPACE_ID): Promise<string[]> {
+  if (hasMysqlConfig()) {
+    const rows = await mysqlQuery<{ storage_path: string }[]>(
+      "SELECT storage_path FROM custom_html_assets WHERE page_id = ? AND workspace_id = ?",
+      [pageId, workspaceId],
+    );
+    return rows.map((r) => r.storage_path);
+  }
+  const index = await readCustomHtmlAssetsIndex();
+  return index.filter((r) => r.pageId === pageId && (r.workspaceId === workspaceId || !r.workspaceId)).map((r) => r.storagePath);
+}
+
 export async function readUpload(segments: string[]) {
   if (segments.length !== 2 || !isUploadCategory(segments[0]) || !/^[a-zA-Z0-9_.-]+$/.test(segments[1])) return null;
   const filePath = resolveUploadPath(segments);
@@ -303,6 +446,10 @@ const contentTypes: Record<string, string> = {
   ".webp": "image/webp",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
+  ".css": "text/css; charset=utf-8",
+  ".woff": "font/woff",
+  ".woff2": "font/woff2",
+  ".gif": "image/gif",
 };
 
 export function contentTypeFor(filePath: string) {

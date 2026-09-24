@@ -78,11 +78,12 @@ export function canonicalPublicUrl(page: SmartPage, host: PublicHost, root = fal
 
 export function publicPageMetadata(page: SmartPage, host: PublicHost, root = false, workspaceBranding?: WorkspaceBranding | null): Metadata {
   const ws = workspaceBranding;
-  const title = page.seo.seoTitle || page.title || ws?.siteTitle || page.name;
-  const description = page.seo.metaDescription || page.bio || ws?.metaDescription || '';
-  const image = page.seo.ogImage || page.profileImage || page.logoImage || ws?.logoUrl || '';
+  const uploaded = page.customHtml?.uploadedMetadata;
+  const title = page.seo.seoTitle || uploaded?.title || page.title || ws?.siteTitle || page.name;
+  const description = page.seo.metaDescription || uploaded?.description || page.bio || ws?.metaDescription || '';
+  const image = page.seo.ogImage || uploaded?.ogImage || page.profileImage || page.logoImage || ws?.logoUrl || '';
   const favicon = page.seo.favicon || ws?.faviconUrl || '/favicon.ico';
-  const canonical = canonicalPublicUrl(page, host, root);
+  const canonical = page.seo.canonicalUrl || canonicalPublicUrl(page, host, root);
   return {
     title,
     description,
@@ -92,16 +93,17 @@ export function publicPageMetadata(page: SmartPage, host: PublicHost, root = fal
     appleWebApp: { capable: true, title: page.title || page.name || ws?.workspaceName || 'Page', statusBarStyle: 'default' },
     other: { 'apple-mobile-web-app-capable': 'yes' },
     openGraph: {
-      title: page.seo.socialTitle || title,
-      description: page.seo.socialDescription || description,
+      title: page.seo.socialTitle || uploaded?.socialTitle || title,
+      description: page.seo.socialDescription || uploaded?.socialDescription || description,
       url: canonical,
       images: image ? [{ url: image }] : [],
     },
     twitter: {
       card: 'summary_large_image',
-      title: page.seo.socialTitle || title,
-      description: page.seo.socialDescription || description,
+      title: page.seo.socialTitle || uploaded?.socialTitle || title,
+      description: page.seo.socialDescription || uploaded?.socialDescription || description,
       images: image ? [image] : [],
     },
+    robots: page.seo.noindex ? { index: false, follow: false } : undefined,
   };
 }

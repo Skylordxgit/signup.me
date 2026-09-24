@@ -208,5 +208,6 @@ export function summarizePage(page: SmartPage) {
     uniqueVisitors: page.uniqueVisitors,
     clicks: page.blocks.reduce((sum, block) => sum + block.clicks, 0),
     updatedAt: page.updatedAt,
+    pageType: page.pageType || "standard",
   };
 }

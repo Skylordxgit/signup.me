@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { useAdmin } from "@/components/admin/AdminContext";
 import { BuilderEditor, type BuilderTab } from "@/components/admin/BuilderEditor";
+import { CustomHtmlEditor } from "@/components/admin/CustomHtmlEditor";
 import { Button, Dialog, IconButton, LoadingState } from "@/components/admin/AdminUI";
 import { usePageEditor } from "@/components/admin/usePageEditor";
 import { adminApi } from "@/lib/admin";
@@ -31,6 +32,7 @@ export default function EditPageBuilderRoute() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingDestination, setPendingDestination] = useState("/admin/pages");
+  const [customPage, setCustomPage] = useState<SmartPage | null>(null);
 
   const editor = usePageEditor(
     useCallback(
@@ -64,6 +66,7 @@ export default function EditPageBuilderRoute() {
     adminApi<SmartPage>(`/api/pages/${pageId}`, { signal: controller.signal })
       .then((page) => {
         if (!cancelled) {
+          if (page.pageType === "custom_html") { setCustomPage(page); setLoadingPage(false); return; }
           adoptPage(page);
           setLoadingPage(false);
         }
@@ -164,6 +167,8 @@ export default function EditPageBuilderRoute() {
   if (loadingPage) {
     return <LoadingState label="Loading page editor..." />;
   }
+
+  if (customPage) return <CustomHtmlEditor initialPage={customPage} />;
 
   if (!editor.page) {
     return (

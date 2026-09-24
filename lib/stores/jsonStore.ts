@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, SmartPage, SubscriberSegment } from "../types";
+import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, SmartPage, SubscriberSegment } from "../types";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
 import { defaultTheme, seedPages, seedTemplates } from "../defaults";
@@ -9,11 +9,15 @@ import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, now
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 import { DEFAULT_WORKSPACE_ID } from "../workspaces";
 import { matchSubscriber, summarizeAudience } from "../audienceTargeting";
+import { emptyCustomHtml } from "../customHtml";
+import { invalidatePublishedPageCache, warmPublishedPageCache } from "../pageSnapshot";
+import { duplicateCustomHtmlAssetOwnership, removeCustomHtmlAssetOwnership } from "../uploads";
 
 type DatabaseShape = {
   pages: SmartPage[];
   pageViews: { id: number; workspaceId: string; pageId: number; date: string; device: string; referrer: string; visitorKey: string; country?: string; city?: string; location?: string }[];
   linkClicks: { id: number; workspaceId: string; pageId: number; blockId: number; date: string; device: string; referrer: string; country?: string; city?: string; location?: string }[];
+  customHtmlLinkClicks: { id: number; workspaceId: string; pageId: number; href: string; date: string; device: string; referrer: string; country?: string; city?: string; location?: string }[];
   pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
   notificationCampaigns: NotificationCampaign[];
   notificationDeliveryLogs?: NotificationDeliveryLog[];
@@ -44,6 +48,7 @@ export const duplicateBlock = serialized(duplicateBlockUnlocked);
 export const reorderBlocks = serialized(reorderBlocksUnlocked);
 export const trackView = serialized(trackViewUnlocked);
 export const trackClick = serialized(trackClickUnlocked);
+export const trackCustomHtmlLinkClick = serialized(trackCustomHtmlLinkClickUnlocked);
 export const savePushSubscription = serialized(savePushSubscriptionUnlocked);
 export const sendPushNotification = serialized(sendPushNotificationUnlocked);
 export const createNotificationCampaign = serialized(createNotificationCampaignUnlocked);
@@ -69,6 +74,7 @@ async function readJsonDb(): Promise<DatabaseShape> {
       pages,
       pageViews: (db.pageViews ?? []).map(scope),
       linkClicks: (db.linkClicks ?? []).map(scope),
+      customHtmlLinkClicks: (db.customHtmlLinkClicks ?? []).map(scope),
       pushSubscriptions: (db.pushSubscriptions ?? []).map(scope),
       notificationCampaigns: db.notificationCampaigns ?? [],
       notificationDeliveryLogs: db.notificationDeliveryLogs ?? [],
@@ -76,7 +82,7 @@ async function readJsonDb(): Promise<DatabaseShape> {
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [], pushSubscriptions: [], notificationCampaigns: [], notificationDeliveryLogs: [], subscriberSegments: [] };
+    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [], customHtmlLinkClicks: [], pushSubscriptions: [], notificationCampaigns: [], notificationDeliveryLogs: [], subscriberSegments: [] };
     return initial;
   }
 }
@@ -100,7 +106,7 @@ function nextBlockId(pages: SmartPage[]) {
 function sortBlocks(page: SmartPage): SmartPage {
   // Pages stored before workspaces existed belong to the default workspace.
   const workspaceId = page.workspaceId || DEFAULT_WORKSPACE_ID;
-  return { ...page, workspaceId, blocks: page.blocks.map(block => ({ ...block, workspaceId })).sort((a, b) => a.sortOrder - b.sortOrder) };
+  return { ...page, pageType: page.pageType || "standard", workspaceId, blocks: page.blocks.map(block => ({ ...block, workspaceId })).sort((a, b) => a.sortOrder - b.sortOrder) };
 }
 
 function inWorkspace(page: SmartPage, workspaceId?: string) {
@@ -180,19 +186,46 @@ async function createPageUnlocked(input: {
     createdAt: timestamp,
     updatedAt: timestamp,
     blocks: [],
+    pageType: "standard",
   };
 
   db.pages.push(page);
   await writeJsonDb(db);
+  void invalidatePublishedPageCache(page.slug, page.workspaceId);
   return sortBlocks(page);
 }
+
+export const createCustomHtmlPage = serialized(async (input: { name: string; slug: string; title?: string; workspaceId?: string }) => {
+  const page = await createPageUnlocked({ name: input.name, slug: input.slug, title: input.title || input.name, bio: "", profileImage: "", workspaceId: input.workspaceId });
+  const db = await readJsonDb();
+  const index = db.pages.findIndex(item => item.id === page.id);
+  db.pages[index] = { ...db.pages[index], pageType: "custom_html", status: "draft", customHtml: emptyCustomHtml() };
+  await writeJsonDb(db);
+  void invalidatePublishedPageCache(page.slug, page.workspaceId);
+  return sortBlocks(db.pages[index]);
+});
+
+export const saveCustomHtmlDraft = serialized(async (id: number, customHtml: CustomHtmlSettings) => {
+  const db = await readJsonDb();
+  const index = db.pages.findIndex(page => page.id === id && page.pageType === "custom_html");
+  if (index < 0) return null;
+  db.pages[index] = { ...db.pages[index], customHtml, updatedAt: nowIso() };
+  await writeJsonDb(db);
+  const updated = db.pages[index];
+  void invalidatePublishedPageCache(updated.slug, updated.workspaceId);
+  if (customHtml.publishedHtml) {
+    void warmPublishedPageCache(updated.slug, updated.workspaceId);
+  }
+  return sortBlocks(updated);
+});
 
 async function updatePageUnlocked(id: number, patch: Partial<SmartPage>) {
   const db = await readJsonDb();
   const index = db.pages.findIndex((page) => page.id === id);
   if (index === -1) return null;
 
-  const nextSlug = patch.slug ? slugify(patch.slug) : db.pages[index].slug;
+  const current = db.pages[index];
+  const nextSlug = patch.slug ? slugify(patch.slug) : current.slug;
   if (!isValidSlug(nextSlug)) throw new Error("Invalid slug");
   if (db.pages.some((page) => page.id !== id && page.slug === nextSlug)) throw new Error("Slug already exists");
 
@@ -204,28 +237,48 @@ async function updatePageUnlocked(id: number, patch: Partial<SmartPage>) {
   if (patch.seo?.ogImage && !isValidImageUrl(patch.seo.ogImage)) throw new Error("Invalid social image URL");
   if (patch.seo?.favicon && !isValidImageUrl(patch.seo.favicon)) throw new Error("Invalid favicon URL");
 
+  const nextStatus = status ?? current.status;
   db.pages[index] = {
-    ...db.pages[index],
+    ...current,
     ...patch,
-    id: db.pages[index].id,
+    id: current.id,
     // The owning workspace is not editable through the page API.
-    workspaceId: db.pages[index].workspaceId || DEFAULT_WORKSPACE_ID,
+    workspaceId: current.workspaceId || DEFAULT_WORKSPACE_ID,
     slug: nextSlug,
+    status: nextStatus,
     updatedAt: nowIso(),
     blocks: db.pages[index].blocks,
   };
 
   await writeJsonDb(db);
-  return sortBlocks(db.pages[index]);
+  const updated = db.pages[index];
+  void invalidatePublishedPageCache(current.slug, current.workspaceId);
+  if (nextSlug !== current.slug) {
+    void invalidatePublishedPageCache(nextSlug, current.workspaceId);
+  }
+  if (nextStatus === "published") {
+    void warmPublishedPageCache(nextSlug, current.workspaceId);
+  }
+  return sortBlocks(updated);
 }
 
 async function deletePageUnlocked(id: number) {
   const db = await readJsonDb();
+  const pageToDelete = db.pages.find((page) => page.id === id);
+  if (pageToDelete) {
+    void invalidatePublishedPageCache(pageToDelete.slug, pageToDelete.workspaceId);
+    if (pageToDelete.pageType === "custom_html") {
+      await removeCustomHtmlAssetOwnership(id, pageToDelete.workspaceId || DEFAULT_WORKSPACE_ID);
+    }
+  }
   const before = db.pages.length;
   db.pages = db.pages.filter((page) => page.id !== id);
   db.pageViews = db.pageViews.filter(row => row.pageId !== id);
   db.linkClicks = db.linkClicks.filter(row => row.pageId !== id);
   db.pushSubscriptions = db.pushSubscriptions.filter(row => row.pageId !== id);
+  if (db.customHtmlLinkClicks) {
+    db.customHtmlLinkClicks = db.customHtmlLinkClicks.filter(row => row.pageId !== id);
+  }
   await writeJsonDb(db);
   return db.pages.length !== before;
 }
@@ -264,10 +317,14 @@ async function duplicatePageUnlocked(id: number) {
       createdAt: timestamp,
       updatedAt: timestamp,
     })),
+    customHtml: page.customHtml ? { ...page.customHtml, publishedHtml: "", publishedVersion: 0 } : undefined,
   };
 
   db.pages.push(duplicate);
   await writeJsonDb(db);
+  if (page.pageType === "custom_html") {
+    await duplicateCustomHtmlAssetOwnership(page.id, newId, page.workspaceId || DEFAULT_WORKSPACE_ID);
+  }
   return sortBlocks(duplicate);
 }
 
@@ -280,6 +337,7 @@ async function createBlockUnlocked(pageId: number, type: BlockType) {
   page.blocks.push(block);
   page.updatedAt = nowIso();
   await writeJsonDb(db);
+  void invalidatePublishedPageCache(page.slug, page.workspaceId);
   return block;
 }
 
@@ -303,6 +361,7 @@ async function updateBlockUnlocked(id: number, patch: Partial<PageBlock>) {
     page.blocks[index] = { ...page.blocks[index], ...patch, id: page.blocks[index].id, pageId: page.id, workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID, updatedAt: nowIso() };
     page.updatedAt = nowIso();
     await writeJsonDb(db);
+    void invalidatePublishedPageCache(page.slug, page.workspaceId);
     return page.blocks[index];
   }
   return null;
@@ -317,6 +376,7 @@ async function deleteBlockUnlocked(id: number) {
       page.blocks = page.blocks.map((block, blockIndex) => ({ ...block, sortOrder: blockIndex + 1 }));
       page.updatedAt = nowIso();
       await writeJsonDb(db);
+      void invalidatePublishedPageCache(page.slug, page.workspaceId);
       return true;
     }
   }
@@ -342,6 +402,7 @@ async function duplicateBlockUnlocked(id: number) {
     page.blocks = page.blocks.map((item, index) => ({ ...item, sortOrder: index + 1 }));
     page.updatedAt = nowIso();
     await writeJsonDb(db);
+    void invalidatePublishedPageCache(page.slug, page.workspaceId);
     return duplicate;
   }
   return null;
@@ -360,6 +421,7 @@ async function reorderBlocksUnlocked(pageId: number, blockIds: number[]) {
   });
   page.updatedAt = nowIso();
   await writeJsonDb(db);
+  void invalidatePublishedPageCache(page.slug, page.workspaceId);
   return sortBlocks(page);
 }
 
@@ -418,6 +480,36 @@ async function trackClickUnlocked(
     id: nextId(db.linkClicks),
     pageId,
     blockId,
+    date: nowIso(),
+    device: detectDevice(userAgent),
+    referrer: safeReferrer(referrer),
+    country,
+    city,
+    location,
+  });
+  await writeJsonDb(db);
+  return { ok: true };
+}
+
+async function trackCustomHtmlLinkClickUnlocked(
+  pageId: number,
+  href: string,
+  userAgent: string,
+  referrer: string | null,
+  country = '',
+  city = '',
+  location = '',
+  workspaceId?: string,
+) {
+  const db = await readJsonDb();
+  const page = db.pages.find((item) => item.id === pageId && item.pageType === 'custom_html' && item.status === 'published' && inWorkspace(item, workspaceId));
+  if (!page) return null;
+
+  db.customHtmlLinkClicks.push({
+    workspaceId: page.workspaceId || DEFAULT_WORKSPACE_ID,
+    id: nextId(db.customHtmlLinkClicks),
+    pageId,
+    href,
     date: nowIso(),
     device: detectDevice(userAgent),
     referrer: safeReferrer(referrer),
@@ -499,9 +591,10 @@ export async function analyticsForPage(
 
   const viewsInRange = db.pageViews.filter(v => v.pageId === pageId && v.date.slice(0, 10) >= startDate && v.date.slice(0, 10) <= endDate);
   const clicksInRange = db.linkClicks.filter(c => c.pageId === pageId && c.date.slice(0, 10) >= startDate && c.date.slice(0, 10) <= endDate);
+  const customHtmlClicksInRange = db.customHtmlLinkClicks.filter(c => c.pageId === pageId && c.date.slice(0, 10) >= startDate && c.date.slice(0, 10) <= endDate);
 
   const totalViews = daysInput === 'all' && !fromDate ? page.views : viewsInRange.length;
-  const totalClicks = daysInput === 'all' && !fromDate ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) : clicksInRange.length;
+  const totalClicks = daysInput === 'all' && !fromDate ? page.blocks.reduce((sum, block) => sum + block.clicks, 0) + db.customHtmlLinkClicks.filter(c => c.pageId === pageId).length : clicksInRange.length + customHtmlClicksInRange.length;
 
   const uniqueVisitorsSet = new Set(viewsInRange.map(v => v.visitorKey));
   const uniqueVisitors = daysInput === 'all' && !fromDate ? page.uniqueVisitors : uniqueVisitorsSet.size;
@@ -510,6 +603,9 @@ export async function analyticsForPage(
   for (const click of clicksInRange) {
     blockClicksMap.set(click.blockId, (blockClicksMap.get(click.blockId) || 0) + 1);
   }
+  const customHtmlLinks = [...customHtmlClicksInRange.reduce<Map<string, number>>((links, click) => links.set(click.href, (links.get(click.href) || 0) + 1), new Map())]
+    .map(([href, clicks]): CustomHtmlLinkMetric => ({ href, clicks }))
+    .sort((a, b) => b.clicks - a.clicks);
 
   // Location aggregations for link clicks and views
   const locationMap = new Map<string, { location: string; country: string; city: string; views: number; clicks: number }>();
@@ -690,6 +786,7 @@ export async function analyticsForPage(
     locations: [...locationMap.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
     linkLocations: [...linkLocationsMap.values()].sort((a, b) => b.clicks - a.clicks),
     countries: countriesResult,
+    customHtmlLinks,
     recentActivity,
     days: daysInput,
     startDate,

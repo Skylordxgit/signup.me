@@ -806,14 +806,14 @@ export function NotificationComposer({
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                   <ImageUploader
-                    category="general"
+                    category="icon"
                     label="Notification Icon"
                     value={icon}
                     onChange={setIcon}
                     onBusyChange={setImageBusy}
                   />
                   <ImageUploader
-                    category="general"
+                    category="banner"
                     label="16:9 Banner Image (Optional)"
                     value={image}
                     onChange={setImage}

@@ -22,6 +22,24 @@ export function NotificationHistoryView({
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
+  const fetchLogs = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+      if (search) params.set("search", search);
+      if (campaignId) params.set("campaignId", campaignId);
+      if (statusFilter) params.set("status", statusFilter);
+      if (deviceFilter) params.set("device", deviceFilter);
+      const res = await adminApi<{ items: NotificationDeliveryLog[]; total: number }>(
+        `/api/admin/notifications/history?${params.toString()}`
+      );
+      setLogs(res.items || []);
+      setTotal(res.total || 0);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!initialCampaigns.length) {
       adminApi<{ campaigns: { id: number; name?: string; title: string }[] }>("/api/admin/notifications/campaigns")

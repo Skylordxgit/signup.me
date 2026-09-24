@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PublicPage } from "@/components/PublicPage";
+import { CustomHtmlPublicPage } from "@/components/CustomHtmlPublicPage";
 import { publicPageMetadata, resolveCurrentHost, resolvePublicPage } from '@/lib/domainRouting';
 import { getCachedWorkspaceBranding } from '@/lib/workspaceBranding';
 
@@ -43,5 +44,5 @@ export default async function SlugPage({ params }: Props) {
   if (!page) notFound();
 
   const wsBranding = await getCachedWorkspaceBranding(page.workspaceId);
-  return <PublicPage page={page} workspaceBranding={wsBranding} />;
+  return page.pageType === "custom_html" ? <CustomHtmlPublicPage page={page} /> : <PublicPage page={page} workspaceBranding={wsBranding} />;
 }
