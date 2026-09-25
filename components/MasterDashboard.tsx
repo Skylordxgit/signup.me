@@ -553,7 +553,7 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
                 <div><small>GeoIP City DB</small><strong>{geoIp?.database || "Unknown"}</strong><em>{geoIp?.lastUpdated ? `updated ${formatDate(geoIp.lastUpdated)}` : geoIp?.reader || "health unavailable"}</em></div>
               </article>
             </div>
-            {geoIp && geoIp.status !== "active" && <p className="admSetupNote masterNotice" role="status">GeoIP database is {geoIp.database.toLowerCase()}. Set <code>GEOIP_DB_PATH</code> to a readable GeoLite2-City.mmdb file so production visitors can resolve beyond trusted CDN country headers.</p>}
+            {geoIp && geoIp.status !== "active" && <p className="admSetupNote masterNotice" role="status">GeoIP database is {geoIp.database.toLowerCase()}. {geoIp.error} Environment variable: {geoIp.pathConfigured ? "set" : "not set"}. Expected file: <code>{geoIp.pathHint}</code>.</p>}
             <section className="masterPanel">
               <SectionHeading title="Recent workspaces">
                 <div className="admActionRow">

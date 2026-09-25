@@ -1,5 +1,34 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { MMDBReader } from "../lib/mmdbReader";
+
+test("real City database opens and resolves public IPs", { skip: !process.env.GEOIP_TEST_DB_PATH }, async () => {
+  const reader = await MMDBReader.open(process.env.GEOIP_TEST_DB_PATH!);
+  const result = reader.lookup("81.2.69.160");
+  assert.ok(result?.countryCode);
+  assert.ok(result?.countryName);
+  assert.equal(reader.lookup("127.0.0.1"), null);
+});
+
+test("missing reader file preserves the filesystem error", async () => {
+  await assert.rejects(MMDBReader.open("/nonexistent-geoip-test/City.mmdb"), { code: "ENOENT" });
+});
+
+test("loader recovers after changing a missing path to a real database", { skip: !process.env.GEOIP_TEST_DB_PATH }, async () => {
+  const previous = process.env.GEOIP_DB_PATH;
+  try {
+    _resetGeoIpStateForTesting();
+    process.env.GEOIP_DB_PATH = "/nonexistent-geoip-test/City.mmdb";
+    assert.equal((await resolveIpLocation("81.2.69.160")).geoSource, "unknown");
+    process.env.GEOIP_DB_PATH = process.env.GEOIP_TEST_DB_PATH;
+    assert.equal((await getGeoIpHealth()).database, "Loaded");
+    assert.equal((await resolveIpLocation("81.2.69.160")).geoSource, "ip_geo");
+  } finally {
+    if (previous === undefined) delete process.env.GEOIP_DB_PATH;
+    else process.env.GEOIP_DB_PATH = previous;
+    _resetGeoIpStateForTesting();
+  }
+});
 import {
   getTrustedClientIp,
   normalizeIp,

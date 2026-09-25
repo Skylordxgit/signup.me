@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import { existsSync, statSync } from "node:fs";
+import { accessSync, constants, statSync } from "node:fs";
 import { isIP } from "node:net";
 import path from "node:path";
 import { MMDBReader, type MMDBLocationRecord } from "./mmdbReader";
@@ -32,10 +32,12 @@ export interface GeoIpHealth {
 }
 
 const SERVER_SALT = process.env.GEO_HASH_SALT || process.env.ADMIN_SESSION_SECRET || "smartlink_geo_salt_v1";
-const GEOIP_DB_PATH = process.env.GEOIP_DB_PATH || process.env.GEOIP_DATABASE_PATH || "data/GeoLite2-City.mmdb";
+const databasePath = () => path.resolve((process.env.GEOIP_DB_PATH || process.env.GEOIP_DATABASE_PATH || "data/GeoLite2-City.mmdb").trim());
 
 let mmdbInstance: MMDBReader | null = null;
-let mmdbLoaded = false;
+let loadedPath = "";
+let loading: Promise<MMDBReader | null> | null = null;
+let retryAfter = 0;
 let loggedMissingDb = false;
 let mmdbError: string | null = null;
 
@@ -46,7 +48,9 @@ const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export function _resetGeoIpStateForTesting() {
   mmdbInstance = null;
-  mmdbLoaded = false;
+  loadedPath = "";
+  retryAfter = 0;
+  loading = null;
   loggedMissingDb = false;
   mmdbError = null;
   memoryGeoCache.clear();
@@ -56,23 +60,35 @@ export function _resetGeoIpStateForTesting() {
  * Initializes MMDB database reader if file is present.
  */
 async function getMMDBInstance(): Promise<MMDBReader | null> {
-  if (mmdbLoaded) return mmdbInstance;
-  mmdbLoaded = true;
-  try {
-    mmdbInstance = await MMDBReader.open(GEOIP_DB_PATH);
-    mmdbError = null;
-  } catch (error) {
-    mmdbInstance = null;
-    mmdbError = error instanceof Error ? error.message : "Unable to open GeoIP database";
-  }
-  if (!mmdbInstance && !loggedMissingDb) {
-    loggedMissingDb = true;
-    // Log helpful notice once
-    if (process.env.NODE_ENV !== "test") {
-      console.warn(`[GeoIP] GeoIP database unavailable. Set GEOIP_DB_PATH to a readable GeoLite2-City.mmdb file.`);
+  const filePath = databasePath();
+  if (loadedPath === filePath && mmdbInstance) return mmdbInstance;
+  if (loading) return loading;
+  if (loadedPath === filePath && Date.now() < retryAfter) return null;
+  loadedPath = filePath;
+  loading = (async () => {
+    try {
+      mmdbInstance = await MMDBReader.open(filePath);
+      mmdbError = null;
+      memoryGeoCache.clear();
+    } catch (error) {
+      mmdbInstance = null;
+      retryAfter = Date.now() + 5000;
+      mmdbError = safeDatabaseError(error);
+      if (!loggedMissingDb && process.env.NODE_ENV !== "test") {
+        console.warn("[GeoIP]", mmdbError);
+        loggedMissingDb = true;
+      }
     }
-  }
-  return mmdbInstance;
+    return mmdbInstance;
+  })();
+  try { return await loading; } finally { loading = null; }
+}
+
+function safeDatabaseError(error: unknown): string {
+  const code = (error as NodeJS.ErrnoException)?.code;
+  if (code === "ENOENT" || code === "ENOTDIR") return "Configured file is not visible to the Node process (ENOENT). Verify its absolute path inside the running deployment.";
+  if (code === "EACCES" || code === "EPERM") return "Node cannot read the configured file (permission denied).";
+  return "Cannot open database. Use an extracted, valid GeoLite2-City.mmdb file.";
 }
 
 function safePathHint(filePath: string) {
@@ -82,24 +98,29 @@ function safePathHint(filePath: string) {
 
 export async function getGeoIpHealth(): Promise<GeoIpHealth> {
   const pathConfigured = Boolean(process.env.GEOIP_DB_PATH || process.env.GEOIP_DATABASE_PATH);
+  const GEOIP_DB_PATH = databasePath();
   const pathHint = safePathHint(GEOIP_DB_PATH);
   let lastUpdated: string | null = null;
 
   try {
-    if (!existsSync(GEOIP_DB_PATH)) {
+    let stats;
+    try {
+      stats = statSync(GEOIP_DB_PATH);
+      accessSync(GEOIP_DB_PATH, constants.R_OK);
+    } catch (error) {
+      const missing = ["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code || "");
       return {
-        status: "missing",
-        database: "Missing",
-        reader: "Unavailable",
+        status: missing ? "missing" : "error",
+        database: missing ? "Missing" : "Error",
+        reader: missing ? "Unavailable" : "Error",
         configured: false,
         pathConfigured,
         pathHint,
         lastUpdated,
-        error: "GeoIP database file was not found.",
+        error: pathConfigured ? safeDatabaseError(error) : "GEOIP_DB_PATH is not set in the running Node process; default database missing.",
       };
     }
 
-    const stats = statSync(GEOIP_DB_PATH);
     lastUpdated = stats.mtime.toISOString().slice(0, 10);
     const reader = await getMMDBInstance();
 
@@ -134,7 +155,7 @@ export async function getGeoIpHealth(): Promise<GeoIpHealth> {
       pathConfigured,
       pathHint,
       lastUpdated,
-      error: error instanceof Error ? error.message : "GeoIP health check failed.",
+      error: safeDatabaseError(error),
     };
   }
 }
@@ -262,7 +283,7 @@ export async function resolveIpLocation(
   if (redis && isRedisAvailable()) {
     try {
       const redisData = await redis.get(`geo:${ipHash}`);
-      if (redisData) {
+      if (redisData && (JSON.parse(redisData) as GeoLocationResult).geoSource === "ip_geo") {
         const parsed = JSON.parse(redisData) as GeoLocationResult;
         memoryGeoCache.set(ipHash, { result: parsed, expiresAt: Date.now() + CACHE_TTL_MS });
         return { ...parsed, browserTimezone: tz };
@@ -366,9 +387,9 @@ export async function resolveIpLocation(
     const firstKey = memoryGeoCache.keys().next().value;
     if (firstKey) memoryGeoCache.delete(firstKey);
   }
-  memoryGeoCache.set(ipHash, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+  if (geoSource === "ip_geo") memoryGeoCache.set(ipHash, { result, expiresAt: Date.now() + CACHE_TTL_MS });
 
-  if (redis && isRedisAvailable()) {
+  if (geoSource === "ip_geo" && redis && isRedisAvailable()) {
     redis.set(`geo:${ipHash}`, JSON.stringify(result), "EX", 12 * 3600).catch(() => {});
   }
 
