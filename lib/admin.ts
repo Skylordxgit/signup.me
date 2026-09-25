@@ -1,4 +1,4 @@
-import type { AnalyticsReport, CityDetailMetric, HourlyMetric, LinkClickLocation, LinkPerformanceItem, LocationMetric, RecentActivityItem, SmartPage } from "./types";
+import type { AnalyticsReport, CityDetailMetric, CountryDetailMetric, HourlyMetric, LinkClickLocation, LinkPerformanceItem, LocationMetric, RecentActivityItem, RegionDetailMetric, SmartPage } from "./types";
 
 export class AdminApiError extends Error {
   constructor(
@@ -90,19 +90,39 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
   const linkLocations = new Map<string, LinkClickLocation>();
   const linkStatsMap = new Map<number, LinkPerformanceItem>();
 
-  const countryMap = new Map<string, {
+  type CityAcc = {
+    city: string;
+    region: string;
+    country: string;
+    location: string;
+    views: number;
+    clicks: number;
+    subscribers: number;
+    visitors: number;
+    links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
+  };
+  type RegionAcc = {
+    regionCode: string;
+    regionName: string;
+    countryName: string;
+    views: number;
+    clicks: number;
+    subscribers: number;
+    visitors: number;
+    cities: Map<string, CityAcc>;
+  };
+  type CountryAcc = {
     countryCode: string;
     countryName: string;
     views: number;
     clicks: number;
-    cities: Map<string, {
-      city: string;
-      location: string;
-      views: number;
-      clicks: number;
-      links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
-    }>;
-  }>();
+    subscribers: number;
+    visitors: number;
+    regions: Map<string, RegionAcc>;
+    cities: Map<string, CityAcc>;
+  };
+  const countryMap = new Map<string, CountryAcc>();
+  const regionMap = new Map<string, RegionAcc>();
   const recentList: RecentActivityItem[] = [];
 
   let totalSubscribers = 0;
@@ -140,21 +160,26 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
     }
 
     for (const entry of report.locations || []) {
-      const locKey = entry.location || entry.country || 'Direct / Local';
-      const current = locations.get(locKey) || { location: locKey, country: entry.country || '', city: entry.city || '', views: 0, clicks: 0 };
+      const locKey = entry.location || entry.country || 'Unknown';
+      const current = locations.get(locKey) || { location: locKey, country: entry.country || 'Unknown', region: entry.region || 'Unknown', city: entry.city || 'Unknown', views: 0, clicks: 0, subscribers: 0, visitors: 0 };
       locations.set(locKey, {
         location: locKey,
-        country: current.country || entry.country || '',
-        city: current.city || entry.city || '',
+        country: current.country || entry.country || 'Unknown',
+        countryCode: current.countryCode || entry.countryCode || '',
+        region: current.region || entry.region || 'Unknown',
+        regionCode: current.regionCode || entry.regionCode || '',
+        city: current.city || entry.city || 'Unknown',
         views: current.views + entry.views,
+        visitors: (current.visitors || 0) + (entry.visitors || 0),
         clicks: current.clicks + entry.clicks,
+        subscribers: (current.subscribers || 0) + (entry.subscribers || 0),
       });
     }
 
     for (const entry of report.linkLocations || []) {
       const key = `${entry.blockId}:${entry.location}`;
-      const current = linkLocations.get(key) || { blockId: entry.blockId, blockTitle: entry.blockTitle, location: entry.location, country: entry.country, city: entry.city, clicks: 0 };
-      linkLocations.set(key, { ...current, clicks: current.clicks + entry.clicks });
+      const current = linkLocations.get(key) || { blockId: entry.blockId, blockTitle: entry.blockTitle, location: entry.location, country: entry.country || 'Unknown', region: entry.region || 'Unknown', city: entry.city || 'Unknown', clicks: 0 };
+      linkLocations.set(key, { ...current, region: current.region || entry.region || 'Unknown', clicks: current.clicks + entry.clicks });
     }
 
     for (const item of report.linkStats || []) {
@@ -171,7 +196,7 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
     }
 
     for (const country of report.countries || []) {
-      const cKey = country.countryName || country.countryCode || 'Direct / Local';
+      const cKey = country.countryName || country.countryCode || 'Unknown';
       let cAcc = countryMap.get(cKey);
       if (!cAcc) {
         cAcc = {
@@ -179,34 +204,84 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
           countryName: country.countryName || cKey,
           views: 0,
           clicks: 0,
+          subscribers: 0,
+          visitors: 0,
+          regions: new Map(),
           cities: new Map(),
         };
         countryMap.set(cKey, cAcc);
       }
       cAcc.views += country.views;
       cAcc.clicks += country.clicks;
+      cAcc.subscribers += country.subscribers || 0;
+      cAcc.visitors += country.visitors || 0;
 
-      for (const city of country.cities || []) {
-        const ctKey = city.city || 'Direct';
-        let ctAcc = cAcc.cities.get(ctKey);
-        if (!ctAcc) {
-          ctAcc = {
-            city: city.city || ctKey,
-            location: city.location || ctKey,
+      const fallbackRegion = {
+        regionCode: '',
+        regionName: 'Unknown',
+        countryName: cAcc.countryName,
+        views: (country.cities || []).reduce((sum, city) => sum + city.views, 0),
+        clicks: (country.cities || []).reduce((sum, city) => sum + city.clicks, 0),
+        subscribers: (country.cities || []).reduce((sum, city) => sum + (city.subscribers || 0), 0),
+        visitors: (country.cities || []).reduce((sum, city) => sum + (city.visitors || 0), 0),
+        cities: country.cities || [],
+      };
+      const regionEntries = country.regions?.length
+        ? country.regions
+        : [fallbackRegion];
+
+      for (const region of regionEntries) {
+        const rKey = region.regionName || 'Unknown';
+        const globalRegionKey = `${cAcc.countryName}:${rKey}`;
+        let rAcc = cAcc.regions.get(rKey);
+        if (!rAcc) {
+          rAcc = {
+            regionCode: region.regionCode || '',
+            regionName: rKey,
+            countryName: cAcc.countryName,
             views: 0,
             clicks: 0,
-            links: new Map(),
+            subscribers: 0,
+            visitors: 0,
+            cities: new Map(),
           };
-          cAcc.cities.set(ctKey, ctAcc);
+          cAcc.regions.set(rKey, rAcc);
+          regionMap.set(globalRegionKey, rAcc);
         }
-        ctAcc.views += city.views;
-        ctAcc.clicks += city.clicks;
+        rAcc.views += region.views || 0;
+        rAcc.clicks += region.clicks || 0;
+        rAcc.subscribers += region.subscribers || 0;
+        rAcc.visitors += region.visitors || 0;
 
-        for (const link of city.topLinks || []) {
-          const lKey = link.blockId || 0;
-          const lAcc = ctAcc.links.get(lKey) || { blockId: lKey, blockTitle: link.blockTitle || 'Link', clicks: 0 };
-          lAcc.clicks += link.clicks;
-          ctAcc.links.set(lKey, lAcc);
+        for (const city of region.cities || []) {
+          const ctKey = `${rKey}:${city.city || 'Unknown'}`;
+          let ctAcc = cAcc.cities.get(ctKey);
+          if (!ctAcc) {
+            ctAcc = {
+              city: city.city || 'Unknown',
+              region: city.region || rKey,
+              country: city.country || cAcc.countryName,
+              location: city.location || (city.city && city.city !== 'Unknown' ? `${city.city}, ${cAcc.countryName}` : cAcc.countryName),
+              views: 0,
+              clicks: 0,
+              subscribers: 0,
+              visitors: 0,
+              links: new Map(),
+            };
+            cAcc.cities.set(ctKey, ctAcc);
+            rAcc.cities.set(ctKey, ctAcc);
+          }
+          ctAcc.views += city.views;
+          ctAcc.clicks += city.clicks;
+          ctAcc.subscribers += city.subscribers || 0;
+          ctAcc.visitors += city.visitors || 0;
+
+          for (const link of city.topLinks || []) {
+            const lKey = link.blockId || 0;
+            const lAcc = ctAcc.links.get(lKey) || { blockId: lKey, blockTitle: link.blockTitle || 'Link', clicks: 0 };
+            lAcc.clicks += link.clicks;
+            ctAcc.links.set(lKey, lAcc);
+          }
         }
       }
     }
@@ -283,12 +358,52 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
   result.locations = [...locations.values()].sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
   result.linkLocations = [...linkLocations.values()].sort((a, b) => b.clicks - a.clicks);
 
-  result.countries = [...countryMap.values()].map(c => {
+  const mapCity = (ct: CityAcc): CityDetailMetric => ({
+    city: ct.city,
+    region: ct.region,
+    country: ct.country,
+    location: ct.location,
+    views: ct.views,
+    visitors: ct.visitors,
+    clicks: ct.clicks,
+    subscribers: ct.subscribers,
+    ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
+    topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+  });
+
+  result.regions = [...regionMap.values()].map((r): RegionDetailMetric => ({
+    regionCode: r.regionCode,
+    regionName: r.regionName,
+    countryName: r.countryName,
+    views: r.views,
+    visitors: r.visitors,
+    clicks: r.clicks,
+    subscribers: r.subscribers,
+    ctr: r.views > 0 ? Number(((r.clicks / r.views) * 100).toFixed(1)) : (r.clicks > 0 ? 100 : 0),
+    cities: [...r.cities.values()].map(mapCity).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
+  })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
+
+  result.countries = [...countryMap.values()].map((c): CountryDetailMetric => {
+    const regions = [...c.regions.values()].map((r): RegionDetailMetric => ({
+      regionCode: r.regionCode,
+      regionName: r.regionName,
+      countryName: r.countryName,
+      views: r.views,
+      visitors: r.visitors,
+      clicks: r.clicks,
+      subscribers: r.subscribers,
+      ctr: r.views > 0 ? Number(((r.clicks / r.views) * 100).toFixed(1)) : (r.clicks > 0 ? 100 : 0),
+      cities: [...r.cities.values()].map(mapCity).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views)),
+    })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
     const cities: CityDetailMetric[] = [...c.cities.values()].map(ct => ({
       city: ct.city,
+      region: ct.region,
+      country: ct.country,
       location: ct.location,
       views: ct.views,
+      visitors: ct.visitors,
       clicks: ct.clicks,
+      subscribers: ct.subscribers,
       ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
       topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
     })).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));
@@ -297,8 +412,11 @@ export function combineAnalytics(reports: AnalyticsReport[]): AnalyticsReport {
       countryCode: c.countryCode,
       countryName: c.countryName,
       views: c.views,
+      visitors: c.visitors,
       clicks: c.clicks,
+      subscribers: c.subscribers,
       ctr: c.views > 0 ? Number(((c.clicks / c.views) * 100).toFixed(1)) : (c.clicks > 0 ? 100 : 0),
+      regions,
       cities,
     };
   }).sort((a, b) => (b.clicks + b.views) - (a.clicks + a.views));

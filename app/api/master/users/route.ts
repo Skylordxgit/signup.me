@@ -6,6 +6,7 @@ import { isMasterEmail } from '@/lib/master';
 import { assertEmail, assertPassword, displayName, invitationHash, normalizeEmail } from '@/lib/signup';
 import { addWorkspaceUser, deleteWorkspaceUser, findWorkspaceUser, listWorkspaceUsers, publicWorkspaceUser, updateWorkspaceUser } from '@/lib/workspaceUsers';
 import { createWorkspace, DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, listWorkspaces, workspaceName } from '@/lib/workspaces';
+import { hasMysqlConfig, withTransaction, type TransactionQuery } from '@/lib/mysql';
 
 function errorResponse(error: unknown) {
   return NextResponse.json({ error: error instanceof Error ? error.message : 'Action failed.' }, { status: 400 });
@@ -28,16 +29,13 @@ export async function POST(request: NextRequest) {
     const existing = await findWorkspaceUser(email);
     if (existing) throw new Error('This email already has an account.');
 
-    let targetWorkspaceId = typeof body.workspaceId === 'string' && body.workspaceId.trim() ? body.workspaceId.trim() : '';
+    const requestedWorkspaceId = typeof body.workspaceId === 'string' && body.workspaceId.trim() ? body.workspaceId.trim() : '';
 
-    if (!targetWorkspaceId || targetWorkspaceId === 'new') {
-      const newWs = await createWorkspace({ name: workspaceName(email), ownerEmail: email });
-      targetWorkspaceId = newWs.id;
-    } else if (targetWorkspaceId === DEFAULT_WORKSPACE_ID) {
+    if (requestedWorkspaceId === DEFAULT_WORKSPACE_ID) {
       await ensureDefaultWorkspace(email);
-    } else {
+    } else if (requestedWorkspaceId && requestedWorkspaceId !== 'new') {
       const allWs = await listWorkspaces();
-      if (!allWs.some(w => w.id === targetWorkspaceId)) throw new Error('Selected workspace not found.');
+      if (!allWs.some(w => w.id === requestedWorkspaceId)) throw new Error('Selected workspace not found.');
     }
 
     const rawRole = String(body.role || 'owner').toLowerCase();
@@ -47,15 +45,27 @@ export async function POST(request: NextRequest) {
     const passwordHash = body.password === undefined || body.password === '' ? '' : hashPassword(assertPassword(body.password));
     const token = passwordHash ? undefined : randomBytes(32).toString('hex');
 
-    const user = await addWorkspaceUser({
-      email,
-      name,
-      passwordHash,
-      workspaceId: targetWorkspaceId,
-      role,
-      permissions,
-      ...(token ? { inviteHash: invitationHash(token), inviteExpiresAt: new Date(Date.now() + 7 * 86400000).toISOString() } : {}),
-    });
+    const createUserAndMaybeWorkspace = async (query?: TransactionQuery) => {
+      let targetWorkspaceId = requestedWorkspaceId;
+      if (!targetWorkspaceId || targetWorkspaceId === 'new') {
+        const newWs = await createWorkspace({ name: workspaceName(email), ownerEmail: email }, query);
+        targetWorkspaceId = newWs.id;
+      }
+
+      return addWorkspaceUser({
+        email,
+        name,
+        passwordHash,
+        workspaceId: targetWorkspaceId,
+        role,
+        permissions,
+        ...(token ? { inviteHash: invitationHash(token), inviteExpiresAt: new Date(Date.now() + 7 * 86400000).toISOString() } : {}),
+      }, query);
+    };
+
+    const user = hasMysqlConfig()
+      ? await withTransaction(createUserAndMaybeWorkspace)
+      : await createUserAndMaybeWorkspace();
 
     return NextResponse.json(
       { ...user, ...(token ? { invitePath: `/admin/invite?token=${token}&email=${encodeURIComponent(email)}` } : {}) },

@@ -153,10 +153,15 @@ export type MediaFile = StoredUpload & { name: string; category: UploadCategory;
 
 async function persistMedia(file: MediaFile, bytes: Uint8Array, workspaceId: string) {
   await mysqlQuery(
-    `INSERT IGNORE INTO media_files (storage_path, workspace_id, file_name, category, mime_type, file_size, file_data, created_at)
+    `INSERT INTO media_files (storage_path, workspace_id, file_name, category, mime_type, file_size, file_data, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [file.path, workspaceId, file.name, file.category, file.mime, bytes.byteLength, Buffer.from(bytes), new Date(file.updatedAt)],
   );
+  const rows = await mysqlQuery<{ storage_path: string }[]>(
+    "SELECT storage_path FROM media_files WHERE storage_path = ? AND workspace_id = ?",
+    [file.path, workspaceId],
+  );
+  if (!rows[0]) throw new Error("Media upload could not be saved.");
 }
 
 /* Local development has no media_files table, so the workspace each uploaded
@@ -295,6 +300,11 @@ export async function ownCustomHtmlAssets(pageId: number, workspaceId: string, p
         "INSERT IGNORE INTO custom_html_assets (workspace_id, page_id, storage_path) VALUES (?, ?, ?)",
         [workspaceId, pageId, storagePath],
       );
+      const rows = await mysqlQuery<{ id: number }[]>(
+        "SELECT id FROM custom_html_assets WHERE workspace_id = ? AND page_id = ? AND storage_path = ?",
+        [workspaceId, pageId, storagePath],
+      );
+      if (!rows[0]) throw new Error("Custom HTML asset ownership could not be saved.");
     }
   }
   const index = await readCustomHtmlAssetsIndex();

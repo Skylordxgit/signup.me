@@ -252,7 +252,9 @@ export async function addDomain(value: unknown, actorEmail = 'system', workspace
     if ((error as { code?: string }).code === 'ER_DUP_ENTRY') throw new Error(workspaceId ? 'Domain already exists or workspace already has a primary domain.' : 'Domain already exists.');
     throw error;
   }
-  return (await getDomain(domain.id))!;
+  const saved = await getDomain(domain.id);
+  if (!saved) throw new Error('Domain could not be created.');
+  return saved;
 }
 
 export async function updateDomainHostname(id: string, value: unknown, actorEmail = 'system') {

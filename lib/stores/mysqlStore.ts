@@ -1,12 +1,13 @@
-import { createHash } from "crypto";
-import type { AnalyticsReport, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage } from "../types";
-import { defaultTheme } from "../defaults";
+import { createHash, randomUUID } from "crypto";
+import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
+import { defaultTheme, seedTemplates } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem } from '../subscriberDetails';
 import { DEFAULT_WORKSPACE_ID } from '../workspaces';
+import { matchSubscriber } from "../audienceTargeting";
 import { invalidatePublishedPageCache, warmPublishedPageCache } from "../pageSnapshot";
 import { enqueueCustomHtmlLinkClick, enqueueLinkClick, enqueuePageView } from "../analyticsQueue";
 import { emptyCustomHtml } from "../customHtml";
@@ -366,6 +367,7 @@ export async function createPage(input: {
 
   const page = await loadPage(result.insertId);
   if (!page) throw new Error("Failed to create page");
+  if (page.workspaceId !== (input.workspaceId || DEFAULT_WORKSPACE_ID)) throw new Error("Page could not be created in the selected workspace.");
   void invalidatePublishedPageCache(page.slug, page.workspaceId);
   return page;
 }
@@ -385,13 +387,17 @@ export async function createCustomHtmlPage(input: { name: string; slug: string; 
   });
   const page = await loadPage(result);
   if (!page) throw new Error("Failed to create Custom HTML page");
+  if (page.pageType !== "custom_html" || !page.customHtml) throw new Error("Custom HTML page details could not be created.");
   return page;
 }
 
 export async function saveCustomHtmlDraft(id: number, customHtml: CustomHtmlSettings) {
   const current = await loadPage(id);
   if (!current || current.pageType !== "custom_html") return null;
-  await mysqlQuery("UPDATE custom_html_pages SET content = ? WHERE page_id = ?", [JSON.stringify(customHtml), id]);
+  await mysqlQuery(
+    "INSERT INTO custom_html_pages (page_id, content) VALUES (?, ?) ON DUPLICATE KEY UPDATE content = VALUES(content), updated_at = CURRENT_TIMESTAMP",
+    [id, JSON.stringify(customHtml)],
+  );
   await mysqlQuery("UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id]);
   void invalidatePublishedPageCache(current.slug, current.workspaceId);
   if (customHtml.publishedHtml) {
@@ -1483,6 +1489,7 @@ export async function createNotificationCampaign(input: NotificationSendInput): 
   );
   const campaignId = Number(inserted.insertId);
   const rows = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
+  if (!rows[0]) throw new Error("Campaign could not be created.");
   return mapCampaign(rows[0]);
 }
 
@@ -1527,50 +1534,206 @@ export async function listNotificationHistory(
   return { items, total: items.length };
 }
 
-export async function listSubscriberSegments(workspaceId: string): Promise<import('../types').SubscriberSegment[]> {
-  return [];
+type SubscriberSegmentRow = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description: string | null;
+  filters: unknown;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+type NotificationTemplateRow = {
+  id: string;
+  workspace_id: string;
+  name: string;
+  category: NotificationTemplate["category"] | null;
+  title: string;
+  body: string;
+  url: string | null;
+  icon: string | null;
+  image: string | null;
+  badge: string | null;
+  cta_text: string | null;
+  created_at: string | Date;
+  updated_at: string | Date;
+};
+
+function mapSubscriberSegment(row: SubscriberSegmentRow, subscriberCount?: number): SubscriberSegment {
+  return {
+    id: row.id,
+    workspaceId: row.workspace_id,
+    name: row.name,
+    description: row.description || "",
+    filters: toJson<AudienceFilters>(row.filters, {}),
+    subscriberCount,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  };
 }
 
-export async function saveSubscriberSegment(segment: Partial<import('../types').SubscriberSegment> & { name: string; filters: import('../types').AudienceFilters; workspaceId: string }): Promise<import('../types').SubscriberSegment> {
+function mapNotificationTemplate(row: NotificationTemplateRow): NotificationTemplate {
   return {
-    id: segment.id || 'seg-1',
-    workspaceId: segment.workspaceId,
-    name: segment.name,
-    description: segment.description || '',
-    filters: segment.filters,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    id: row.id,
+    workspaceId: row.workspace_id,
+    name: row.name,
+    category: row.category || "custom",
+    title: row.title,
+    body: row.body,
+    url: row.url || "/",
+    icon: row.icon,
+    image: row.image,
+    badge: row.badge,
+    ctaText: row.cta_text,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
   };
+}
+
+function normalizeSubscriberDetails(details: Partial<SubscriberDetails>): SubscriberDetails {
+  return {
+    device: details.device || "Desktop",
+    browser: details.browser || "Browser",
+    ipAddress: details.ipAddress || "",
+    country: details.country || details.countryName || "Unknown",
+    countryCode: details.countryCode,
+    countryName: details.countryName,
+    region: details.region || details.regionName || "",
+    regionCode: details.regionCode,
+    regionName: details.regionName,
+    city: details.city || "Unknown",
+    timezone: details.timezone || "",
+    lastActiveAt: details.lastActiveAt,
+    source: details.source,
+    utmSource: details.utmSource,
+    utmCampaign: details.utmCampaign,
+    totalSent: details.totalSent,
+    totalClicks: details.totalClicks,
+  };
+}
+
+async function workspaceSubscribers(workspaceId: string) {
+  await ensurePushTable();
+  const rows = await mysqlQuery<PushRow[]>(
+    `SELECT ps.*, p.slug FROM push_subscriptions ps
+     INNER JOIN pages p ON p.id = ps.page_id
+     WHERE ps.workspace_id = ? AND ps.is_active = 1`,
+    [workspaceId],
+  );
+  return rows.map(row => ({
+    id: Number(row.id),
+    pageId: Number(row.page_id),
+    workspaceId: row.workspace_id,
+    slug: row.slug,
+    endpointHash: row.endpoint_hash,
+    subscription: toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }),
+    userAgent: row.user_agent || "",
+    details: normalizeSubscriberDetails(toJson<Partial<SubscriberDetails>>(row.client_details, {})),
+    isActive: row.is_active == null ? true : Boolean(row.is_active),
+    lastFailedAt: row.last_failed_at ? toIso(row.last_failed_at) : null,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+  }));
+}
+
+export async function listSubscriberSegments(workspaceId: string): Promise<SubscriberSegment[]> {
+  const rows = await mysqlQuery<SubscriberSegmentRow[]>(
+    "SELECT * FROM subscriber_segments WHERE workspace_id = ? ORDER BY updated_at DESC",
+    [workspaceId],
+  );
+  const subscribers = await workspaceSubscribers(workspaceId);
+  return rows.map(row => {
+    const segment = mapSubscriberSegment(row);
+    return { ...segment, subscriberCount: subscribers.filter(s => matchSubscriber(s, segment.filters)).length };
+  });
+}
+
+export async function saveSubscriberSegment(segment: Partial<SubscriberSegment> & { name: string; filters: AudienceFilters; workspaceId: string }): Promise<SubscriberSegment> {
+  const id = segment.id || randomUUID();
+  await mysqlQuery(
+    `INSERT INTO subscriber_segments (id, workspace_id, name, description, filters)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       name = VALUES(name),
+       description = VALUES(description),
+       filters = VALUES(filters),
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      id,
+      segment.workspaceId,
+      segment.name.trim().slice(0, 120),
+      segment.description?.trim().slice(0, 500) || null,
+      JSON.stringify(segment.filters || {}),
+    ],
+  );
+  const rows = await mysqlQuery<SubscriberSegmentRow[]>("SELECT * FROM subscriber_segments WHERE id = ? AND workspace_id = ?", [id, segment.workspaceId]);
+  if (!rows[0]) throw new Error("Segment could not be saved.");
+  const subscribers = await workspaceSubscribers(segment.workspaceId);
+  const saved = mapSubscriberSegment(rows[0]);
+  return { ...saved, subscriberCount: subscribers.filter(s => matchSubscriber(s, saved.filters)).length };
 }
 
 export async function deleteSubscriberSegment(id: string, workspaceId: string): Promise<boolean> {
-  return true;
+  const result = await mysqlQuery<{ affectedRows: number }>("DELETE FROM subscriber_segments WHERE id = ? AND workspace_id = ?", [id, workspaceId]);
+  return Number(result.affectedRows) > 0;
 }
 
-export async function listNotificationTemplates(workspaceId: string): Promise<import('../types').NotificationTemplate[]> {
-  return [];
+export async function listNotificationTemplates(workspaceId: string): Promise<NotificationTemplate[]> {
+  let rows = await mysqlQuery<NotificationTemplateRow[]>(
+    "SELECT * FROM notification_templates WHERE workspace_id = ? ORDER BY updated_at DESC",
+    [workspaceId],
+  );
+  if (!rows.length) {
+    for (const template of seedTemplates(workspaceId)) {
+      await saveNotificationTemplate(template);
+    }
+    rows = await mysqlQuery<NotificationTemplateRow[]>(
+      "SELECT * FROM notification_templates WHERE workspace_id = ? ORDER BY updated_at DESC",
+      [workspaceId],
+    );
+  }
+  return rows.map(mapNotificationTemplate);
 }
 
-export async function saveNotificationTemplate(template: Partial<import('../types').NotificationTemplate> & { name: string; title: string; body: string; workspaceId: string }): Promise<import('../types').NotificationTemplate> {
-  return {
-    id: template.id || 'tpl-1',
-    workspaceId: template.workspaceId,
-    name: template.name,
-    category: template.category || 'custom',
-    title: template.title,
-    body: template.body,
-    url: template.url || '/',
-    icon: template.icon || null,
-    image: template.image || null,
-    badge: template.badge || null,
-    ctaText: template.ctaText || null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+export async function saveNotificationTemplate(template: Partial<NotificationTemplate> & { name: string; title: string; body: string; workspaceId: string }): Promise<NotificationTemplate> {
+  const id = template.id || randomUUID();
+  await mysqlQuery(
+    `INSERT INTO notification_templates (id, workspace_id, name, category, title, body, url, icon, image, badge, cta_text)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       name = VALUES(name),
+       category = VALUES(category),
+       title = VALUES(title),
+       body = VALUES(body),
+       url = VALUES(url),
+       icon = VALUES(icon),
+       image = VALUES(image),
+       badge = VALUES(badge),
+       cta_text = VALUES(cta_text),
+       updated_at = CURRENT_TIMESTAMP`,
+    [
+      id,
+      template.workspaceId,
+      template.name.trim().slice(0, 120),
+      template.category || "custom",
+      template.title.trim().slice(0, 120),
+      template.body.trim().slice(0, 255),
+      (template.url || "/").slice(0, 700),
+      template.icon || null,
+      template.image || null,
+      template.badge || null,
+      template.ctaText || null,
+    ],
+  );
+  const rows = await mysqlQuery<NotificationTemplateRow[]>("SELECT * FROM notification_templates WHERE id = ? AND workspace_id = ?", [id, template.workspaceId]);
+  if (!rows[0]) throw new Error("Template could not be saved.");
+  return mapNotificationTemplate(rows[0]);
 }
 
 export async function deleteNotificationTemplate(id: string, workspaceId: string): Promise<boolean> {
-  return true;
+  const result = await mysqlQuery<{ affectedRows: number }>("DELETE FROM notification_templates WHERE id = ? AND workspace_id = ?", [id, workspaceId]);
+  return Number(result.affectedRows) > 0;
 }
 
 export async function trackNotificationCampaignClick(campaignId: number) {
@@ -1608,6 +1771,7 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
     [result.attempted, result.sent, result.removed, result.failed, campaignId],
   );
   const campaigns = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
+  if (!campaigns[0]) throw new Error("Campaign could not be created.");
 
   return { ...result, campaignId, campaign: campaigns[0] ? mapCampaign(campaigns[0]) : undefined };
 }

@@ -108,6 +108,9 @@ export async function addWorkspaceUser(input: { email: string; name: string; pas
         'INSERT INTO workspace_users (id, email, name, password_hash, workspace_id, role, permissions, invite_hash, invite_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [user.id, user.email, user.name, user.passwordHash, user.workspaceId, user.role, JSON.stringify(user.permissions ?? []), user.inviteHash ?? null, user.inviteExpiresAt ? new Date(user.inviteExpiresAt) : null],
       );
+      const rows = await query<WorkspaceUser[]>(`SELECT ${userColumns} FROM workspace_users WHERE id = ?`, [user.id]);
+      if (!rows[0]) throw new Error('User account could not be created.');
+      return publicWorkspaceUser(withDefaults({ ...rows[0], active: Boolean(rows[0].active), createdAt: new Date(rows[0].createdAt).toISOString() }));
     } catch (error) {
       if ((error as { code?: string }).code === 'ER_DUP_ENTRY') throw new Error('This email already has an account.');
       throw error;

@@ -167,6 +167,39 @@ The app automatically switches its data store based on whether `DATABASE_URL` is
 - **Set** (production): all reads/writes go through MySQL (`lib/stores/mysqlStore.ts`). The tables are created automatically on first use.
 
 Both implementations share the same interface (`lib/store.ts`), so no route or component code needs to change between environments.
+
+## GeoIP City Database
+
+Analytics location is resolved on the server from the visitor IP. The app does
+not infer cities from browser time zones and does not send visitor IPs to a
+third-party API.
+
+Production needs a licensed MaxMind GeoLite2 City database on disk:
+
+```env
+GEOIP_DB_PATH=/home/USER/geoip/GeoLite2-City.mmdb
+```
+
+Download `GeoLite2-City.mmdb` from MaxMind using your account/license key, place
+it outside the Git deploy folder, and make it readable by the Node process. Do
+not commit the `.mmdb` file. Update it on a schedule, for example monthly, using
+MaxMind's documented download/update process.
+
+Master Admin shows `GeoIP City DB: Loaded / Missing / Error`. If it is Missing
+or Error, public-IP visitors can only resolve from trusted CDN country headers
+when present; region and city stay Unknown. Localhost and private proxy IPs are
+expected to resolve as Unknown.
+
+Make sure the app receives the real visitor IP from the trusted proxy path:
+
+```nginx
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+```
+
+If Cloudflare is in front, preserve `CF-Connecting-IP` only through the trusted
+Cloudflare/proxy path. Do not expose the app directly while trusting arbitrary
+client-supplied IP headers.
 # Mobile Notifications and Subscriber Details
 
 iPhone and iPad web push requires iOS/iPadOS 16.4+ and installation as a

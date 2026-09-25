@@ -2,8 +2,15 @@ import { hasMysqlConfig } from "./mysql";
 import * as jsonStore from "./stores/jsonStore";
 import * as mysqlStore from "./stores/mysqlStore";
 
+let loggedBackend = false;
+
 function store() {
-  return hasMysqlConfig() ? mysqlStore : jsonStore;
+  const usingMysql = hasMysqlConfig();
+  if (!loggedBackend && typeof process !== "undefined" && process.env.NODE_ENV !== "test") {
+    loggedBackend = true;
+    console.info(`Storage backend: ${usingMysql ? "MySQL" : "JSON"}`);
+  }
+  return usingMysql ? mysqlStore : jsonStore;
 }
 
 export const listPages: typeof jsonStore.listPages = (...args) => store().listPages(...args);

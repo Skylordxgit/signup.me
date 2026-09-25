@@ -256,6 +256,49 @@ export async function saveWorkspaceBranding(
         next.footerText,
       ],
     );
+    const rows = await query<{
+      id: number;
+      workspace_id: string;
+      workspace_name: string | null;
+      logo_url: string | null;
+      favicon_url: string | null;
+      site_title: string | null;
+      meta_description: string | null;
+      login_logo_url: string | null;
+      login_background_url: string | null;
+      login_title: string | null;
+      login_subtitle: string | null;
+      primary_color: string | null;
+      secondary_color: string | null;
+      button_color: string | null;
+      link_color: string | null;
+      footer_text: string | null;
+      created_at: Date;
+      updated_at: Date;
+    }[]>('SELECT * FROM workspace_branding WHERE workspace_id = ? LIMIT 1', [wsId]);
+    if (!rows[0]) throw new Error('Workspace branding could not be saved.');
+    const saved = normalizeWorkspaceBranding({
+      id: rows[0].id,
+      workspaceId: rows[0].workspace_id,
+      workspaceName: rows[0].workspace_name || undefined,
+      logoUrl: rows[0].logo_url || undefined,
+      faviconUrl: rows[0].favicon_url || undefined,
+      siteTitle: rows[0].site_title || undefined,
+      metaDescription: rows[0].meta_description || undefined,
+      loginLogoUrl: rows[0].login_logo_url || undefined,
+      loginBackgroundUrl: rows[0].login_background_url || undefined,
+      loginTitle: rows[0].login_title || undefined,
+      loginSubtitle: rows[0].login_subtitle || undefined,
+      primaryColor: rows[0].primary_color || undefined,
+      secondaryColor: rows[0].secondary_color || undefined,
+      buttonColor: rows[0].button_color || undefined,
+      linkColor: rows[0].link_color || undefined,
+      footerText: rows[0].footer_text || undefined,
+      createdAt: rows[0].created_at ? new Date(rows[0].created_at).toISOString() : undefined,
+      updatedAt: rows[0].updated_at ? new Date(rows[0].updated_at).toISOString() : undefined,
+    }, wsId);
+    await invalidateWorkspaceBranding(wsId);
+    return saved;
   } else {
     await mutateJsonStore(store => {
       store[wsId] = next;

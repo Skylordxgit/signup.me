@@ -139,7 +139,7 @@ export function ReportingDashboard({
     }
     if (analytics?.locations) {
       for (const loc of analytics.locations) {
-        if (selectedCountry === 'all' || loc.country === selectedCountry || loc.location.includes(selectedCountry)) {
+        if (selectedCountry === 'all' || loc.country === selectedCountry) {
           const st = loc.region && loc.region !== 'Unknown' ? loc.region : extractState(loc.location, loc.country, loc.city);
           if (st && st !== loc.city && st !== loc.country && st !== 'Direct') {
             set.add(st);
@@ -167,8 +167,8 @@ export function ReportingDashboard({
     }
     if (analytics?.locations) {
       for (const loc of analytics.locations) {
-        if (selectedCountry === 'all' || loc.country === selectedCountry || loc.location.includes(selectedCountry)) {
-          if (selectedState === 'all' || loc.region === selectedState || loc.location.includes(selectedState)) {
+        if (selectedCountry === 'all' || loc.country === selectedCountry) {
+          if (selectedState === 'all' || loc.region === selectedState) {
             if (loc.city && loc.city !== 'Direct' && loc.city !== 'Unknown') {
               set.add(loc.city);
             }
@@ -178,6 +178,23 @@ export function ReportingDashboard({
     }
     return Array.from(set).sort();
   }, [analytics, selectedCountry, selectedState]);
+
+  const activeCityCount = useMemo(() => {
+    const cities = new Set<string>();
+    for (const loc of analytics?.locations || []) {
+      if (loc.city && loc.city !== 'Unknown' && loc.city !== 'Direct' && loc.city !== 'Direct / Local') {
+        cities.add(`${loc.country || 'Unknown'}:${loc.region || 'Unknown'}:${loc.city}`);
+      }
+    }
+    for (const country of analytics?.countries || []) {
+      for (const city of country.cities || []) {
+        if (city.city && city.city !== 'Unknown' && city.city !== 'Direct' && city.city !== 'Direct / Local') {
+          cities.add(`${city.country || country.countryName || 'Unknown'}:${city.region || 'Unknown'}:${city.city}`);
+        }
+      }
+    }
+    return cities.size;
+  }, [analytics]);
 
   // Filtered dataset calculations based on active filters (exact recorded metrics, NO synthetic multipliers)
   const filteredData = useMemo(() => {
@@ -824,12 +841,12 @@ export function ReportingDashboard({
 
         <article className="admReportKpiCard">
           <div className="admReportKpiHead">
-            <span>Active Locations</span>
+            <span>Active Cities</span>
             <span className="admReportKpiIcon admTone-blue"><Globe2 size={18} /></span>
           </div>
-          <div className="admReportKpiValue">{(analytics?.countries || []).length}</div>
+          <div className="admReportKpiValue">{activeCityCount}</div>
           <div className="admReportKpiFoot">
-            <span>{availableCities.length} distinct cities</span>
+            <span>{availableCountries.filter(country => country !== 'Unknown').length} countries with traffic</span>
           </div>
         </article>
       </div>

@@ -57,6 +57,18 @@ type MasterWorkspace = {
 type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
 type DomainsPayload = { domains: CustomDomain[]; verification: DomainVerificationConfig };
 type SignupSettings = { enabled: boolean };
+type GeoIpHealthPayload = {
+  health: {
+    status: "active" | "missing" | "error";
+    database: "Loaded" | "Missing" | "Error";
+    reader: "Healthy" | "Unavailable" | "Error";
+    configured: boolean;
+    pathConfigured: boolean;
+    pathHint: string;
+    lastUpdated: string | null;
+    error?: string;
+  };
+};
 type MasterView = "overview" | "workspaces" | "domains" | "users" | "branding" | "signup";
 type DomainModal = "add" | { action: "edit" | "assign" | "delete"; domain: CustomDomain } | null;
 
@@ -96,6 +108,7 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
   const [users, setUsers] = useState<PublicWorkspaceUser[]>([]);
   const [branding, setBranding] = useState<BrandingSettings>(defaultBranding);
   const [signup, setSignup] = useState<SignupSettings>({ enabled: true });
+  const [geoIp, setGeoIp] = useState<GeoIpHealthPayload["health"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [savingBranding, setSavingBranding] = useState(false);
@@ -140,6 +153,7 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
       adminApi<SignupSettings>("/api/master/signup"),
       adminApi<PublicWorkspaceUser[]>("/api/master/users"),
     ]);
+    adminApi<GeoIpHealthPayload>("/api/master/geoip").then(result => setGeoIp(result.health)).catch(() => setGeoIp(null));
     setWorkspaces(data.workspaces);
     setDomains(domainData.domains);
     setVerification(domainData.verification);
@@ -157,8 +171,9 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
       adminApi<BrandingSettings>("/api/master/branding", { signal: controller.signal }),
       adminApi<SignupSettings>("/api/master/signup", { signal: controller.signal }),
       adminApi<PublicWorkspaceUser[]>("/api/master/users", { signal: controller.signal }),
+      adminApi<GeoIpHealthPayload>("/api/master/geoip", { signal: controller.signal }),
     ])
-      .then(([data, domainData, brand, signupSettings, accounts]) => {
+      .then(([data, domainData, brand, signupSettings, accounts, geoIpStatus]) => {
         if (cancelled) return;
         setWorkspaces(data.workspaces);
         setDomains(domainData.domains);
@@ -166,6 +181,7 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
         setBranding(brand);
         setSignup(signupSettings);
         setUsers(accounts);
+        setGeoIp(geoIpStatus.health);
       })
       .catch(cause => {
         if (!cancelled && !controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load platform data.");
@@ -532,7 +548,12 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
               <article><span className="masterMetricIcon masterToneViolet"><Users size={20} /></span><div><small>User accounts</small><strong>{users.length}</strong><em>{totals.admins} admins</em></div></article>
               <article><span className="masterMetricIcon masterToneAmber"><LayoutDashboard size={20} /></span><div><small>Published assets</small><strong>{totals.pages}</strong><em>pages platform-wide</em></div></article>
               <article><span className="masterMetricIcon masterToneGreen"><Globe2 size={20} /></span><div><small>Push audience</small><strong>{totals.subscribers}</strong><em>subscribers</em></div></article>
+              <article>
+                <span className={`masterMetricIcon ${geoIp?.status === "active" ? "masterToneGreen" : geoIp?.status === "error" ? "masterToneAmber" : "masterToneViolet"}`}><Globe2 size={20} /></span>
+                <div><small>GeoIP City DB</small><strong>{geoIp?.database || "Unknown"}</strong><em>{geoIp?.lastUpdated ? `updated ${formatDate(geoIp.lastUpdated)}` : geoIp?.reader || "health unavailable"}</em></div>
+              </article>
             </div>
+            {geoIp && geoIp.status !== "active" && <p className="admSetupNote masterNotice" role="status">GeoIP database is {geoIp.database.toLowerCase()}. Set <code>GEOIP_DB_PATH</code> to a readable GeoLite2-City.mmdb file so production visitors can resolve beyond trusted CDN country headers.</p>}
             <section className="masterPanel">
               <SectionHeading title="Recent workspaces">
                 <div className="admActionRow">

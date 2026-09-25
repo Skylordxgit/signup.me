@@ -3,6 +3,7 @@ import { mkdir, readFile, rename, stat as fsStat, writeFile } from 'fs/promises'
 import path from 'path';
 import { hasMysqlConfig, mysqlQuery, type TransactionQuery } from './mysql';
 import { DEFAULT_WORKSPACE_ID } from './workspaceConstants';
+import { defaultWorkspaceBranding } from './workspaceBrandingConstants';
 import { invalidateDomainCache } from './pageSnapshot';
 
 /* The workspace every pre-multi-workspace page and admin belongs to. It is a
@@ -87,9 +88,45 @@ export async function createWorkspace(input: { name: string; ownerEmail: string;
   };
   if (hasMysqlConfig()) {
     await query(
-      'INSERT INTO workspaces (id, name, owner_email, status) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE id = id',
+      'INSERT INTO workspaces (id, name, owner_email, status) VALUES (?, ?, ?, ?)',
       [workspace.id, workspace.name, workspace.ownerEmail, workspace.status],
     );
+    await query(
+      'INSERT INTO workspace_settings (workspace_id, setting_key, setting_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE workspace_id = workspace_id',
+      [workspace.id, 'created', JSON.stringify({ createdAt: workspace.createdAt })],
+    );
+    const branding = defaultWorkspaceBranding(workspace.id, workspace.name);
+    await query(
+      `INSERT INTO workspace_branding (
+        workspace_id, workspace_name, logo_url, favicon_url, site_title, meta_description,
+        login_logo_url, login_background_url, login_title, login_subtitle,
+        primary_color, secondary_color, button_color, link_color, footer_text
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE workspace_id = workspace_id`,
+      [
+        branding.workspaceId,
+        branding.workspaceName,
+        branding.logoUrl,
+        branding.faviconUrl,
+        branding.siteTitle,
+        branding.metaDescription,
+        branding.loginLogoUrl,
+        branding.loginBackgroundUrl,
+        branding.loginTitle,
+        branding.loginSubtitle,
+        branding.primaryColor,
+        branding.secondaryColor,
+        branding.buttonColor,
+        branding.linkColor,
+        branding.footerText,
+      ],
+    );
+    const rows = await query<{ id: string; name: string; ownerEmail: string; status: string; createdAt: Date }[]>(
+      'SELECT id, name, owner_email AS ownerEmail, status, created_at AS createdAt FROM workspaces WHERE id = ?',
+      [workspace.id],
+    );
+    if (!rows[0]) throw new Error('Workspace could not be created.');
+    return { ...rows[0], status: normalizeStatus(rows[0].status), createdAt: new Date(rows[0].createdAt).toISOString() };
   } else {
     await mutateWorkspaces(workspaces => {
       if (!workspaces.some(item => item.id === workspace.id)) workspaces.push(workspace);

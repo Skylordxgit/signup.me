@@ -8,6 +8,7 @@ import { adminCounts, addWorkspaceUser, findWorkspaceUser, listWorkspaceUsers } 
 import { createWorkspace, DEFAULT_WORKSPACE_ID, ensureDefaultWorkspace, listWorkspaces, updateWorkspace, type WorkspaceStatus } from '@/lib/workspaces';
 import { workspacePermissions } from '@/lib/permissions';
 import { listDomains, setWorkspacePrimaryDomain } from '@/lib/domains';
+import { hasMysqlConfig, withTransaction, type TransactionQuery } from '@/lib/mysql';
 
 export type MasterWorkspace = {
   id: string;
@@ -92,36 +93,45 @@ export async function POST(request: NextRequest) {
       throw new Error(`An account for ${ownerEmailAddr} already exists in another workspace.`);
     }
 
-    const workspace = await createWorkspace({ name, ownerEmail: ownerEmailAddr });
+    let invitePath: string | undefined;
+    let inviteToken: string | undefined;
+
+    const createWorkspaceAndOwner = async (query?: TransactionQuery) => {
+      const created = await createWorkspace({ name, ownerEmail: ownerEmailAddr }, query);
+
+      if (createOwner && !isMasterEmail(ownerEmailAddr) && !existingUser) {
+        const ownerName = typeof body.ownerName === 'string' && body.ownerName.trim()
+          ? body.ownerName.trim().slice(0, 120)
+          : displayName('', ownerEmailAddr);
+        const rawPassword = typeof body.password === 'string' ? body.password : '';
+        const withPassword = Boolean(body.withPassword && rawPassword);
+        const passwordHash = withPassword ? hashPassword(assertPassword(rawPassword)) : '';
+        inviteToken = withPassword ? undefined : randomBytes(32).toString('hex');
+
+        await addWorkspaceUser({
+          email: ownerEmailAddr,
+          name: ownerName,
+          passwordHash,
+          workspaceId: created.id,
+          role: 'owner',
+          permissions: [...workspacePermissions],
+          ...(inviteToken ? { inviteHash: invitationHash(inviteToken), inviteExpiresAt: new Date(Date.now() + 7 * 86400000).toISOString() } : {}),
+        }, query);
+      }
+
+      return created;
+    };
+
+    const workspace = hasMysqlConfig()
+      ? await withTransaction(createWorkspaceAndOwner)
+      : await createWorkspaceAndOwner();
+
+    if (inviteToken) {
+      invitePath = `/admin/invite?token=${inviteToken}&email=${encodeURIComponent(ownerEmailAddr)}`;
+    }
 
     if (typeof body.domainId === 'string') {
       await setWorkspacePrimaryDomain(workspace.id, body.domainId, session.email);
-    }
-
-    let invitePath: string | undefined;
-
-    if (createOwner && !isMasterEmail(ownerEmailAddr) && !existingUser) {
-      const ownerName = typeof body.ownerName === 'string' && body.ownerName.trim()
-        ? body.ownerName.trim().slice(0, 120)
-        : displayName('', ownerEmailAddr);
-      const rawPassword = typeof body.password === 'string' ? body.password : '';
-      const withPassword = Boolean(body.withPassword && rawPassword);
-      const passwordHash = withPassword ? hashPassword(assertPassword(rawPassword)) : '';
-      const token = withPassword ? undefined : randomBytes(32).toString('hex');
-
-      await addWorkspaceUser({
-        email: ownerEmailAddr,
-        name: ownerName,
-        passwordHash,
-        workspaceId: workspace.id,
-        role: 'owner',
-        permissions: [...workspacePermissions],
-        ...(token ? { inviteHash: invitationHash(token), inviteExpiresAt: new Date(Date.now() + 7 * 86400000).toISOString() } : {}),
-      });
-
-      if (token) {
-        invitePath = `/admin/invite?token=${token}&email=${encodeURIComponent(ownerEmailAddr)}`;
-      }
     }
 
     return {

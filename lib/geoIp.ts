@@ -1,5 +1,7 @@
 import { createHmac } from "node:crypto";
+import { existsSync, statSync } from "node:fs";
 import { isIP } from "node:net";
+import path from "node:path";
 import { MMDBReader, type MMDBLocationRecord } from "./mmdbReader";
 import { getRedis, isRedisAvailable } from "./redis";
 
@@ -16,12 +18,26 @@ export interface GeoLocationResult {
   geoSource: "ip_geo" | "cdn_header" | "unknown";
 }
 
+export type GeoIpHealthStatus = "active" | "missing" | "error";
+
+export interface GeoIpHealth {
+  status: GeoIpHealthStatus;
+  database: "Loaded" | "Missing" | "Error";
+  reader: "Healthy" | "Unavailable" | "Error";
+  configured: boolean;
+  pathConfigured: boolean;
+  pathHint: string;
+  lastUpdated: string | null;
+  error?: string;
+}
+
 const SERVER_SALT = process.env.GEO_HASH_SALT || process.env.ADMIN_SESSION_SECRET || "smartlink_geo_salt_v1";
 const GEOIP_DB_PATH = process.env.GEOIP_DB_PATH || process.env.GEOIP_DATABASE_PATH || "data/GeoLite2-City.mmdb";
 
 let mmdbInstance: MMDBReader | null = null;
 let mmdbLoaded = false;
 let loggedMissingDb = false;
+let mmdbError: string | null = null;
 
 // In-memory bounded LRU cache (5,000 items)
 const memoryGeoCache = new Map<string, { result: GeoLocationResult; expiresAt: number }>();
@@ -32,47 +48,9 @@ export function _resetGeoIpStateForTesting() {
   mmdbInstance = null;
   mmdbLoaded = false;
   loggedMissingDb = false;
+  mmdbError = null;
   memoryGeoCache.clear();
 }
-
-/**
- * Known public IP ranges and test fixture mappings for offline deterministic environments
- */
-const KNOWN_GEO_FIXTURES: {
-  prefix: string;
-  data: MMDBLocationRecord;
-}[] = [
-  // India (Mumbai)
-  { prefix: "103.21.244.", data: { countryCode: "IN", countryName: "India", regionCode: "MH", regionName: "Maharashtra", city: "Mumbai", timezone: "Asia/Kolkata" } },
-  { prefix: "49.32.", data: { countryCode: "IN", countryName: "India", regionCode: "MH", regionName: "Maharashtra", city: "Mumbai", timezone: "Asia/Kolkata" } },
-  { prefix: "49.34.", data: { countryCode: "IN", countryName: "India", regionCode: "MH", regionName: "Maharashtra", city: "Mumbai", timezone: "Asia/Kolkata" } },
-  { prefix: "103.15.", data: { countryCode: "IN", countryName: "India", regionCode: "MH", regionName: "Maharashtra", city: "Mumbai", timezone: "Asia/Kolkata" } },
-
-  // India (Delhi)
-  { prefix: "103.248.118.", data: { countryCode: "IN", countryName: "India", regionCode: "DL", regionName: "Delhi", city: "Delhi", timezone: "Asia/Kolkata" } },
-
-  // Bangladesh (Dhaka)
-  { prefix: "103.205.180.", data: { countryCode: "BD", countryName: "Bangladesh", regionCode: "13", regionName: "Dhaka Division", city: "Dhaka", timezone: "Asia/Dhaka" } },
-  { prefix: "103.48.16.", data: { countryCode: "BD", countryName: "Bangladesh", regionCode: "13", regionName: "Dhaka Division", city: "Dhaka", timezone: "Asia/Dhaka" } },
-  { prefix: "119.30.32.", data: { countryCode: "BD", countryName: "Bangladesh", regionCode: "13", regionName: "Dhaka Division", city: "Dhaka", timezone: "Asia/Dhaka" } },
-
-  // United States (Florida - Miami)
-  { prefix: "104.28.244.", data: { countryCode: "US", countryName: "United States", regionCode: "FL", regionName: "Florida", city: "Miami", timezone: "America/New_York" } },
-  { prefix: "64.233.160.", data: { countryCode: "US", countryName: "United States", regionCode: "FL", regionName: "Florida", city: "Miami", timezone: "America/New_York" } },
-
-  // United States (California - Los Angeles)
-  { prefix: "104.28.245.", data: { countryCode: "US", countryName: "United States", regionCode: "CA", regionName: "California", city: "Los Angeles", timezone: "America/Los_Angeles" } },
-  { prefix: "66.249.64.", data: { countryCode: "US", countryName: "United States", regionCode: "CA", regionName: "California", city: "Los Angeles", timezone: "America/Los_Angeles" } },
-
-  // United Kingdom (London)
-  { prefix: "185.86.151.", data: { countryCode: "GB", countryName: "United Kingdom", regionCode: "ENG", regionName: "England", city: "London", timezone: "Europe/London" } },
-
-  // Nepal (Kathmandu)
-  { prefix: "103.10.30.", data: { countryCode: "NP", countryName: "Nepal", regionCode: "P3", regionName: "Bagmati", city: "Kathmandu", timezone: "Asia/Kathmandu" } },
-
-  // Pakistan (Lahore)
-  { prefix: "182.180.0.", data: { countryCode: "PK", countryName: "Pakistan", regionCode: "PB", regionName: "Punjab", city: "Lahore", timezone: "Asia/Karachi" } },
-];
 
 /**
  * Initializes MMDB database reader if file is present.
@@ -80,15 +58,85 @@ const KNOWN_GEO_FIXTURES: {
 async function getMMDBInstance(): Promise<MMDBReader | null> {
   if (mmdbLoaded) return mmdbInstance;
   mmdbLoaded = true;
-  mmdbInstance = await MMDBReader.open(GEOIP_DB_PATH);
+  try {
+    mmdbInstance = await MMDBReader.open(GEOIP_DB_PATH);
+    mmdbError = null;
+  } catch (error) {
+    mmdbInstance = null;
+    mmdbError = error instanceof Error ? error.message : "Unable to open GeoIP database";
+  }
   if (!mmdbInstance && !loggedMissingDb) {
     loggedMissingDb = true;
     // Log helpful notice once
     if (process.env.NODE_ENV !== "test") {
-      console.info(`[GeoIP] GeoIP database unavailable at ${GEOIP_DB_PATH}. Operating with CDN headers and built-in offline engine.`);
+      console.warn(`[GeoIP] GeoIP database unavailable. Set GEOIP_DB_PATH to a readable GeoLite2-City.mmdb file.`);
     }
   }
   return mmdbInstance;
+}
+
+function safePathHint(filePath: string) {
+  const base = path.basename(filePath || "");
+  return base || "not configured";
+}
+
+export async function getGeoIpHealth(): Promise<GeoIpHealth> {
+  const pathConfigured = Boolean(process.env.GEOIP_DB_PATH || process.env.GEOIP_DATABASE_PATH);
+  const pathHint = safePathHint(GEOIP_DB_PATH);
+  let lastUpdated: string | null = null;
+
+  try {
+    if (!existsSync(GEOIP_DB_PATH)) {
+      return {
+        status: "missing",
+        database: "Missing",
+        reader: "Unavailable",
+        configured: false,
+        pathConfigured,
+        pathHint,
+        lastUpdated,
+        error: "GeoIP database file was not found.",
+      };
+    }
+
+    const stats = statSync(GEOIP_DB_PATH);
+    lastUpdated = stats.mtime.toISOString().slice(0, 10);
+    const reader = await getMMDBInstance();
+
+    if (!reader) {
+      return {
+        status: "error",
+        database: "Error",
+        reader: "Error",
+        configured: true,
+        pathConfigured,
+        pathHint,
+        lastUpdated,
+        error: mmdbError || "GeoIP database could not be opened.",
+      };
+    }
+
+    return {
+      status: "active",
+      database: "Loaded",
+      reader: "Healthy",
+      configured: true,
+      pathConfigured,
+      pathHint,
+      lastUpdated,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      database: "Error",
+      reader: "Error",
+      configured: false,
+      pathConfigured,
+      pathHint,
+      lastUpdated,
+      error: error instanceof Error ? error.message : "GeoIP health check failed.",
+    };
+  }
 }
 
 /**
@@ -237,16 +285,6 @@ export async function resolveIpLocation(
       }
     }
 
-    // 2. Built-in fixture matcher for test suites / common ranges
-    if (!geoData || (!geoData.countryName && !geoData.city)) {
-      for (const fixture of KNOWN_GEO_FIXTURES) {
-        if (cleanIp.startsWith(fixture.prefix)) {
-          geoData = fixture.data;
-          geoSource = "ip_geo";
-          break;
-        }
-      }
-    }
   }
 
   // 3. Fallback to Cloudflare / CDN headers

@@ -38,6 +38,10 @@ export class MMDBReader {
     }
   }
 
+  getMetadata(): Record<string, unknown> {
+    return { ...this.metadata };
+  }
+
   private init() {
     const marker = Buffer.from("\xAB\xCD\xEFMaxMind.com");
     const markerPos = this.buffer.lastIndexOf(marker);

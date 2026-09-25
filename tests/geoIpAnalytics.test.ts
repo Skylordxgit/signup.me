@@ -5,6 +5,7 @@ import {
   normalizeIp,
   isPrivateIp,
   anonymizeIp,
+  getGeoIpHealth,
   resolveIpLocation,
   resolveRequestGeo,
   _resetGeoIpStateForTesting,
@@ -71,40 +72,37 @@ test("IP extraction: follows trusted header precedence and prevents header spoof
   assert.equal(getTrustedClientIp(emptyHeaders), "127.0.0.1");
 });
 
-test("GeoIP resolution: resolves known public fixture IPs accurately", async () => {
+test("GeoIP resolution: does not invent city data when the MMDB is unavailable", async () => {
   _resetGeoIpStateForTesting();
 
-  // Mumbai, Maharashtra, India
   const mumbai = await resolveIpLocation("103.21.244.1");
-  assert.equal(mumbai.country, "India");
-  assert.equal(mumbai.region, "Maharashtra");
-  assert.equal(mumbai.city, "Mumbai");
-  assert.equal(mumbai.geoSource, "ip_geo");
-  assert.ok(mumbai.location.includes("Mumbai"));
+  assert.equal(mumbai.country, "Unknown");
+  assert.equal(mumbai.region, "Unknown");
+  assert.equal(mumbai.city, "Unknown");
+  assert.equal(mumbai.geoSource, "unknown");
+});
 
-  // Dhaka, Dhaka Division, Bangladesh
-  const dhaka = await resolveIpLocation("103.205.180.1");
-  assert.equal(dhaka.country, "Bangladesh");
-  assert.equal(dhaka.region, "Dhaka Division");
-  assert.equal(dhaka.city, "Dhaka");
-  assert.equal(dhaka.geoSource, "ip_geo");
-  assert.ok(dhaka.location.includes("Dhaka"));
+test("GeoIP resolution: uses trusted CDN country headers without guessing city", async () => {
+  _resetGeoIpStateForTesting();
 
-  // Miami, Florida, United States
-  const miami = await resolveIpLocation("104.28.244.1");
-  assert.equal(miami.country, "United States");
-  assert.equal(miami.region, "Florida");
-  assert.equal(miami.city, "Miami");
-  assert.equal(miami.geoSource, "ip_geo");
-  assert.ok(miami.location.includes("Miami"));
+  const headers = new Headers({
+    "cf-connecting-ip": "103.21.244.1",
+    "cf-ipcountry": "IN",
+  });
+  const geo = await resolveRequestGeo(headers, { timezone: "Asia/Kolkata" });
+  assert.equal(geo.country, "India");
+  assert.equal(geo.countryCode, "IN");
+  assert.equal(geo.region, "Unknown");
+  assert.equal(geo.city, "Unknown");
+  assert.equal(geo.geoSource, "cdn_header");
+  assert.equal(geo.browserTimezone, "Asia/Kolkata");
+});
 
-  // Los Angeles, California, United States
-  const la = await resolveIpLocation("104.28.245.1");
-  assert.equal(la.country, "United States");
-  assert.equal(la.region, "California");
-  assert.equal(la.city, "Los Angeles");
-  assert.equal(la.geoSource, "ip_geo");
-  assert.ok(la.location.includes("Los Angeles"));
+test("GeoIP health reports missing local database explicitly", async () => {
+  _resetGeoIpStateForTesting();
+  const health = await getGeoIpHealth();
+  assert.equal(health.database, "Missing");
+  assert.equal(health.reader, "Unavailable");
 });
 
 test("Timezone safety: NEVER infers city from browser timezone", async () => {
