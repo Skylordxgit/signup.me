@@ -858,6 +858,7 @@ export async function analyticsForPage(
 
   function deriveGeoSource(sources: Set<string>): string {
     if (sources.has('ip_geo')) return 'ip_geo';
+    if (sources.has('http_api')) return 'http_api';
     if (sources.has('cdn_header')) return 'cdn_header';
     if (sources.has('legacy_timezone')) return 'legacy_timezone';
     return sources.values().next().value || 'unknown';

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { MMDBReader } from "../lib/mmdbReader";
 
 test("real City database opens and resolves public IPs", { skip: !process.env.GEOIP_TEST_DB_PATH }, async () => {
@@ -431,4 +431,210 @@ test("Subscriber details: persists geoSource and handles subscriber list item ma
   assert.equal(item.regionName, "Maharashtra");
   assert.equal(item.city, "Mumbai");
   assert.equal(item.geoSource, "ip_geo");
+});
+
+// ---------------------------------------------------------------------------
+// HTTP geo fallback (GEOIP_HTTP_FALLBACK=1): resolves city/region/country when
+// the local MaxMind database file is missing, without inventing data when the
+// provider is disabled, unreachable, or refusing.
+// ---------------------------------------------------------------------------
+
+const MISSING_DB_PATH = "/nonexistent-geoip-test/City.mmdb";
+
+function withMissingDbAndHttpFallback(t: TestContext) {
+  _resetGeoIpStateForTesting();
+  const prevDbPath = process.env.GEOIP_DB_PATH;
+  const prevFallback = process.env.GEOIP_HTTP_FALLBACK;
+  process.env.GEOIP_DB_PATH = MISSING_DB_PATH;
+  process.env.GEOIP_HTTP_FALLBACK = "1";
+  _resetGeoIpStateForTesting();
+  t.after(() => {
+    if (prevDbPath === undefined) delete process.env.GEOIP_DB_PATH;
+    else process.env.GEOIP_DB_PATH = prevDbPath;
+    if (prevFallback === undefined) delete process.env.GEOIP_HTTP_FALLBACK;
+    else process.env.GEOIP_HTTP_FALLBACK = prevFallback;
+    _resetGeoIpStateForTesting();
+  });
+}
+
+function mockIpWhoIs(t: TestContext, payload: Record<string, unknown>) {
+  return t.mock.method(
+    globalThis,
+    "fetch",
+    (async () => new Response(JSON.stringify(payload), { status: 200 })) as typeof fetch,
+  );
+}
+
+test("HTTP fallback: resolves country/region/city when the MMDB is missing", async (t) => {
+  withMissingDbAndHttpFallback(t);
+  const fetchMock = mockIpWhoIs(t, {
+    success: true,
+    country: "India",
+    country_code: "IN",
+    region: "Maharashtra",
+    region_code: "MH",
+    city: "Mumbai",
+  });
+
+  const geo = await resolveIpLocation("103.21.244.1");
+
+  assert.equal(fetchMock.mock.calls.length, 1);
+  assert.ok(String(fetchMock.mock.calls[0].arguments[0]).includes("103.21.244.1"));
+  assert.equal(geo.country, "India");
+  assert.equal(geo.countryCode, "IN");
+  assert.equal(geo.region, "Maharashtra");
+  assert.equal(geo.regionCode, "MH");
+  assert.equal(geo.city, "Mumbai");
+  assert.equal(geo.location, "Mumbai, Maharashtra, India");
+  assert.equal(geo.geoSource, "http_api");
+});
+
+test("HTTP fallback: caches the lookup so the provider is hit once per IP", async (t) => {
+  withMissingDbAndHttpFallback(t);
+  const fetchMock = mockIpWhoIs(t, {
+    success: true,
+    country: "India",
+    country_code: "IN",
+    region: "",
+    region_code: "",
+    city: "",
+  });
+
+  const first = await resolveIpLocation("49.32.0.1");
+  const second = await resolveIpLocation("49.32.0.1");
+
+  assert.equal(fetchMock.mock.calls.length, 1);
+  assert.equal(first.geoSource, "http_api");
+  assert.equal(first.country, "India");
+  assert.equal(second.geoSource, "http_api");
+  assert.equal(second.city, "Unknown");
+});
+
+test("HTTP fallback: provider refusal falls through without inventing data", async (t) => {
+  withMissingDbAndHttpFallback(t);
+  mockIpWhoIs(t, { success: false, message: "rate limited" });
+
+  const geo = await resolveIpLocation("103.21.244.1");
+
+  assert.equal(geo.country, "Unknown");
+  assert.equal(geo.region, "Unknown");
+  assert.equal(geo.city, "Unknown");
+  assert.equal(geo.geoSource, "unknown");
+});
+
+test("HTTP fallback: network errors never block resolution", async (t) => {
+  withMissingDbAndHttpFallback(t);
+  t.mock.method(
+    globalThis,
+    "fetch",
+    (async () => {
+      throw new Error("network down");
+    }) as typeof fetch,
+  );
+
+  const geo = await resolveIpLocation("103.21.244.1");
+
+  assert.equal(geo.country, "Unknown");
+  assert.equal(geo.geoSource, "unknown");
+});
+
+test("HTTP fallback: never queries the provider for private IPs", async (t) => {
+  withMissingDbAndHttpFallback(t);
+  const fetchMock = mockIpWhoIs(t, { success: true, country: "India", country_code: "IN" });
+
+  const geo = await resolveIpLocation("192.168.1.10");
+
+  assert.equal(fetchMock.mock.calls.length, 0);
+  assert.equal(geo.country, "Unknown");
+  assert.equal(geo.geoSource, "unknown");
+});
+
+test("HTTP fallback: stays off unless explicitly enabled", async (t) => {
+  _resetGeoIpStateForTesting();
+  const prevDbPath = process.env.GEOIP_DB_PATH;
+  const prevFallback = process.env.GEOIP_HTTP_FALLBACK;
+  process.env.GEOIP_DB_PATH = MISSING_DB_PATH;
+  delete process.env.GEOIP_HTTP_FALLBACK;
+  _resetGeoIpStateForTesting();
+  t.after(() => {
+    if (prevDbPath === undefined) delete process.env.GEOIP_DB_PATH;
+    else process.env.GEOIP_DB_PATH = prevDbPath;
+    if (prevFallback === undefined) delete process.env.GEOIP_HTTP_FALLBACK;
+    else process.env.GEOIP_HTTP_FALLBACK = prevFallback;
+    _resetGeoIpStateForTesting();
+  });
+  const fetchMock = mockIpWhoIs(t, {
+    success: true,
+    country: "India",
+    country_code: "IN",
+    city: "Mumbai",
+  });
+
+  const geo = await resolveIpLocation("103.21.244.1");
+
+  assert.equal(fetchMock.mock.calls.length, 0);
+  assert.equal(geo.country, "Unknown");
+  assert.equal(geo.city, "Unknown");
+  assert.equal(geo.geoSource, "unknown");
+});
+
+test("HTTP fallback: diagnostics report http_api as the resolving source", async (t) => {
+  withMissingDbAndHttpFallback(t);
+  mockIpWhoIs(t, {
+    success: true,
+    country: "India",
+    country_code: "IN",
+    region: "Maharashtra",
+    region_code: "MH",
+    city: "Mumbai",
+  });
+
+  const diag = await diagnoseRequestGeo(new Headers({ "x-forwarded-for": "103.21.244.1" }));
+
+  assert.equal(diag.geoSource, "http_api");
+  assert.equal(diag.countrySource, "http_api");
+  assert.equal(diag.regionSource, "http_api");
+  assert.equal(diag.citySource, "http_api");
+  assert.equal(diag.resolved.city, "Mumbai");
+});
+
+test("Subscriber details: preserves http_api geoSource end to end", () => {
+  const headers = new Headers({
+    "user-agent": "test",
+    "x-forwarded-for": "103.21.244.1",
+  });
+  const details = collectSubscriberDetails(
+    headers,
+    {},
+    {
+      ipHash: "abc",
+      country: "India",
+      countryCode: "IN",
+      countryName: "India",
+      region: "Maharashtra",
+      regionCode: "MH",
+      regionName: "Maharashtra",
+      city: "Mumbai",
+      location: "Mumbai, Maharashtra, India",
+      timezone: "",
+      browserTimezone: "",
+      geoSource: "http_api" as const,
+    },
+  );
+
+  assert.equal(details.country, "India");
+  assert.equal(details.city, "Mumbai");
+  assert.equal(details.region, "Maharashtra");
+  assert.equal(details.geoSource, "http_api");
+
+  const item = subscriberListItem({
+    id: 7,
+    pageId: 1,
+    slug: "fallback-page",
+    createdAt: "2026-09-25T10:00:00Z",
+    userAgent: "test",
+    details,
+  });
+  assert.equal(item.geoSource, "http_api");
+  assert.equal(item.city, "Mumbai");
 });

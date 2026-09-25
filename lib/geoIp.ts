@@ -17,7 +17,7 @@ export interface GeoLocationResult {
   location: string;
   timezone: string;
   browserTimezone: string;
-  geoSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
+  geoSource: "ip_geo" | "http_api" | "cdn_header" | "legacy_timezone" | "unknown";
 }
 
 import type { GeoIpHealth, GeoIpHealthStatus } from "./types";
@@ -38,6 +38,8 @@ let lastSuccessfulCityLookup: string | null = null;
 const memoryGeoCache = new Map<string, { result: GeoLocationResult; expiresAt: number }>();
 const MAX_MEM_CACHE = 5000;
 const CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+// Sources worth caching: local MMDB lookups and successful HTTP fallback lookups.
+const CACHEABLE_GEO_SOURCES: GeoLocationResult["geoSource"][] = ["ip_geo", "http_api"];
 
 export function _resetGeoIpStateForTesting() {
   mmdbInstance = null;
@@ -348,10 +350,10 @@ export interface RequestGeoDiagnostic {
   clientIpSource: string;
   clientIpType: "ipv4_public" | "ipv6_public" | "private" | "unknown";
   maskedIp: string;
-  countrySource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
-  regionSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
-  citySource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
-  geoSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
+  countrySource: "ip_geo" | "http_api" | "cdn_header" | "legacy_timezone" | "unknown";
+  regionSource: "ip_geo" | "http_api" | "cdn_header" | "legacy_timezone" | "unknown";
+  citySource: "ip_geo" | "http_api" | "cdn_header" | "legacy_timezone" | "unknown";
+  geoSource: "ip_geo" | "http_api" | "cdn_header" | "legacy_timezone" | "unknown";
   geoDbLoaded: boolean;
   geoDbType: string;
   lookupSucceeded: boolean;
@@ -389,9 +391,11 @@ export async function diagnoseRequestGeo(
     };
   }
 
-  const countrySource = rawMmdb?.countryName ? "ip_geo" : (resolved.geoSource === "cdn_header" ? "cdn_header" : "unknown");
-  const regionSource = rawMmdb?.subdivisionName ? "ip_geo" : (resolved.geoSource === "cdn_header" && resolved.region !== "Unknown" ? "cdn_header" : "unknown");
-  const citySource = rawMmdb?.cityName ? "ip_geo" : (resolved.geoSource === "cdn_header" && resolved.city !== "Unknown" ? "cdn_header" : "unknown");
+  const nonMmdbSource: "http_api" | "cdn_header" | "unknown" =
+    resolved.geoSource === "http_api" || resolved.geoSource === "cdn_header" ? resolved.geoSource : "unknown";
+  const countrySource = rawMmdb?.countryName ? "ip_geo" : nonMmdbSource;
+  const regionSource = rawMmdb?.subdivisionName ? "ip_geo" : (resolved.region !== "Unknown" ? nonMmdbSource : "unknown");
+  const citySource = rawMmdb?.cityName ? "ip_geo" : (resolved.city !== "Unknown" ? nonMmdbSource : "unknown");
 
   return {
     clientIpSource: ipInfo.source,
@@ -407,6 +411,62 @@ export async function diagnoseRequestGeo(
     rawMmdb,
     resolved,
   };
+}
+
+/**
+ * Opt-in HTTP geolocation fallback for deployments without a local MaxMind
+ * database file. Enabled with GEOIP_HTTP_FALLBACK=1. Uses the free ipwho.is
+ * endpoint (no API key); lookups are bounded by a short timeout and cached
+ * for 12 hours like MMDB results, so a slow or failing provider never blocks
+ * subscriptions and never invents location data.
+ */
+const HTTP_GEO_TIMEOUT_MS = 2500;
+
+function httpGeoFallbackEnabled(): boolean {
+  const value = (process.env.GEOIP_HTTP_FALLBACK || "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+interface HttpGeoRecord {
+  countryCode: string;
+  countryName: string;
+  regionCode: string;
+  regionName: string;
+  city: string;
+}
+
+async function lookupHttpGeo(ip: string): Promise<HttpGeoRecord | null> {
+  if (!httpGeoFallbackEnabled()) return null;
+  if (!ip || isPrivateIp(ip)) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), HTTP_GEO_TIMEOUT_MS);
+  try {
+    const response = await fetch(
+      `https://ipwho.is/${encodeURIComponent(ip)}?fields=success,country,country_code,region,region_code,city`,
+      {
+        signal: controller.signal,
+        headers: { accept: "application/json", "user-agent": "Signup888-geoip/1.0" },
+      },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json()) as Record<string, unknown>;
+    if (data?.success !== true) return null;
+    const countryCode = typeof data.country_code === "string" ? data.country_code : "";
+    const countryName = typeof data.country === "string" ? data.country : "";
+    if (!countryCode && !countryName) return null;
+    const asString = (value: unknown): string => (typeof value === "string" ? value : "");
+    return {
+      countryCode: countryCode.toUpperCase(),
+      countryName,
+      regionCode: asString(data.region_code),
+      regionName: asString(data.region),
+      city: asString(data.city),
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -432,7 +492,8 @@ export async function resolveIpLocation(
   if (redis && isRedisAvailable()) {
     try {
       const redisData = await redis.get(`geo:${ipHash}`);
-      if (redisData && (JSON.parse(redisData) as GeoLocationResult).geoSource === "ip_geo") {
+      const cachedSource = redisData ? (JSON.parse(redisData) as GeoLocationResult).geoSource : undefined;
+      if (redisData && cachedSource && CACHEABLE_GEO_SOURCES.includes(cachedSource)) {
         const parsed = JSON.parse(redisData) as GeoLocationResult;
         memoryGeoCache.set(ipHash, { result: parsed, expiresAt: Date.now() + CACHE_TTL_MS });
         return { ...parsed, browserTimezone: tz };
@@ -443,7 +504,7 @@ export async function resolveIpLocation(
   }
 
   let geoData: MMDBLocationRecord | null = null;
-  let geoSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown" = "unknown";
+  let geoSource: "ip_geo" | "http_api" | "cdn_header" | "legacy_timezone" | "unknown" = "unknown";
 
   // 1. Try MMDB lookup if valid public IP
   if (cleanIp && !isPrivateIp(cleanIp)) {
@@ -453,6 +514,23 @@ export async function resolveIpLocation(
       if (geoData && (geoData.countryName || geoData.city)) {
         geoSource = "ip_geo";
       }
+    }
+  }
+
+  // 1b. Opt-in HTTP fallback (GEOIP_HTTP_FALLBACK=1) when the local database
+  // yielded nothing. Never overrides a working MMDB result.
+  if (geoSource !== "ip_geo" && cleanIp && !isPrivateIp(cleanIp)) {
+    const httpGeo = await lookupHttpGeo(cleanIp);
+    if (httpGeo) {
+      geoData = {
+        countryCode: httpGeo.countryCode,
+        countryName: httpGeo.countryName,
+        regionCode: httpGeo.regionCode,
+        regionName: httpGeo.regionName,
+        city: httpGeo.city,
+        timezone: "",
+      };
+      geoSource = "http_api";
     }
   }
 
@@ -541,9 +619,9 @@ export async function resolveIpLocation(
     const firstKey = memoryGeoCache.keys().next().value;
     if (firstKey) memoryGeoCache.delete(firstKey);
   }
-  if (geoSource === "ip_geo") memoryGeoCache.set(ipHash, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+  if (CACHEABLE_GEO_SOURCES.includes(geoSource)) memoryGeoCache.set(ipHash, { result, expiresAt: Date.now() + CACHE_TTL_MS });
 
-  if (geoSource === "ip_geo" && redis && isRedisAvailable()) {
+  if (CACHEABLE_GEO_SOURCES.includes(geoSource) && redis && isRedisAvailable()) {
     redis.set(`geo:${ipHash}`, JSON.stringify(result), "EX", 12 * 3600).catch(() => {});
   }
 

@@ -636,5 +636,23 @@ At minimum, add a short note under this section:
   - Scoped public telemetry (view tracking, click tracking, push subscriptions, manifest) to the host-resolved workspace.
   - Added test coverage in `tests/domains.test.ts`, `tests/domainRouting.test.ts`, and `tests/MasterDashboard.test.tsx` (83 passing tests).
   - Verified: `npm run lint`, `npx tsc --noEmit --incremental false`, `npm test` (83 tests), and `npm run build`.
-
+- 2026-09-25: Subscriber location showed "Unknown" city/region because the
+  GeoLite2-City.mmdb file was never placed on the production server, so
+  `resolveIpLocation()` fell back to CDN headers only (`cf-ipcountry` gives
+  country alone; `cf-ipcity`/`cf-region` are Cloudflare Enterprise-only).
+  Fix: opt-in HTTP geo fallback in `lib/geoIp.ts` — when the MMDB yields
+  nothing and `GEOIP_HTTP_FALLBACK=1` is set, the server resolves
+  country/region/city via the free ipwho.is API (no key) with a 2.5s timeout;
+  failures fall through silently and never invent data. HTTP results are
+  cached 12h in memory and Redis like MMDB results. New `geoSource` value
+  `"http_api"` added to unions in `lib/geoIp.ts`, `lib/types.ts`
+  (`SubscriberDetails`), diagnostics mapping, `deriveGeoSource` priority in
+  both stores (ip_geo > http_api > cdn_header), and `collectSubscriberDetails`
+  preserves it. Env documented in `.env.example`. Tests:
+  `tests/geoIpAnalytics.test.ts` (mocked fetch: resolves, caches, refuses,
+  network errors, private IPs never queried, stays off unless enabled,
+  diagnostics + subscriber-details end to end). Deployment: set
+  `GEOIP_HTTP_FALLBACK=1` in the Hostinger Node.js app env vars and restart.
+  Old subscribers keep "Unknown" (only an IP hash is stored, so they cannot
+  be backfilled); new subscriptions resolve correctly.
 

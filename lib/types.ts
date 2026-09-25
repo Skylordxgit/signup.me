@@ -397,7 +397,7 @@ export type SubscriberDetails = {
   regionName?: string;
   city: string;
   timezone: string;
-  geoSource?: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
+  geoSource?: "ip_geo" | "http_api" | "cdn_header" | "legacy_timezone" | "unknown";
   lastActiveAt?: string;
   source?: string;
   utmSource?: string;

@@ -102,7 +102,7 @@ export function collectSubscriberDetails(headers: Headers, hints: unknown, geoOv
     if (countryHeader || cityHeader || headers.get('cf-ipcountry')) {
       geoSource = 'cdn_header';
     } else if (geoOverride && geoOverride.country && geoOverride.country !== 'Unknown') {
-      geoSource = 'ip_geo';
+      geoSource = geoOverride.geoSource === 'http_api' ? 'http_api' : 'ip_geo';
     } else {
       geoSource = 'unknown';
     }
