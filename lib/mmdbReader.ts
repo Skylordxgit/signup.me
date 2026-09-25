@@ -10,7 +10,11 @@ export interface MMDBLocationRecord {
 }
 
 export class MMDBReader {
-  private constructor(private readonly reader: Reader<CityResponse>) {}
+  private readonly reader: Reader<CityResponse>;
+
+  private constructor(reader: Reader<CityResponse>) {
+    this.reader = reader;
+  }
 
   static async open(filePath: string): Promise<MMDBReader> {
     const reader = await open<CityResponse>(filePath);

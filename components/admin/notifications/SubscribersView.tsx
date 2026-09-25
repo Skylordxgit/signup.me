@@ -66,7 +66,7 @@ export function SubscribersView({
       selectedCities.forEach((c) => params.append("city", c));
       selectedDevices.forEach((d) => params.append("device", d));
 
-      adminApi<{ items: SubscriberItem[]; total: number }>(
+      adminApi<{ items: SubscriberItem[]; total: number; locations?: WorkspaceDistinctLocations }>(
         `/api/admin/notifications/subscribers?${params.toString()}`,
         { signal: controller.signal }
       )
@@ -74,6 +74,7 @@ export function SubscribersView({
           if (!cancelled && res) {
             setSubscribers(res.items || []);
             setTotal(res.total || 0);
+            if (res.locations) setLocations(res.locations);
           }
         })
         .catch(() => {})
@@ -104,9 +105,40 @@ export function SubscribersView({
     window.location.href = `/api/admin/notifications/subscribers?${params.toString()}`;
   };
 
-  const countryOptions = locations?.countries || ["Bangladesh", "India", "United States", "United Kingdom"];
-  const regionOptions = locations?.regions || [];
-  const cityOptions = locations?.cities || ["Dhaka", "Chattogram", "Sylhet", "Mumbai", "Delhi", "Kolkata"];
+  const countryOptions = (locations?.countries && locations.countries.length > 0)
+    ? locations.countries
+    : [...new Set(subscribers.map((s) => s.country).filter((c) => c && c !== "Unknown"))].sort();
+
+  const regionOptions = (() => {
+    if (!locations) return [];
+    if (selectedCountries.length > 0) {
+      const regions = selectedCountries.flatMap((c) => locations.hierarchy?.[c]?.regions || []);
+      return [...new Set(regions)].sort();
+    }
+    return locations.regions || [];
+  })();
+
+  const cityOptions = (() => {
+    if (!locations) return [];
+    if (selectedRegions.length > 0) {
+      const cities: string[] = [];
+      for (const c of Object.keys(locations.hierarchy || {})) {
+        if (selectedCountries.length > 0 && !selectedCountries.includes(c)) continue;
+        const h = locations.hierarchy[c];
+        if (h?.regionCities) {
+          for (const r of selectedRegions) {
+            if (h.regionCities[r]) cities.push(...h.regionCities[r]);
+          }
+        }
+      }
+      if (cities.length > 0) return [...new Set(cities)].sort();
+    }
+    if (selectedCountries.length > 0) {
+      const cities = selectedCountries.flatMap((c) => locations.hierarchy?.[c]?.cities || []);
+      return [...new Set(cities)].sort();
+    }
+    return locations.cities || [];
+  })();
 
   return (
     <div className="admSubscribersView" style={{ display: "grid", gap: "var(--sp-5)", width: "100%" }}>
@@ -170,6 +202,12 @@ export function SubscribersView({
             onChange={(sel) => {
               setSelectedCountries(sel);
               setOffset(0);
+              if (sel.length > 0 && locations?.hierarchy) {
+                const validRegions = new Set(sel.flatMap((c) => locations.hierarchy[c]?.regions || []));
+                const validCities = new Set(sel.flatMap((c) => locations.hierarchy[c]?.cities || []));
+                setSelectedRegions((prev) => prev.filter((r) => validRegions.has(r)));
+                setSelectedCities((prev) => prev.filter((c) => validCities.has(c)));
+              }
             }}
           />
 
@@ -181,12 +219,27 @@ export function SubscribersView({
             onChange={(sel) => {
               setSelectedRegions(sel);
               setOffset(0);
+              if (sel.length > 0 && locations?.hierarchy) {
+                const validCities = new Set<string>();
+                for (const c of Object.keys(locations.hierarchy)) {
+                  if (selectedCountries.length > 0 && !selectedCountries.includes(c)) continue;
+                  const h = locations.hierarchy[c];
+                  if (h?.regionCities) {
+                    for (const r of sel) {
+                      if (h.regionCities[r]) h.regionCities[r].forEach((ct) => validCities.add(ct));
+                    }
+                  }
+                }
+                if (validCities.size > 0) {
+                  setSelectedCities((prev) => prev.filter((ct) => validCities.has(ct)));
+                }
+              }
             }}
           />
 
           <MultiSelectDropdown
             label="Filter Cities"
-            placeholder="All cities (e.g. Dhaka, Mumbai)..."
+            placeholder="All cities..."
             options={cityOptions}
             selected={selectedCities}
             onChange={(sel) => {
@@ -247,10 +300,10 @@ export function SubscribersView({
                       {s.status}
                     </span>
                   </td>
-                  <td>{s.country}</td>
-                  <td>{s.region || "—"}</td>
+                  <td>{s.country || "Unknown"}</td>
+                  <td>{s.region && s.region !== "Unknown" ? s.region : "Unknown"}</td>
                   <td>
-                    <strong style={{ color: "var(--c-ink)" }}>{s.city}</strong>
+                    <strong style={{ color: "var(--c-ink)" }}>{s.city || "Unknown"}</strong>
                   </td>
                   <td>
                     <small>{s.device} • {s.browser}</small>

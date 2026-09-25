@@ -1,9 +1,26 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test, { type TestContext } from "node:test";
 import { MMDBReader } from "../lib/mmdbReader";
 
-test("real City database opens and resolves public IPs", { skip: !process.env.GEOIP_TEST_DB_PATH }, async () => {
-  const reader = await MMDBReader.open(process.env.GEOIP_TEST_DB_PATH!);
+const LOCAL_TEST_DB = fs.existsSync("data/GeoLite2-City.mmdb") ? "data/GeoLite2-City.mmdb" : undefined;
+const REAL_DB_PATH = process.env.GEOIP_TEST_DB_PATH || LOCAL_TEST_DB;
+const MISSING_DB_PATH = "/nonexistent-geoip-test/City.mmdb";
+
+function withMissingDb(t: TestContext) {
+  _resetGeoIpStateForTesting();
+  const prevDbPath = process.env.GEOIP_DB_PATH;
+  process.env.GEOIP_DB_PATH = MISSING_DB_PATH;
+  _resetGeoIpStateForTesting();
+  t.after(() => {
+    if (prevDbPath === undefined) delete process.env.GEOIP_DB_PATH;
+    else process.env.GEOIP_DB_PATH = prevDbPath;
+    _resetGeoIpStateForTesting();
+  });
+}
+
+test("real City database opens and resolves public IPs", { skip: !REAL_DB_PATH }, async () => {
+  const reader = await MMDBReader.open(REAL_DB_PATH!);
   const result = reader.lookup("81.2.69.160");
   assert.ok(result?.countryCode);
   assert.ok(result?.countryName);
@@ -14,13 +31,13 @@ test("missing reader file preserves the filesystem error", async () => {
   await assert.rejects(MMDBReader.open("/nonexistent-geoip-test/City.mmdb"), { code: "ENOENT" });
 });
 
-test("loader recovers after changing a missing path to a real database", { skip: !process.env.GEOIP_TEST_DB_PATH }, async () => {
+test("loader recovers after changing a missing path to a real database", { skip: !REAL_DB_PATH }, async () => {
   const previous = process.env.GEOIP_DB_PATH;
   try {
     _resetGeoIpStateForTesting();
     process.env.GEOIP_DB_PATH = "/nonexistent-geoip-test/City.mmdb";
     assert.equal((await resolveIpLocation("81.2.69.160")).geoSource, "unknown");
-    process.env.GEOIP_DB_PATH = process.env.GEOIP_TEST_DB_PATH;
+    process.env.GEOIP_DB_PATH = REAL_DB_PATH;
     assert.equal((await getGeoIpHealth()).database, "Loaded");
     assert.equal((await resolveIpLocation("81.2.69.160")).geoSource, "ip_geo");
   } finally {
@@ -41,13 +58,16 @@ import {
   getClientIpInfo,
   _resetGeoIpStateForTesting,
 } from "../lib/geoIp";
-import { formatLocation, collectSubscriberDetails, subscriberListItem } from "../lib/subscriberDetails";
+import { formatLocation, collectSubscriberDetails, subscriberListItem, mergeSubscriberDetails } from "../lib/subscriberDetails";
+import { getWorkspaceDistinctLocations } from "../lib/audienceTargeting";
 import {
   createPage,
+  updatePage,
   createBlock,
   trackView,
   trackClick,
   savePushSubscription,
+  listPushSubscribers,
   analyticsForPage,
 } from "../lib/store";
 
@@ -103,8 +123,8 @@ test("IP extraction: follows trusted header precedence and prevents header spoof
   assert.equal(getTrustedClientIp(emptyHeaders), "127.0.0.1");
 });
 
-test("GeoIP resolution: does not invent city data when the MMDB is unavailable", async () => {
-  _resetGeoIpStateForTesting();
+test("GeoIP resolution: does not invent city data when the MMDB is unavailable", async (t) => {
+  withMissingDb(t);
 
   const mumbai = await resolveIpLocation("103.21.244.1");
   assert.equal(mumbai.country, "Unknown");
@@ -113,8 +133,8 @@ test("GeoIP resolution: does not invent city data when the MMDB is unavailable",
   assert.equal(mumbai.geoSource, "unknown");
 });
 
-test("GeoIP resolution: uses trusted CDN country headers without guessing city", async () => {
-  _resetGeoIpStateForTesting();
+test("GeoIP resolution: uses trusted CDN country headers without guessing city", async (t) => {
+  withMissingDb(t);
 
   const headers = new Headers({
     "cf-connecting-ip": "103.21.244.1",
@@ -129,8 +149,8 @@ test("GeoIP resolution: uses trusted CDN country headers without guessing city",
   assert.equal(geo.browserTimezone, "Asia/Kolkata");
 });
 
-test("GeoIP health reports missing local database explicitly", async () => {
-  _resetGeoIpStateForTesting();
+test("GeoIP health reports missing local database explicitly", async (t) => {
+  withMissingDb(t);
   const health = await getGeoIpHealth();
   assert.equal(health.database, "Missing");
   assert.equal(health.reader, "Unavailable");
@@ -439,8 +459,6 @@ test("Subscriber details: persists geoSource and handles subscriber list item ma
 // provider is disabled, unreachable, or refusing.
 // ---------------------------------------------------------------------------
 
-const MISSING_DB_PATH = "/nonexistent-geoip-test/City.mmdb";
-
 function withMissingDbAndHttpFallback(t: TestContext) {
   _resetGeoIpStateForTesting();
   const prevDbPath = process.env.GEOIP_DB_PATH;
@@ -637,4 +655,194 @@ test("Subscriber details: preserves http_api geoSource end to end", () => {
   });
   assert.equal(item.geoSource, "http_api");
   assert.equal(item.city, "Mumbai");
+});
+
+test("Real MMDB lookup: resolves Indian public IP to Mumbai, Maharashtra with ip_geo", { skip: !REAL_DB_PATH }, async () => {
+  _resetGeoIpStateForTesting();
+  const res = await resolveIpLocation("103.21.126.1");
+  assert.equal(res.country, "India");
+  assert.equal(res.countryCode, "IN");
+  assert.equal(res.region, "Maharashtra");
+  assert.equal(res.regionCode, "MH");
+  assert.equal(res.city, "Mumbai");
+  assert.equal(res.geoSource, "ip_geo");
+});
+
+test("CDN header cf-ipcountry: IN does NOT short-circuit MMDB city and region resolution", { skip: !REAL_DB_PATH }, async () => {
+  _resetGeoIpStateForTesting();
+  const headers = new Headers({
+    "cf-connecting-ip": "103.21.126.1",
+    "cf-ipcountry": "IN",
+  });
+  const geo = await resolveRequestGeo(headers);
+  assert.equal(geo.country, "India");
+  assert.equal(geo.countryCode, "IN");
+  assert.equal(geo.region, "Maharashtra");
+  assert.equal(geo.regionCode, "MH");
+  assert.equal(geo.city, "Mumbai");
+  assert.equal(geo.geoSource, "ip_geo");
+});
+
+test("Subscriber details merge: enriches existing Unknown location when resubscribing with known IP", () => {
+  const existing = {
+    country: "India",
+    countryCode: "IN",
+    countryName: "India",
+    region: "Unknown",
+    city: "Unknown",
+    geoSource: "cdn_header" as const,
+    device: "iPhone",
+    browser: "Safari",
+    ipAddress: "127.0.0.1",
+    timezone: "",
+  };
+  const incoming = {
+    country: "India",
+    countryCode: "IN",
+    countryName: "India",
+    region: "Maharashtra",
+    regionCode: "MH",
+    regionName: "Maharashtra",
+    city: "Mumbai",
+    geoSource: "ip_geo" as const,
+    device: "iPhone",
+    browser: "Safari",
+    ipAddress: "103.21.126.1",
+    timezone: "Asia/Kolkata",
+  };
+  const merged = mergeSubscriberDetails(existing, incoming);
+  assert.equal(merged?.country, "India");
+  assert.equal(merged?.region, "Maharashtra");
+  assert.equal(merged?.city, "Mumbai");
+  assert.equal(merged?.geoSource, "ip_geo");
+  assert.equal(merged?.ipAddress, "103.21.126.1");
+});
+
+test("Subscriber details merge: does NOT overwrite known location with Unknown", () => {
+  const existing = {
+    country: "India",
+    countryCode: "IN",
+    countryName: "India",
+    region: "Maharashtra",
+    regionCode: "MH",
+    regionName: "Maharashtra",
+    city: "Mumbai",
+    geoSource: "ip_geo" as const,
+    device: "iPhone",
+    browser: "Safari",
+    ipAddress: "103.21.126.1",
+    timezone: "Asia/Kolkata",
+  };
+  const incoming = {
+    country: "India",
+    countryCode: "IN",
+    countryName: "India",
+    region: "Unknown",
+    city: "Unknown",
+    geoSource: "cdn_header" as const,
+    device: "iPhone",
+    browser: "Safari",
+    ipAddress: "10.0.0.1",
+    timezone: "Asia/Kolkata",
+  };
+  const merged = mergeSubscriberDetails(existing, incoming);
+  assert.equal(merged?.country, "India");
+  assert.equal(merged?.region, "Maharashtra");
+  assert.equal(merged?.city, "Mumbai");
+  assert.equal(merged?.geoSource, "ip_geo");
+});
+
+test("Workspace distinct locations: builds regionCities hierarchy for cascading dropdowns", () => {
+  const subscribers = [
+    {
+      id: 1,
+      pageId: 1,
+      slug: "p1",
+      createdAt: "2026-09-25",
+      updatedAt: "2026-09-25",
+      userAgent: "",
+      endpointHash: "h1",
+      isActive: true,
+      details: {
+        country: "India",
+        countryName: "India",
+        region: "Maharashtra",
+        regionName: "Maharashtra",
+        city: "Mumbai",
+        device: "Desktop",
+        browser: "Chrome",
+        ipAddress: "103.21.126.1",
+        timezone: "Asia/Kolkata",
+      },
+    },
+    {
+      id: 2,
+      pageId: 1,
+      slug: "p1",
+      createdAt: "2026-09-25",
+      updatedAt: "2026-09-25",
+      userAgent: "",
+      endpointHash: "h2",
+      isActive: true,
+      details: {
+        country: "India",
+        countryName: "India",
+        region: "Telangana",
+        regionName: "Telangana",
+        city: "Hyderabad",
+        device: "Mobile",
+        browser: "Chrome",
+        ipAddress: "49.37.152.1",
+        timezone: "Asia/Kolkata",
+      },
+    },
+  ];
+
+  const locations = getWorkspaceDistinctLocations(subscribers);
+  assert.deepEqual(locations.countries, ["India"]);
+  assert.deepEqual(locations.regions, ["Maharashtra", "Telangana"]);
+  assert.deepEqual(locations.cities, ["Hyderabad", "Mumbai"]);
+  assert.deepEqual(locations.hierarchy["India"].regions, ["Maharashtra", "Telangana"]);
+  assert.deepEqual(locations.hierarchy["India"].cities, ["Hyderabad", "Mumbai"]);
+  assert.deepEqual(locations.hierarchy["India"].regionCities?.["Maharashtra"], ["Mumbai"]);
+  assert.deepEqual(locations.hierarchy["India"].regionCities?.["Telangana"], ["Hyderabad"]);
+});
+
+test("Push subscription store: save and retrieve subscriber preserves full geo details", { skip: !REAL_DB_PATH }, async () => {
+  _resetGeoIpStateForTesting();
+  const slug = `geo-test-page-${Date.now()}`;
+  const page = await createPage({
+    name: "Geo Test Page",
+    slug,
+    title: "Geo Test Page",
+    bio: "",
+    profileImage: "",
+  });
+  await updatePage(page.id, { status: "published" });
+  assert.ok(page);
+
+  const endpoint = "https://push.example.com/sub/geo-test-" + Date.now();
+  const sub = {
+    endpoint,
+    keys: { auth: "authkey123", p256dh: "p256dhkey123" },
+  };
+
+  const headers = new Headers({
+    "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+    "cf-connecting-ip": "103.21.126.1",
+    "cf-ipcountry": "IN",
+  });
+  const geo = await resolveRequestGeo(headers);
+  const details = collectSubscriberDetails(headers, {}, geo);
+
+  const saved = await savePushSubscription(page.slug, sub, headers.get("user-agent") || "", details);
+  assert.ok(saved);
+
+  const summary = await listPushSubscribers();
+  const match = summary.recent?.find((s) => s.slug === page.slug);
+  assert.ok(match);
+  assert.equal(match.country, "India");
+  assert.equal(match.region, "Maharashtra");
+  assert.equal(match.city, "Mumbai");
+  assert.equal(match.geoSource, "ip_geo");
 });

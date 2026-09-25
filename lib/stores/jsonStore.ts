@@ -3,7 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
 import type { SubscriberDetails } from '../types';
-import { subscriberListItem } from '../subscriberDetails';
+import { subscriberListItem, mergeSubscriberDetails } from '../subscriberDetails';
 import { defaultTheme, seedPages, seedTemplates } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
@@ -1198,7 +1198,7 @@ async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubs
     existing.slug = page.slug;
     existing.subscription = subscription;
     existing.userAgent = userAgent.slice(0, 500);
-    if (details) existing.details = details;
+    if (details) existing.details = mergeSubscriberDetails(existing.details, details);
     existing.isActive = true;
     existing.lastFailedAt = null;
     existing.updatedAt = timestamp;

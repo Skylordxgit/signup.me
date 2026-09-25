@@ -25,6 +25,6 @@ await build({
   },
 });
 
-const result = spawnSync(process.execPath, ["--test", `${output}/tests.mjs`], { stdio: "inherit", env: { ...process.env, SESSION_SECRET: 'isolated-test-session-secret-never-use-in-production' } });
+const result = spawnSync(process.execPath, ["--test", `${output}/tests.mjs`], { stdio: "inherit", env: { ...process.env, NODE_ENV: 'test', SESSION_SECRET: 'isolated-test-session-secret-never-use-in-production' } });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

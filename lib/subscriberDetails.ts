@@ -88,9 +88,14 @@ export function collectSubscriberDetails(headers: Headers, hints: unknown, geoOv
   const cityHeader = process.env.SUBSCRIBER_CITY_HEADER ? headers.get(process.env.SUBSCRIBER_CITY_HEADER) : null;
   const regionHeader = process.env.SUBSCRIBER_REGION_HEADER ? headers.get(process.env.SUBSCRIBER_REGION_HEADER) : null;
 
-  const country = countryHeader ?? ((geoOverride?.country && geoOverride.country !== 'Unknown' ? geoOverride.country : '') || headers.get('cf-ipcountry') || '');
-  const city = cityHeader ?? ((geoOverride?.city && geoOverride.city !== 'Unknown' ? geoOverride.city : '') || headers.get('cf-ipcity') || '');
-  const region = regionHeader ?? ((geoOverride?.region && geoOverride.region !== 'Unknown' ? geoOverride.region : '') || headers.get('cf-region') || '');
+  const rawCountry = countryHeader ?? ((geoOverride?.country && geoOverride.country !== 'Unknown' ? geoOverride.country : '') || headers.get('cf-ipcountry') || '');
+  const rawCity = cityHeader ?? ((geoOverride?.city && geoOverride.city !== 'Unknown' ? geoOverride.city : '') || headers.get('cf-ipcity') || '');
+  const rawRegion = regionHeader ?? ((geoOverride?.region && geoOverride.region !== 'Unknown' ? geoOverride.region : '') || headers.get('cf-region') || '');
+
+  const loc = formatLocation(rawCountry, rawCity, rawRegion);
+  const country = countryHeader ? countryHeader.trim() : (loc.country !== 'Unknown' ? loc.country : (geoOverride ? 'Unknown' : ''));
+  const city = cityHeader ? cityHeader.trim() : (rawCity && rawCity !== 'Unknown' ? loc.city : (geoOverride ? (loc.city !== 'Unknown' ? loc.city : '') : ''));
+  const region = regionHeader ? regionHeader.trim() : (rawRegion && rawRegion !== 'Unknown' ? loc.region : (geoOverride ? (loc.region !== 'Unknown' ? loc.region : '') : ''));
 
   const countryName = geoOverride?.countryName || country || (geoOverride ? 'Unknown' : '');
   const regionName = geoOverride?.regionName || region || (geoOverride ? 'Unknown' : '');
@@ -117,8 +122,79 @@ export function collectSubscriberDetails(headers: Headers, hints: unknown, geoOv
     region: region || (geoOverride ? 'Unknown' : ''),
     regionCode,
     regionName,
-    city,
-    timezone,
+    city: city || (geoOverride ? 'Unknown' : ''),
+    timezone: timezone || geoOverride?.timezone || '',
     geoSource,
+  };
+}
+
+export function mergeSubscriberDetails(
+  existing?: Partial<SubscriberDetails> | null,
+  incoming?: Partial<SubscriberDetails> | null,
+): SubscriberDetails | undefined {
+  if (!existing && !incoming) return undefined;
+  if (!existing) return incoming as SubscriberDetails;
+  if (!incoming) return existing as SubscriberDetails;
+
+  const isKnown = (v?: string | null) =>
+    Boolean(v && v.trim() && v.trim().toLowerCase() !== "unknown" && v.trim().toLowerCase() !== "direct / local" && v.trim().toLowerCase() !== "direct");
+
+  const country = isKnown(incoming.country)
+    ? incoming.country!
+    : isKnown(existing.country)
+    ? existing.country!
+    : incoming.country || existing.country || "Unknown";
+
+  const countryName = isKnown(incoming.countryName)
+    ? incoming.countryName!
+    : isKnown(existing.countryName)
+    ? existing.countryName!
+    : incoming.countryName || existing.countryName || country;
+
+  const countryCode = incoming.countryCode || existing.countryCode;
+
+  const region = isKnown(incoming.region)
+    ? incoming.region!
+    : isKnown(existing.region)
+    ? existing.region!
+    : incoming.region || existing.region || "Unknown";
+
+  const regionName = isKnown(incoming.regionName)
+    ? incoming.regionName!
+    : isKnown(existing.regionName)
+    ? existing.regionName!
+    : incoming.regionName || existing.regionName || region;
+
+  const regionCode = incoming.regionCode || existing.regionCode;
+
+  const city = isKnown(incoming.city)
+    ? incoming.city!
+    : isKnown(existing.city)
+    ? existing.city!
+    : incoming.city || existing.city || "Unknown";
+
+  let geoSource = incoming.geoSource;
+  if (!isKnown(incoming.city) && isKnown(existing.city) && (existing.geoSource === "ip_geo" || existing.geoSource === "http_api")) {
+    geoSource = existing.geoSource;
+  }
+  if (!geoSource || geoSource === "unknown") {
+    geoSource = existing.geoSource || "unknown";
+  }
+
+  return {
+    ...existing,
+    ...incoming,
+    country,
+    countryCode,
+    countryName,
+    region,
+    regionCode,
+    regionName,
+    city,
+    geoSource,
+    timezone: incoming.timezone || existing.timezone || "",
+    ipAddress: incoming.ipAddress || existing.ipAddress || "",
+    device: incoming.device || existing.device || "Unknown",
+    browser: incoming.browser || existing.browser || "Unknown",
   };
 }

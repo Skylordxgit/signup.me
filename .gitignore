@@ -39,7 +39,14 @@ next-env.d.ts
 /outputs/
 /work/
 
-# Runtime media uploads
+# Runtime media uploads and databases
 data/uploads/
 data/workspace-users.json*
 data/domains.json*
+data/workspaces.json*
+data/master-admin.json*
+data/media-workspaces.json*
+data/custom-html-assets.json*
+.playwright-cli/
+*.mmdb
+data/*.mmdb

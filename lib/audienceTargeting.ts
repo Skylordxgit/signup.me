@@ -142,18 +142,9 @@ export function matchSubscriber(subscriber: NotificationSubscriber, filters?: Au
       if (unknown) {
         if (!includeUnknown) return false;
       } else {
-        // Must match either city, region, or country inclusion
-        const cityMatch = incCities.length > 0 && subCity ? incCities.includes(subCity) : false;
-        const regionMatch = incRegions.length > 0 && subRegion ? incRegions.includes(subRegion) : false;
-        const countryMatch = incCountries.length > 0 && subCountry ? incCountries.includes(subCountry) : false;
-
-        // If specific categories are filtered, ensure subscriber satisfies at least one active inclusion level
-        let passed = false;
-        if (incCities.length > 0 && cityMatch) passed = true;
-        if (incRegions.length > 0 && regionMatch) passed = true;
-        if (incCountries.length > 0 && countryMatch) passed = true;
-
-        if (!passed) return false;
+        if (incCountries.length > 0 && (!subCountry || !incCountries.includes(subCountry))) return false;
+        if (incRegions.length > 0 && (!subRegion || !incRegions.includes(subRegion))) return false;
+        if (incCities.length > 0 && (!subCity || !incCities.includes(subCity))) return false;
       }
     } else if (unknown && !includeUnknown && (excCities.length > 0 || excCountries.length > 0)) {
       // If no inclusions but exclusions exist, allow unless explicitly blocked
@@ -239,45 +230,61 @@ export type WorkspaceDistinctLocations = {
   countries: string[];
   regions: string[];
   cities: string[];
-  hierarchy: Record<string, { regions: string[]; cities: string[] }>;
+  hierarchy: Record<string, { regions: string[]; cities: string[]; regionCities?: Record<string, string[]> }>;
 };
 
 export function getWorkspaceDistinctLocations(subscribers: NotificationSubscriber[]): WorkspaceDistinctLocations {
   const countrySet = new Set<string>();
   const regionSet = new Set<string>();
   const citySet = new Set<string>();
-  const hierarchy: Record<string, { regions: Set<string>; cities: Set<string> }> = {};
+  const hierarchy: Record<string, { regions: Set<string>; cities: Set<string>; regionCities: Record<string, Set<string>> }> = {};
 
   for (const s of subscribers) {
     const country = (s.details?.countryName || s.details?.country || "").trim();
     const region = (s.details?.regionName || s.details?.region || "").trim();
     const city = (s.details?.city || "").trim();
 
-    if (country && country.toLowerCase() !== "direct / local" && country.toLowerCase() !== "unknown") {
+    const isVal = (v: string) => Boolean(v && v.toLowerCase() !== "unknown" && v.toLowerCase() !== "direct / local" && v.toLowerCase() !== "direct");
+
+    if (isVal(country)) {
       countrySet.add(country);
       if (!hierarchy[country]) {
-        hierarchy[country] = { regions: new Set(), cities: new Set() };
+        hierarchy[country] = { regions: new Set(), cities: new Set(), regionCities: {} };
       }
-      if (region && region.toLowerCase() !== "unknown") {
+      if (isVal(region)) {
         regionSet.add(region);
         hierarchy[country].regions.add(region);
+        if (!hierarchy[country].regionCities[region]) {
+          hierarchy[country].regionCities[region] = new Set();
+        }
+        if (isVal(city)) {
+          hierarchy[country].regionCities[region].add(city);
+        }
       }
-      if (city && city.toLowerCase() !== "unknown" && city.toLowerCase() !== "direct") {
+      if (isVal(city)) {
         citySet.add(city);
         hierarchy[country].cities.add(city);
       }
     } else {
-      if (city && city.toLowerCase() !== "unknown" && city.toLowerCase() !== "direct") {
+      if (isVal(city)) {
         citySet.add(city);
+      }
+      if (isVal(region)) {
+        regionSet.add(region);
       }
     }
   }
 
-  const hierarchyResult: Record<string, { regions: string[]; cities: string[] }> = {};
+  const hierarchyResult: Record<string, { regions: string[]; cities: string[]; regionCities: Record<string, string[]> }> = {};
   for (const [c, data] of Object.entries(hierarchy)) {
+    const regionCitiesMap: Record<string, string[]> = {};
+    for (const [r, cSet] of Object.entries(data.regionCities)) {
+      regionCitiesMap[r] = [...cSet].sort();
+    }
     hierarchyResult[c] = {
       regions: [...data.regions].sort(),
       cities: [...data.cities].sort(),
+      regionCities: regionCitiesMap,
     };
   }
 

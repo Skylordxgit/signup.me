@@ -5,7 +5,7 @@ import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, now
 import { mysqlQuery, withTransaction } from "../mysql";
 import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
 import type { SubscriberDetails } from '../types';
-import { subscriberListItem } from '../subscriberDetails';
+import { subscriberListItem, mergeSubscriberDetails } from '../subscriberDetails';
 import { DEFAULT_WORKSPACE_ID } from '../workspaces';
 import { matchSubscriber } from "../audienceTargeting";
 import { invalidatePublishedPageCache, warmPublishedPageCache } from "../pageSnapshot";
@@ -1445,11 +1445,19 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
   if (!pageId) return null;
 
   const endpointHash = subscriptionHash(subscription.endpoint);
+
+  const existingRows = await mysqlQuery<Pick<PushRow, 'client_details'>[]>(
+    `SELECT client_details FROM push_subscriptions WHERE endpoint_hash = ? AND workspace_id = ?`,
+    [endpointHash, rows[0].workspace_id],
+  );
+  const existingDetails = existingRows[0]?.client_details ? toJson<SubscriberDetails | null>(existingRows[0].client_details, null) : null;
+  const mergedDetails = mergeSubscriberDetails(existingDetails, details);
+
   await mysqlQuery(
     `INSERT INTO push_subscriptions (workspace_id, page_id, endpoint_hash, subscription_json, user_agent, client_details, is_active, last_failed_at)
      VALUES (?, ?, ?, ?, ?, ?, 1, NULL)
-     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), client_details = COALESCE(VALUES(client_details), client_details), is_active = 1, last_failed_at = NULL`,
-    [rows[0].workspace_id, pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500), details ? JSON.stringify(details) : null],
+     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), client_details = VALUES(client_details), is_active = 1, last_failed_at = NULL`,
+    [rows[0].workspace_id, pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500), mergedDetails ? JSON.stringify(mergedDetails) : null],
   );
 
   const saved = await mysqlQuery<PushRow[]>(

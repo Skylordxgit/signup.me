@@ -7,9 +7,10 @@
   },
   "scripts": {
     "dev": "vinext dev",
-    "build": "vinext build",
+    "build": "node scripts/download-geoip.mjs && vinext build",
     "start": "vinext start",
-    "postinstall": "vinext build",
+    "postinstall": "node scripts/download-geoip.mjs && vinext build",
+    "download:geoip": "node scripts/download-geoip.mjs",
     "test": "node tests/run.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },

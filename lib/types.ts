@@ -571,6 +571,7 @@ export type GeoIpHealthStatus = "active" | "missing" | "error";
 export interface GeoIpHealth {
   status: GeoIpHealthStatus;
   database: "Loaded" | "Missing" | "Error";
+  databasePath?: string;
   databaseType: string;
   edition?: string;
   reader: "Healthy" | "Unavailable" | "Error";

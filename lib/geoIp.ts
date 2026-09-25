@@ -52,6 +52,31 @@ export function _resetGeoIpStateForTesting() {
   memoryGeoCache.clear();
 }
 
+let downloadingDb: Promise<void> | null = null;
+let lastDownloadAttempt = 0;
+
+function trySelfHealDatabase(filePath: string) {
+  if (process.env.NODE_ENV === "test") return;
+  if (downloadingDb) return;
+  if (Date.now() - lastDownloadAttempt < 60000) return;
+  lastDownloadAttempt = Date.now();
+
+  downloadingDb = (async () => {
+    try {
+      const { downloadGeoIpDatabase } = await import("../scripts/download-geoip.mjs");
+      const res = await downloadGeoIpDatabase({ targetPath: filePath });
+      if (res && res.ok) {
+        retryAfter = 0;
+        await getMMDBInstance();
+      }
+    } catch {
+      // background self-heal attempt failed; HTTP fallback remains active
+    } finally {
+      downloadingDb = null;
+    }
+  })();
+}
+
 /**
  * Initializes MMDB database reader if file is present.
  */
@@ -70,6 +95,10 @@ async function getMMDBInstance(): Promise<MMDBReader | null> {
       mmdbInstance = null;
       retryAfter = Date.now() + 5000;
       mmdbError = safeDatabaseError(error);
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code === "ENOENT" || code === "ENOTDIR") {
+        trySelfHealDatabase(filePath);
+      }
       if (!loggedMissingDb && process.env.NODE_ENV !== "test") {
         console.warn("[GeoIP]", mmdbError);
         loggedMissingDb = true;
@@ -106,9 +135,13 @@ export async function getGeoIpHealth(headers?: Headers): Promise<GeoIpHealth> {
       accessSync(GEOIP_DB_PATH, constants.R_OK);
     } catch (error) {
       const missing = ["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code || "");
+      if (missing) {
+        trySelfHealDatabase(GEOIP_DB_PATH);
+      }
       return {
         status: missing ? "missing" : "error",
         database: missing ? "Missing" : "Error",
+        databasePath: GEOIP_DB_PATH,
         databaseType: "City",
         reader: missing ? "Unavailable" : "Error",
         lookupService: "Error",
@@ -129,6 +162,7 @@ export async function getGeoIpHealth(headers?: Headers): Promise<GeoIpHealth> {
       return {
         status: "error",
         database: "Error",
+        databasePath: GEOIP_DB_PATH,
         databaseType: "City",
         reader: "Error",
         lookupService: "Error",
@@ -148,6 +182,7 @@ export async function getGeoIpHealth(headers?: Headers): Promise<GeoIpHealth> {
     return {
       status: "active",
       database: "Loaded",
+      databasePath: GEOIP_DB_PATH,
       databaseType: reader.databaseType || "City",
       edition: reader.databaseType,
       reader: "Healthy",
@@ -163,6 +198,7 @@ export async function getGeoIpHealth(headers?: Headers): Promise<GeoIpHealth> {
     return {
       status: "error",
       database: "Error",
+      databasePath: GEOIP_DB_PATH,
       databaseType: "City",
       reader: "Error",
       lookupService: "Error",
@@ -393,7 +429,13 @@ export async function diagnoseRequestGeo(
 
   const nonMmdbSource: "http_api" | "cdn_header" | "unknown" =
     resolved.geoSource === "http_api" || resolved.geoSource === "cdn_header" ? resolved.geoSource : "unknown";
-  const countrySource = rawMmdb?.countryName ? "ip_geo" : nonMmdbSource;
+  const countrySource = rawMmdb?.countryName
+    ? "ip_geo"
+    : resolved.country !== "Unknown"
+    ? resolved.geoSource === "http_api"
+      ? "http_api"
+      : "cdn_header"
+    : "unknown";
   const regionSource = rawMmdb?.subdivisionName ? "ip_geo" : (resolved.region !== "Unknown" ? nonMmdbSource : "unknown");
   const citySource = rawMmdb?.cityName ? "ip_geo" : (resolved.city !== "Unknown" ? nonMmdbSource : "unknown");
 
@@ -407,7 +449,7 @@ export async function diagnoseRequestGeo(
     geoSource: resolved.geoSource,
     geoDbLoaded: health.database === "Loaded",
     geoDbType: health.databaseType,
-    lookupSucceeded: Boolean(rawMmdb && (rawMmdb.countryName || rawMmdb.cityName)),
+    lookupSucceeded: Boolean(resolved.city !== "Unknown" || resolved.country !== "Unknown"),
     rawMmdb,
     resolved,
   };
@@ -424,7 +466,11 @@ const HTTP_GEO_TIMEOUT_MS = 2500;
 
 function httpGeoFallbackEnabled(): boolean {
   const value = (process.env.GEOIP_HTTP_FALLBACK || "").trim().toLowerCase();
-  return value === "1" || value === "true" || value === "yes" || value === "on";
+  const isTest = process.env.NODE_ENV === "test" || Boolean(process.env.NODE_TEST_CONTEXT) || process.env.npm_lifecycle_event === "test";
+  if (isTest) {
+    return value === "1" || value === "true" || value === "yes" || value === "on";
+  }
+  return value !== "0" && value !== "false" && value !== "no" && value !== "off";
 }
 
 interface HttpGeoRecord {
@@ -517,24 +563,29 @@ export async function resolveIpLocation(
     }
   }
 
-  // 1b. Opt-in HTTP fallback (GEOIP_HTTP_FALLBACK=1) when the local database
-  // yielded nothing. Never overrides a working MMDB result.
-  if (geoSource !== "ip_geo" && cleanIp && !isPrivateIp(cleanIp)) {
-    const httpGeo = await lookupHttpGeo(cleanIp);
-    if (httpGeo) {
-      geoData = {
-        countryCode: httpGeo.countryCode,
-        countryName: httpGeo.countryName,
-        regionCode: httpGeo.regionCode,
-        regionName: httpGeo.regionName,
-        city: httpGeo.city,
-        timezone: "",
-      };
-      geoSource = "http_api";
+  // 1b. Opt-in HTTP fallback when the local database yielded nothing or missing city
+  if ((!geoData || !geoData.city || geoData.city === "Unknown") && cleanIp && !isPrivateIp(cleanIp)) {
+    if (httpGeoFallbackEnabled()) {
+      const httpGeo = await lookupHttpGeo(cleanIp);
+      if (httpGeo) {
+        geoData = {
+          countryCode: httpGeo.countryCode || geoData?.countryCode,
+          countryName: httpGeo.countryName || geoData?.countryName,
+          regionCode: httpGeo.regionCode || geoData?.regionCode,
+          regionName: httpGeo.regionName || geoData?.regionName,
+          city: httpGeo.city || geoData?.city,
+          timezone: geoData?.timezone || "",
+        };
+        if (httpGeo.city) {
+          geoSource = geoSource === "ip_geo" ? "ip_geo" : "http_api";
+        } else if (geoSource === "unknown" && httpGeo.countryName) {
+          geoSource = "http_api";
+        }
+      }
     }
   }
 
-  // 2. Fallback to Cloudflare / CDN headers
+  // 2. Fallback / Enrichment with Cloudflare / CDN headers
   let countryCode = geoData?.countryCode || "";
   let country = geoData?.countryName || "";
   let regionCode = geoData?.regionCode || "";
@@ -542,11 +593,12 @@ export async function resolveIpLocation(
   let city = geoData?.city || "";
   const timezone = geoData?.timezone || "";
 
-  if ((!country || country === "Unknown") && headers) {
+  if (headers) {
     const cdnCountry = (
       headers.get("cf-ipcountry") ||
       headers.get("x-vercel-ip-country") ||
       headers.get("x-country") ||
+      (process.env.SUBSCRIBER_COUNTRY_HEADER ? headers.get(process.env.SUBSCRIBER_COUNTRY_HEADER) : "") ||
       ""
     ).trim();
 
@@ -554,21 +606,25 @@ export async function resolveIpLocation(
       headers.get("cf-ipcity") ||
       headers.get("x-vercel-ip-city") ||
       headers.get("x-city") ||
+      (process.env.SUBSCRIBER_CITY_HEADER ? headers.get(process.env.SUBSCRIBER_CITY_HEADER) : "") ||
       ""
     ).trim();
 
     const cdnRegion = (
       headers.get("cf-region") ||
       headers.get("cf-region-code") ||
+      (process.env.SUBSCRIBER_REGION_HEADER ? headers.get(process.env.SUBSCRIBER_REGION_HEADER) : "") ||
       ""
     ).trim();
 
     if (cdnCountry && cdnCountry !== "XX" && cdnCountry !== "T1") {
-      countryCode = cdnCountry.toUpperCase();
-      country = resolveCountryDisplayName(countryCode);
-      if (cdnCity) city = cdnCity;
-      if (cdnRegion) region = cdnRegion;
-      geoSource = "cdn_header";
+      if (!countryCode || countryCode === "Unknown") {
+        countryCode = cdnCountry.toUpperCase();
+        country = resolveCountryDisplayName(countryCode);
+      }
+      if ((!city || city === "Unknown") && cdnCity) city = cdnCity;
+      if ((!region || region === "Unknown") && cdnRegion) region = cdnRegion;
+      if (geoSource === "unknown") geoSource = "cdn_header";
     }
   }
 
