@@ -618,3 +618,117 @@ export interface GeoIpHealth {
   lastUpdated: string | null;
   error?: string;
 }
+
+export type SystemPushConfigSource = "env_sync" | "env_import" | "manual";
+
+export type SystemPushConfig = {
+  id: number;
+  publicKey: string;
+  privateKeyEncrypted: string;
+  subject: string;
+  enabled: boolean;
+  source: SystemPushConfigSource;
+  publicKeyFingerprint: string;
+  configVersion: number;
+  updatedBy?: string | null;
+  lastSyncedAt?: string | null;
+  lastTestedAt?: string | null;
+  lastTestStatus?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SystemPushConfigSafe = {
+  id: number;
+  publicKey: string;
+  privateKeyConfigured: boolean;
+  subject: string;
+  enabled: boolean;
+  source: SystemPushConfigSource;
+  publicKeyFingerprint: string;
+  configVersion: number;
+  updatedBy?: string | null;
+  lastSyncedAt?: string | null;
+  lastTestedAt?: string | null;
+  lastTestStatus?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ActiveWebPushResolvedConfig = {
+  publicKey: string;
+  privateKey: string;
+  subject: string;
+  configVersion: number;
+  fingerprint: string;
+  source: "database" | "env" | "none";
+  enabled: boolean;
+};
+
+export type RuntimePushPublicConfig = {
+  enabled: boolean;
+  publicKey: string;
+  configVersion: number;
+  fingerprint: string;
+};
+
+export type SystemPushAuditLog = {
+  id: number;
+  adminEmail: string;
+  action: string;
+  details?: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type SystemPushTestDevice = {
+  id: number;
+  endpointHash: string;
+  subscription: PushSubscriptionRecord;
+  userAgent?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type EnvPushScanResult = {
+  publicKeyConfigured: boolean;
+  publicKeyPreview?: string;
+  publicKeyFingerprint?: string;
+  privateKeyConfigured: boolean;
+  nextPublicKeyConfigured: boolean;
+  nextPublicKeyMatches: boolean;
+  subjectConfigured: boolean;
+  subject?: string;
+  pairValid: boolean;
+  error?: string | null;
+};
+
+export type EnvDbComparison = {
+  publicKeyMatch: boolean;
+  privateKeyMatch: boolean;
+  nextPublicKeyMatch: boolean;
+  subjectMatch: boolean;
+  overallStatus: "synced" | "mismatch" | "not_in_db" | "missing_env";
+  envFingerprint?: string;
+  dbFingerprint?: string;
+  envSubject?: string;
+  dbSubject?: string;
+};
+
+export type WebPushHealthStatus = {
+  enabled: boolean;
+  source: "database" | "env" | "none";
+  publicKeyConfigured: boolean;
+  privateKeyConfigured: boolean;
+  subjectConfigured: boolean;
+  pairValid: boolean;
+  runtimePublicConfigHealthy: boolean;
+  serviceWorkerAvailable: boolean;
+  pushWorkerHealthy: boolean;
+  configVersion?: number;
+  fingerprint?: string;
+  lastSyncedAt?: string | null;
+  lastTestedAt?: string | null;
+  lastTestStatus?: string | null;
+  activeSubscriberCount: number;
+  testDeviceConfigured: boolean;
+};

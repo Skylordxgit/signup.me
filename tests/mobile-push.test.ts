@@ -76,7 +76,7 @@ test('MySQL automatically migrates existing subscriber table and saves details',
   const details = { device: 'iPhone', browser: 'Safari', ipAddress: '198.51.100.8', country: 'BD', city: '', timezone: 'Asia/Dhaka' };
   await mysqlStore.savePushSubscription('example', row().subscription_json, iphone, details);
   const summary = await mysqlStore.listPushSubscribers();
-  assert.equal(upgrades, 5);
+  assert.equal(upgrades, 7);
   assert.equal(summary.total, 1);
   assert.equal(summary.inactive, 0);
   assert.equal(summary.recent?.[0].ipAddress, details.ipAddress);

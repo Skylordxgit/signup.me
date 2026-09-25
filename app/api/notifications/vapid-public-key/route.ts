@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
-import { webPushConfigured, webPushPublicKey } from "@/lib/push";
+import { getRuntimePushPublicConfig } from "@/lib/pushConfig";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const config = await getRuntimePushPublicConfig();
   return NextResponse.json({
-    enabled: webPushConfigured(),
-    publicKey: webPushPublicKey(),
+    enabled: config.enabled,
+    publicKey: config.publicKey,
+    configVersion: config.configVersion,
+    fingerprint: config.fingerprint,
   });
 }

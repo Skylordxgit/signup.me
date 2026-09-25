@@ -5,6 +5,7 @@ import { isValidSlug } from "@/lib/utils";
 import { collectSubscriberDetails } from "@/lib/subscriberDetails";
 import { resolvePublicHost } from "@/lib/domainRouting";
 import { resolveRequestGeo } from "@/lib/geoIp";
+import { getRuntimePushPublicConfig } from "@/lib/pushConfig";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +25,7 @@ export async function POST(request: NextRequest) {
 
     const geo = await resolveRequestGeo(request.headers, body?.deviceHints as any);
     const details = collectSubscriberDetails(request.headers, body?.deviceHints, geo);
+    const runtimeConfig = await getRuntimePushPublicConfig();
 
     const saved = await savePushSubscription(
       slug,
@@ -31,6 +33,9 @@ export async function POST(request: NextRequest) {
       request.headers.get("user-agent") || "",
       details,
       host.kind === "custom" ? host.workspaceId : undefined,
+      runtimeConfig.enabled
+        ? { configVersion: runtimeConfig.configVersion, fingerprint: runtimeConfig.fingerprint }
+        : undefined
     );
     if (!saved) {
       return NextResponse.json({ error: "Published page not found" }, { status: 404 });

@@ -1,5 +1,33 @@
 import { createHash, randomUUID } from "crypto";
-import type { AnalyticsReport, AudienceFilters, BlockType, CampaignStatus, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushRecipient, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
+import type {
+  AnalyticsReport,
+  AudienceFilters,
+  BlockType,
+  CampaignStatus,
+  CityDetailMetric,
+  CountryDetailMetric,
+  CustomHtmlLinkMetric,
+  CustomHtmlSettings,
+  LocationMetric,
+  NotificationCampaign,
+  NotificationDeliveryLog,
+  NotificationSendInput,
+  NotificationSendResult,
+  NotificationSubscriberSummary,
+  NotificationTemplate,
+  PageBlock,
+  PageStatus,
+  PushRecipient,
+  PushSubscriptionRecord,
+  RecentActivityItem,
+  RegionDetailMetric,
+  SmartPage,
+  SubscriberSegment,
+  SystemPushConfig,
+  SystemPushAuditLog,
+  SystemPushTestDevice,
+  SystemPushConfigSource,
+} from "../types";
 import { defaultTheme, seedTemplates } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
@@ -250,6 +278,8 @@ function ensurePushTable() {
       { name: 'client_details', sql: 'ALTER TABLE push_subscriptions ADD COLUMN client_details JSON NULL' },
       { name: 'is_active', sql: 'ALTER TABLE push_subscriptions ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1' },
       { name: 'last_failed_at', sql: 'ALTER TABLE push_subscriptions ADD COLUMN last_failed_at TIMESTAMP NULL' },
+      { name: 'vapid_config_version', sql: 'ALTER TABLE push_subscriptions ADD COLUMN vapid_config_version INT UNSIGNED NULL' },
+      { name: 'vapid_key_fingerprint', sql: 'ALTER TABLE push_subscriptions ADD COLUMN vapid_key_fingerprint VARCHAR(64) NULL' },
     ]) {
       const columns = await mysqlQuery<{ Field: string }[]>(`SHOW COLUMNS FROM push_subscriptions LIKE '${name}'`);
       if (!columns.length) {
@@ -299,6 +329,55 @@ function ensureDeliveryLogsTable() {
     )`,
   ).then(() => {}).catch(error => { deliveryLogsTableReady = null; throw error; });
   return deliveryLogsTableReady;
+}
+
+let pushConfigTableReady: Promise<void> | null = null;
+
+function ensurePushConfigTable() {
+  pushConfigTableReady ??= (async () => {
+    await mysqlQuery(
+      `CREATE TABLE IF NOT EXISTS system_push_config (
+        id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+        public_key TEXT NOT NULL,
+        private_key_encrypted TEXT NOT NULL,
+        subject VARCHAR(255) NOT NULL,
+        enabled TINYINT(1) NOT NULL DEFAULT 1,
+        source VARCHAR(50) NOT NULL DEFAULT 'manual',
+        public_key_fingerprint VARCHAR(64) NOT NULL,
+        config_version INT UNSIGNED NOT NULL DEFAULT 1,
+        updated_by VARCHAR(255) NULL,
+        last_synced_at TIMESTAMP NULL,
+        last_tested_at TIMESTAMP NULL,
+        last_test_status VARCHAR(50) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_push_config_enabled (enabled)
+      )`
+    );
+
+    await mysqlQuery(
+      `CREATE TABLE IF NOT EXISTS system_push_audit_log (
+        id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+        admin_email VARCHAR(255) NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        details JSON NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_push_audit_created (created_at DESC)
+      )`
+    );
+
+    await mysqlQuery(
+      `CREATE TABLE IF NOT EXISTS system_push_test_devices (
+        id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
+        endpoint_hash CHAR(64) NOT NULL UNIQUE,
+        subscription_json JSON NOT NULL,
+        user_agent VARCHAR(500) NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )`
+    );
+  })().then(() => {}).catch(error => { pushConfigTableReady = null; throw error; });
+  return pushConfigTableReady;
 }
 
 function ensureCampaignTable() {
@@ -1524,7 +1603,14 @@ export async function analyticsForPage(
   };
 }
 
-export async function savePushSubscription(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails, workspaceId?: string) {
+export async function savePushSubscription(
+  slug: string,
+  subscription: PushSubscriptionRecord,
+  userAgent: string,
+  details?: SubscriberDetails,
+  workspaceId?: string,
+  vapidMeta?: { configVersion?: number; fingerprint?: string }
+) {
   await ensurePushTable();
   const rows = await mysqlQuery<{ id: number; workspace_id: string }[]>(`SELECT id, workspace_id FROM pages WHERE slug = ? AND status = 'published'${workspaceId ? ' AND workspace_id = ?' : ''}`, [slug, ...(workspaceId ? [workspaceId] : [])]);
   const pageId = rows[0]?.id;
@@ -1539,11 +1625,31 @@ export async function savePushSubscription(slug: string, subscription: PushSubsc
   const existingDetails = existingRows[0]?.client_details ? toJson<SubscriberDetails | null>(existingRows[0].client_details, null) : null;
   const mergedDetails = mergeSubscriberDetails(existingDetails, details);
 
+  const configVer = vapidMeta?.configVersion || null;
+  const fp = vapidMeta?.fingerprint || null;
+
   await mysqlQuery(
-    `INSERT INTO push_subscriptions (workspace_id, page_id, endpoint_hash, subscription_json, user_agent, client_details, is_active, last_failed_at)
-     VALUES (?, ?, ?, ?, ?, ?, 1, NULL)
-     ON DUPLICATE KEY UPDATE page_id = VALUES(page_id), subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), client_details = VALUES(client_details), is_active = 1, last_failed_at = NULL`,
-    [rows[0].workspace_id, pageId, endpointHash, JSON.stringify(subscription), userAgent.slice(0, 500), mergedDetails ? JSON.stringify(mergedDetails) : null],
+    `INSERT INTO push_subscriptions (workspace_id, page_id, endpoint_hash, subscription_json, user_agent, client_details, is_active, last_failed_at, vapid_config_version, vapid_key_fingerprint)
+     VALUES (?, ?, ?, ?, ?, ?, 1, NULL, ?, ?)
+     ON DUPLICATE KEY UPDATE
+       page_id = VALUES(page_id),
+       subscription_json = VALUES(subscription_json),
+       user_agent = VALUES(user_agent),
+       client_details = VALUES(client_details),
+       is_active = 1,
+       last_failed_at = NULL,
+       vapid_config_version = COALESCE(VALUES(vapid_config_version), vapid_config_version),
+       vapid_key_fingerprint = COALESCE(VALUES(vapid_key_fingerprint), vapid_key_fingerprint)`,
+    [
+      rows[0].workspace_id,
+      pageId,
+      endpointHash,
+      JSON.stringify(subscription),
+      userAgent.slice(0, 500),
+      mergedDetails ? JSON.stringify(mergedDetails) : null,
+      configVer,
+      fp,
+    ],
   );
 
   const saved = await mysqlQuery<PushRow[]>(
@@ -2241,4 +2347,162 @@ export async function recordNotificationCampaignEvent(campaignId: number, event:
   await mysqlQuery(`UPDATE notification_campaigns SET ${column} = ${column} + 1 WHERE id = ?`, [campaignId]);
   const rows = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
   return rows[0] ? mapCampaign(rows[0]) : null;
+}
+
+type SystemPushConfigRow = {
+  id: number;
+  public_key: string;
+  private_key_encrypted: string;
+  subject: string;
+  enabled: number;
+  source: SystemPushConfigSource;
+  public_key_fingerprint: string;
+  config_version: number;
+  updated_by: string | null;
+  last_synced_at: string | null;
+  last_tested_at: string | null;
+  last_test_status: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getSystemPushConfig(): Promise<SystemPushConfig | null> {
+  await ensurePushConfigTable();
+  const rows = await mysqlQuery<SystemPushConfigRow[]>(
+    "SELECT * FROM system_push_config ORDER BY id DESC LIMIT 1"
+  );
+  if (!rows[0]) return null;
+  const row = rows[0];
+  return {
+    id: row.id,
+    publicKey: row.public_key,
+    privateKeyEncrypted: row.private_key_encrypted,
+    subject: row.subject,
+    enabled: Boolean(row.enabled),
+    source: row.source,
+    publicKeyFingerprint: row.public_key_fingerprint,
+    configVersion: Number(row.config_version),
+    updatedBy: row.updated_by,
+    lastSyncedAt: row.last_synced_at ? new Date(row.last_synced_at).toISOString() : null,
+    lastTestedAt: row.last_tested_at ? new Date(row.last_tested_at).toISOString() : null,
+    lastTestStatus: row.last_test_status,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+  };
+}
+
+export async function saveSystemPushConfig(
+  config: Omit<SystemPushConfig, "id" | "createdAt" | "updatedAt">
+): Promise<SystemPushConfig> {
+  await ensurePushConfigTable();
+  await mysqlQuery("UPDATE system_push_config SET enabled = 0 WHERE enabled = 1");
+
+  await mysqlQuery(
+    `INSERT INTO system_push_config (
+      public_key, private_key_encrypted, subject, enabled, source,
+      public_key_fingerprint, config_version, updated_by, last_synced_at, last_tested_at, last_test_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      config.publicKey,
+      config.privateKeyEncrypted,
+      config.subject,
+      config.enabled ? 1 : 0,
+      config.source,
+      config.publicKeyFingerprint,
+      config.configVersion,
+      config.updatedBy || null,
+      config.lastSyncedAt || null,
+      config.lastTestedAt || null,
+      config.lastTestStatus || null,
+    ]
+  );
+
+  const inserted = await getSystemPushConfig();
+  if (!inserted) throw new Error("Failed to load saved push config");
+  return inserted;
+}
+
+export async function updateSystemPushConfigTestStatus(
+  status: string,
+  testedAt = new Date().toISOString()
+): Promise<void> {
+  await ensurePushConfigTable();
+  await mysqlQuery(
+    "UPDATE system_push_config SET last_tested_at = ?, last_test_status = ? WHERE enabled = 1",
+    [testedAt, status]
+  );
+}
+
+export async function getSystemPushAuditLogs(limit = 50): Promise<SystemPushAuditLog[]> {
+  await ensurePushConfigTable();
+  const rows = await mysqlQuery<{ id: number; admin_email: string; action: string; details: string | null; created_at: string }[]>(
+    "SELECT * FROM system_push_audit_log ORDER BY id DESC LIMIT ?",
+    [limit]
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    adminEmail: r.admin_email,
+    action: r.action,
+    details: toJson<Record<string, unknown> | null>(r.details, null),
+    createdAt: new Date(r.created_at).toISOString(),
+  }));
+}
+
+export async function addSystemPushAuditLog(
+  adminEmail: string,
+  action: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  await ensurePushConfigTable();
+  await mysqlQuery(
+    "INSERT INTO system_push_audit_log (admin_email, action, details) VALUES (?, ?, ?)",
+    [adminEmail, action, details ? JSON.stringify(details) : null]
+  );
+}
+
+export async function saveSystemTestDevice(
+  subscription: PushSubscriptionRecord,
+  userAgent?: string
+): Promise<SystemPushTestDevice> {
+  await ensurePushConfigTable();
+  const endpointHash = subscriptionHash(subscription.endpoint);
+  await mysqlQuery(
+    `INSERT INTO system_push_test_devices (endpoint_hash, subscription_json, user_agent)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE subscription_json = VALUES(subscription_json), user_agent = VALUES(user_agent), updated_at = CURRENT_TIMESTAMP`,
+    [endpointHash, JSON.stringify(subscription), userAgent?.slice(0, 500) || null]
+  );
+
+  const rows = await mysqlQuery<{ id: number; endpoint_hash: string; subscription_json: string; user_agent: string | null; created_at: string; updated_at: string }[]>(
+    "SELECT * FROM system_push_test_devices WHERE endpoint_hash = ? LIMIT 1",
+    [endpointHash]
+  );
+  const row = rows[0];
+  return {
+    id: row.id,
+    endpointHash: row.endpoint_hash,
+    subscription: toJson<PushSubscriptionRecord>(row.subscription_json, subscription),
+    userAgent: row.user_agent || undefined,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+  };
+}
+
+export async function getSystemTestDevice(): Promise<SystemPushTestDevice | null> {
+  await ensurePushConfigTable();
+  const rows = await mysqlQuery<{ id: number; endpoint_hash: string; subscription_json: string; user_agent: string | null; created_at: string; updated_at: string }[]>(
+    "SELECT * FROM system_push_test_devices ORDER BY updated_at DESC, id DESC LIMIT 1"
+  );
+  if (!rows[0]) return null;
+  const row = rows[0];
+  const sub = toJson<PushSubscriptionRecord | null>(row.subscription_json, null);
+  if (!isPushSubscription(sub)) return null;
+  return {
+    id: row.id,
+    endpointHash: row.endpoint_hash,
+    subscription: sub,
+    userAgent: row.user_agent || undefined,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
+  };
 }

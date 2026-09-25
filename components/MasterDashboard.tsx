@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowRight,
   ArrowUpRight,
+  Bell,
   Building2,
   CheckCircle2,
   Copy,
@@ -38,6 +39,7 @@ import type { CustomDomain, DomainVerificationConfig } from "@/lib/domains";
 import type { GeoIpHealth } from "@/lib/types";
 import { ImageUploader } from "./ImageUploader";
 import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, SectionHeading } from "./admin/AdminUI";
+import { WebPushConfigView } from "./admin/master/WebPushConfigView";
 import "./admin/admin.css";
 
 type MasterWorkspace = {
@@ -61,7 +63,7 @@ type SignupSettings = { enabled: boolean };
 type GeoIpHealthPayload = {
   health: GeoIpHealth;
 };
-type MasterView = "overview" | "workspaces" | "domains" | "users" | "branding" | "signup";
+type MasterView = "overview" | "workspaces" | "domains" | "users" | "branding" | "signup" | "web-push";
 type DomainModal = "add" | { action: "edit" | "assign" | "delete"; domain: CustomDomain } | null;
 
 const views = [
@@ -71,6 +73,7 @@ const views = [
   { id: "users", label: "All users", description: "Accounts and access", icon: Users },
   { id: "branding", label: "Global branding", description: "Identity and assets", icon: Palette },
   { id: "signup", label: "Signup access", description: "Registration control", icon: UserPlus },
+  { id: "web-push", label: "Web Push", description: "VAPID keys & push engine", icon: Bell },
 ] as const;
 
 export function MasterDashboard({ email, initialView }: { email: string; initialView?: MasterView }) {
@@ -85,6 +88,7 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
     if (rawPathname.includes("/users")) return "users";
     if (rawPathname.includes("/branding")) return "branding";
     if (rawPathname.includes("/signup")) return "signup";
+    if (rawPathname.includes("/web-push")) return "web-push";
     return "overview";
   };
 
@@ -690,6 +694,8 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
               <Button variant="primary" icon={Power} disabled={busy} onClick={() => void updateSignup(!signup.enabled)}>Turn signup {signup.enabled ? "off" : "on"}</Button>
             </section>
           </div>}
+
+          {view === "web-push" && <WebPushConfigView />}
         </>}
       </main>
     </div>

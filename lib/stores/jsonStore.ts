@@ -1,7 +1,36 @@
 import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, AudienceFilters, BlockType, CampaignStatus, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushRecipient, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
+import type {
+  AnalyticsReport,
+  AudienceFilters,
+  BlockType,
+  CampaignStatus,
+  CityDetailMetric,
+  CountryDetailMetric,
+  CustomHtmlLinkMetric,
+  CustomHtmlSettings,
+  LocationMetric,
+  NotificationCampaign,
+  NotificationDeliveryLog,
+  NotificationSendInput,
+  NotificationSendResult,
+  NotificationSubscriber,
+  NotificationSubscriberSummary,
+  NotificationTemplate,
+  PageBlock,
+  PageStatus,
+  PushRecipient,
+  PushSubscriptionRecord,
+  RecentActivityItem,
+  RegionDetailMetric,
+  SmartPage,
+  SubscriberSegment,
+  SystemPushConfig,
+  SystemPushAuditLog,
+  SystemPushTestDevice,
+  SystemPushConfigSource,
+} from "../types";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem, mergeSubscriberDetails } from '../subscriberDetails';
 import { defaultTheme, seedPages, seedTemplates } from "../defaults";
@@ -66,11 +95,18 @@ type DatabaseShape = {
     geoSource?: string;
     ipHash?: string;
   }[];
-  pushSubscriptions: (NotificationSubscriber & { subscription: PushSubscriptionRecord })[];
+  pushSubscriptions: (NotificationSubscriber & {
+    subscription: PushSubscriptionRecord;
+    vapidConfigVersion?: number;
+    vapidKeyFingerprint?: string;
+  })[];
   notificationCampaigns: NotificationCampaign[];
   notificationDeliveryLogs?: NotificationDeliveryLog[];
   subscriberSegments?: SubscriberSegment[];
   notificationTemplates?: NotificationTemplate[];
+  systemPushConfig?: SystemPushConfig | null;
+  systemPushAuditLogs?: SystemPushAuditLog[];
+  systemPushTestDevices?: SystemPushTestDevice[];
 };
 
 /* Resolved per call rather than at import, so the working directory in effect
@@ -108,6 +144,13 @@ export const deleteSubscriberSegment = serialized(deleteSubscriberSegmentUnlocke
 export const saveNotificationTemplate = serialized(saveNotificationTemplateUnlocked);
 export const deleteNotificationTemplate = serialized(deleteNotificationTemplateUnlocked);
 export const deactivatePushSubscription = serialized(deactivatePushSubscriptionUnlocked);
+export const getSystemPushConfig = getSystemPushConfigUnlocked;
+export const saveSystemPushConfig = serialized(saveSystemPushConfigUnlocked);
+export const updateSystemPushConfigTestStatus = serialized(updateSystemPushConfigTestStatusUnlocked);
+export const getSystemPushAuditLogs = getSystemPushAuditLogsUnlocked;
+export const addSystemPushAuditLog = serialized(addSystemPushAuditLogUnlocked);
+export const saveSystemTestDevice = serialized(saveSystemTestDeviceUnlocked);
+export const getSystemTestDevice = getSystemTestDeviceUnlocked;
 
 function dataFile() {
   return path.join(process.cwd(), "data", "db.json");
@@ -128,10 +171,25 @@ async function readJsonDb(): Promise<DatabaseShape> {
       notificationCampaigns: db.notificationCampaigns ?? [],
       notificationDeliveryLogs: db.notificationDeliveryLogs ?? [],
       subscriberSegments: db.subscriberSegments ?? [],
+      systemPushConfig: db.systemPushConfig ?? null,
+      systemPushAuditLogs: db.systemPushAuditLogs ?? [],
+      systemPushTestDevices: db.systemPushTestDevices ?? [],
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    const initial: DatabaseShape = { pages: seedPages(), pageViews: [], linkClicks: [], customHtmlLinkClicks: [], pushSubscriptions: [], notificationCampaigns: [], notificationDeliveryLogs: [], subscriberSegments: [] };
+    const initial: DatabaseShape = {
+      pages: seedPages(),
+      pageViews: [],
+      linkClicks: [],
+      customHtmlLinkClicks: [],
+      pushSubscriptions: [],
+      notificationCampaigns: [],
+      notificationDeliveryLogs: [],
+      subscriberSegments: [],
+      systemPushConfig: null,
+      systemPushAuditLogs: [],
+      systemPushTestDevices: [],
+    };
     return initial;
   }
 }
@@ -1185,7 +1243,14 @@ function subscriptionHash(endpoint: string) {
   return createHash("sha256").update(endpoint).digest("hex");
 }
 
-async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubscriptionRecord, userAgent: string, details?: SubscriberDetails, workspaceId?: string) {
+async function savePushSubscriptionUnlocked(
+  slug: string,
+  subscription: PushSubscriptionRecord,
+  userAgent: string,
+  details?: SubscriberDetails,
+  workspaceId?: string,
+  vapidMeta?: { configVersion?: number; fingerprint?: string }
+) {
   const db = await readJsonDb();
   const page = db.pages.find((item) => item.slug === slug && item.status === "published" && inWorkspace(item, workspaceId));
   if (!page) return null;
@@ -1202,6 +1267,8 @@ async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubs
     if (details) existing.details = mergeSubscriberDetails(existing.details, details);
     existing.isActive = true;
     existing.lastFailedAt = null;
+    if (vapidMeta?.configVersion) existing.vapidConfigVersion = vapidMeta.configVersion;
+    if (vapidMeta?.fingerprint) existing.vapidKeyFingerprint = vapidMeta.fingerprint;
     existing.updatedAt = timestamp;
     await writeJsonDb(db);
     return existing;
@@ -1218,6 +1285,8 @@ async function savePushSubscriptionUnlocked(slug: string, subscription: PushSubs
     details,
     isActive: true,
     lastFailedAt: null,
+    vapidConfigVersion: vapidMeta?.configVersion,
+    vapidKeyFingerprint: vapidMeta?.fingerprint,
     createdAt: timestamp,
     updatedAt: timestamp,
   };
@@ -1762,4 +1831,99 @@ async function deleteNotificationTemplateUnlocked(id: string, workspaceId: strin
   db.notificationTemplates.splice(index, 1);
   await writeJsonDb(db);
   return true;
+}
+
+async function getSystemPushConfigUnlocked(): Promise<SystemPushConfig | null> {
+  const db = await readJsonDb();
+  if (!db.systemPushConfig) return null;
+  return db.systemPushConfig;
+}
+
+async function saveSystemPushConfigUnlocked(
+  config: Omit<SystemPushConfig, "id" | "createdAt" | "updatedAt">
+): Promise<SystemPushConfig> {
+  const db = await readJsonDb();
+  const timestamp = new Date().toISOString();
+  const newConfig: SystemPushConfig = {
+    ...config,
+    id: db.systemPushConfig ? db.systemPushConfig.id + 1 : 1,
+    createdAt: db.systemPushConfig?.createdAt || timestamp,
+    updatedAt: timestamp,
+  };
+  db.systemPushConfig = newConfig;
+  await writeJsonDb(db);
+  return newConfig;
+}
+
+async function updateSystemPushConfigTestStatusUnlocked(
+  status: string,
+  testedAt = new Date().toISOString()
+): Promise<void> {
+  const db = await readJsonDb();
+  if (db.systemPushConfig) {
+    db.systemPushConfig.lastTestedAt = testedAt;
+    db.systemPushConfig.lastTestStatus = status;
+    db.systemPushConfig.updatedAt = testedAt;
+    await writeJsonDb(db);
+  }
+}
+
+async function getSystemPushAuditLogsUnlocked(limit = 50): Promise<SystemPushAuditLog[]> {
+  const db = await readJsonDb();
+  const logs = db.systemPushAuditLogs || [];
+  return [...logs].sort((a, b) => b.id - a.id).slice(0, limit);
+}
+
+async function addSystemPushAuditLogUnlocked(
+  adminEmail: string,
+  action: string,
+  details?: Record<string, unknown>
+): Promise<void> {
+  const db = await readJsonDb();
+  if (!db.systemPushAuditLogs) db.systemPushAuditLogs = [];
+  const log: SystemPushAuditLog = {
+    id: nextId(db.systemPushAuditLogs),
+    adminEmail,
+    action,
+    details: details || null,
+    createdAt: new Date().toISOString(),
+  };
+  db.systemPushAuditLogs.push(log);
+  await writeJsonDb(db);
+}
+
+async function saveSystemTestDeviceUnlocked(
+  subscription: PushSubscriptionRecord,
+  userAgent?: string
+): Promise<SystemPushTestDevice> {
+  const db = await readJsonDb();
+  if (!db.systemPushTestDevices) db.systemPushTestDevices = [];
+  const endpointHash = subscriptionHash(subscription.endpoint);
+  const timestamp = new Date().toISOString();
+
+  let existing = db.systemPushTestDevices.find((d) => d.endpointHash === endpointHash);
+  if (existing) {
+    existing.subscription = subscription;
+    existing.userAgent = userAgent?.slice(0, 500);
+    existing.updatedAt = timestamp;
+  } else {
+    existing = {
+      id: nextId(db.systemPushTestDevices),
+      endpointHash,
+      subscription,
+      userAgent: userAgent?.slice(0, 500),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    };
+    db.systemPushTestDevices.push(existing);
+  }
+  await writeJsonDb(db);
+  return existing;
+}
+
+async function getSystemTestDeviceUnlocked(): Promise<SystemPushTestDevice | null> {
+  const db = await readJsonDb();
+  const devices = db.systemPushTestDevices || [];
+  if (!devices.length) return null;
+  return [...devices].sort((a, b) => b.id - a.id)[0] || null;
 }

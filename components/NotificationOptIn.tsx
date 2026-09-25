@@ -36,7 +36,15 @@ function keysEqual(buffer: ArrayBuffer | null | undefined, key: Uint8Array): boo
 }
 
 async function preparePush() {
-  const response = await timedFetch('/api/notifications/vapid-public-key', { cache: 'no-store' });
+  let response: Response | null = null;
+  try {
+    response = await timedFetch('/api/public/push-config', { cache: 'no-store' });
+  } catch {
+    response = null;
+  }
+  if (!response || !response.ok) {
+    response = await timedFetch('/api/notifications/vapid-public-key', { cache: 'no-store' });
+  }
   const data = await response.json() as { enabled?: boolean; publicKey?: string };
   if (!response.ok || !data.enabled || !data.publicKey) throw new Error('Push unavailable');
   await navigator.serviceWorker.register('/push-worker.js');

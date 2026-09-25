@@ -92,7 +92,13 @@ export function getVapidDiagnostic() {
   };
 }
 
-export function configureWebPush() {
+import { configureWebPushFromActive, getActiveWebPushConfig, getRuntimePushPublicConfig } from "./pushConfig";
+
+export { getActiveWebPushConfig, getRuntimePushPublicConfig };
+
+export async function configureWebPush() {
+  const configured = await configureWebPushFromActive();
+  if (configured) return;
   const publicKey = webPushPublicKey();
   const privateKey = webPushPrivateKey();
   if (!publicKey || !privateKey) throw new Error("Browser notifications are not configured yet.");
@@ -153,6 +159,7 @@ export async function sendPushBatchDetailed(
     priority?: "normal" | "high" | "urgent";
   }
 ) {
+  await configureWebPush().catch(() => {});
   const summary = { attempted: recipients.length, sent: 0, removed: 0, failed: 0 };
   const expiredHashes: string[] = [];
   const authFailedHashes: string[] = [];
@@ -266,6 +273,7 @@ export async function sendPushBatchDetailed(
 }
 
 export async function sendPushBatch(subscriptions: PushSubscriptionRecord[], payload: string) {
+  await configureWebPush().catch(() => {});
   const result = { attempted: subscriptions.length, sent: 0, removed: 0, failed: 0 };
   const expired: string[] = [];
   let next = 0;
