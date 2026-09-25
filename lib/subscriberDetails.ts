@@ -14,12 +14,13 @@ export function subscriberListItem(item: { id: number; pageId: number; slug: str
     ipAddress: details?.ipAddress || '',
     country: details?.country || 'Unknown',
     countryCode: details?.countryCode,
-    countryName: details?.countryName || details?.country,
+    countryName: details?.countryName || details?.country || 'Unknown',
     region: details?.region || 'Unknown',
     regionCode: details?.regionCode,
-    regionName: details?.regionName || details?.region,
+    regionName: details?.regionName || details?.region || 'Unknown',
     city: details?.city || 'Unknown',
     timezone: details?.timezone || '',
+    geoSource: details?.geoSource || 'unknown',
   };
 }
 
@@ -73,7 +74,7 @@ export function formatLocation(countryCodeOrName?: string, city?: string, region
   return { country, region: rawRegion, city: rawCity, location };
 }
 
-export function collectSubscriberDetails(headers: Headers, hints: unknown, geoOverride?: GeoLocationResult): SubscriberDetails {
+export function collectSubscriberDetails(headers: Headers, hints: unknown, geoOverride?: Partial<GeoLocationResult>): SubscriberDetails {
   const data = hints && typeof hints === 'object' ? hints as Record<string, unknown> : {};
   const touchPoints = typeof data.touchPoints === 'number' && data.touchPoints > 1 ? 2 : 0;
   
@@ -85,21 +86,39 @@ export function collectSubscriberDetails(headers: Headers, hints: unknown, geoOv
 
   const countryHeader = process.env.SUBSCRIBER_COUNTRY_HEADER ? headers.get(process.env.SUBSCRIBER_COUNTRY_HEADER) : null;
   const cityHeader = process.env.SUBSCRIBER_CITY_HEADER ? headers.get(process.env.SUBSCRIBER_CITY_HEADER) : null;
+  const regionHeader = process.env.SUBSCRIBER_REGION_HEADER ? headers.get(process.env.SUBSCRIBER_REGION_HEADER) : null;
 
   const country = countryHeader ?? ((geoOverride?.country && geoOverride.country !== 'Unknown' ? geoOverride.country : '') || headers.get('cf-ipcountry') || '');
   const city = cityHeader ?? ((geoOverride?.city && geoOverride.city !== 'Unknown' ? geoOverride.city : '') || headers.get('cf-ipcity') || '');
-  const region = (geoOverride?.region && geoOverride.region !== 'Unknown' ? geoOverride.region : '') || headers.get('cf-region') || '';
+  const region = regionHeader ?? ((geoOverride?.region && geoOverride.region !== 'Unknown' ? geoOverride.region : '') || headers.get('cf-region') || '');
+
+  const countryName = geoOverride?.countryName || country || (geoOverride ? 'Unknown' : '');
+  const regionName = geoOverride?.regionName || region || (geoOverride ? 'Unknown' : '');
+  const countryCode = geoOverride?.countryCode || (headers.get('cf-ipcountry') && headers.get('cf-ipcountry')?.length === 2 ? headers.get('cf-ipcountry')!.toUpperCase() : undefined);
+  const regionCode = geoOverride?.regionCode || headers.get('cf-region') || undefined;
+
+  let geoSource: SubscriberDetails['geoSource'] = geoOverride?.geoSource;
+  if (!geoSource) {
+    if (countryHeader || cityHeader || headers.get('cf-ipcountry')) {
+      geoSource = 'cdn_header';
+    } else if (geoOverride && geoOverride.country && geoOverride.country !== 'Unknown') {
+      geoSource = 'ip_geo';
+    } else {
+      geoSource = 'unknown';
+    }
+  }
 
   return {
     ...subscriberDevice(headers.get('user-agent') || '', touchPoints),
     ipAddress: ip,
     country: country || (geoOverride ? 'Unknown' : ''),
-    countryCode: geoOverride?.countryCode || (headers.get('cf-ipcountry') || country).toUpperCase(),
-    countryName: country || (geoOverride ? 'Unknown' : ''),
+    countryCode,
+    countryName,
     region: region || (geoOverride ? 'Unknown' : ''),
-    regionCode: geoOverride?.regionCode,
-    regionName: region || (geoOverride ? 'Unknown' : ''),
+    regionCode,
+    regionName,
     city,
     timezone,
+    geoSource,
   };
 }

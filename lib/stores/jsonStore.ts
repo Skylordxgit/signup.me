@@ -759,6 +759,7 @@ export async function analyticsForPage(
     subscribers: number;
     visitorsSet: Set<string>;
     links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
+    geoSources: Set<string>;
   };
 
   type RegionAcc = {
@@ -770,6 +771,7 @@ export async function analyticsForPage(
     subscribers: number;
     visitorsSet: Set<string>;
     cities: Map<string, CityAcc>;
+    geoSources: Set<string>;
   };
 
   type CountryAcc = {
@@ -781,6 +783,7 @@ export async function analyticsForPage(
     visitorsSet: Set<string>;
     regions: Map<string, RegionAcc>;
     cities: Map<string, CityAcc>;
+    geoSources: Set<string>;
   };
 
   const countriesAcc = new Map<string, CountryAcc>();
@@ -799,6 +802,7 @@ export async function analyticsForPage(
         visitorsSet: new Set(),
         regions: new Map(),
         cities: new Map(),
+        geoSources: new Set(),
       };
       countriesAcc.set(geo.country, cItem);
     }
@@ -821,6 +825,7 @@ export async function analyticsForPage(
         subscribers: 0,
         visitorsSet: new Set(),
         cities: new Map(),
+        geoSources: new Set(),
       };
       cItem.regions.set(geo.region, rItem);
       regionsAcc.set(regKey, rItem);
@@ -842,12 +847,20 @@ export async function analyticsForPage(
         subscribers: 0,
         visitorsSet: new Set(),
         links: new Map(),
+        geoSources: new Set(),
       };
       cItem.cities.set(geo.city, ctItem);
       rItem.cities.set(geo.city, ctItem);
       flatCitiesAcc.set(cityKey, ctItem);
     }
     return ctItem;
+  }
+
+  function deriveGeoSource(sources: Set<string>): string {
+    if (sources.has('ip_geo')) return 'ip_geo';
+    if (sources.has('cdn_header')) return 'cdn_header';
+    if (sources.has('legacy_timezone')) return 'legacy_timezone';
+    return sources.values().next().value || 'unknown';
   }
 
   for (const view of viewsInRange) {
@@ -859,12 +872,15 @@ export async function analyticsForPage(
 
     cItem.views += 1;
     cItem.visitorsSet.add(vKey);
+    cItem.geoSources.add(geo.geoSource);
 
     rItem.views += 1;
     rItem.visitorsSet.add(vKey);
+    rItem.geoSources.add(geo.geoSource);
 
     ctItem.views += 1;
     ctItem.visitorsSet.add(vKey);
+    ctItem.geoSources.add(geo.geoSource);
   }
 
   for (const click of clicksInRange) {
@@ -876,6 +892,9 @@ export async function analyticsForPage(
     cItem.clicks += 1;
     rItem.clicks += 1;
     ctItem.clicks += 1;
+    cItem.geoSources.add(geo.geoSource);
+    rItem.geoSources.add(geo.geoSource);
+    ctItem.geoSources.add(geo.geoSource);
 
     const block = page.blocks.find(b => b.id === click.blockId);
     const blockTitle = block?.title || `Block #${click.blockId}`;
@@ -892,6 +911,7 @@ export async function analyticsForPage(
       region: details.regionName || details.region,
       regionCode: details.regionCode,
       city: details.city,
+      geoSource: details.geoSource,
     });
     const cItem = getOrInitCountry(geo);
     const rItem = getOrInitRegion(cItem, geo);
@@ -900,6 +920,9 @@ export async function analyticsForPage(
     cItem.subscribers += 1;
     rItem.subscribers += 1;
     ctItem.subscribers += 1;
+    cItem.geoSources.add(geo.geoSource);
+    rItem.geoSources.add(geo.geoSource);
+    ctItem.geoSources.add(geo.geoSource);
   }
 
   const countriesResult: CountryDetailMetric[] = [...countriesAcc.values()].map(c => {
@@ -921,6 +944,7 @@ export async function analyticsForPage(
           viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
           visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
           topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+          geoSource: deriveGeoSource(ct.geoSources),
         };
       }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -936,6 +960,7 @@ export async function analyticsForPage(
         viewShare: totalViews > 0 ? Number(((r.views / totalViews) * 100).toFixed(1)) : 0,
         visitorShare: uniqueVisitors > 0 ? Number(((rVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
         cities: citiesList,
+        geoSource: deriveGeoSource(r.geoSources),
       };
     }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -954,6 +979,7 @@ export async function analyticsForPage(
         viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
         visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
         topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+        geoSource: deriveGeoSource(ct.geoSources),
       };
     }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -969,6 +995,7 @@ export async function analyticsForPage(
       visitorShare: uniqueVisitors > 0 ? Number(((cVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
       regions: regionsList,
       cities: allCitiesInCountry,
+      geoSource: deriveGeoSource(c.geoSources),
     };
   }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -989,6 +1016,7 @@ export async function analyticsForPage(
         viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
         visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
         topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+        geoSource: deriveGeoSource(ct.geoSources),
       };
     }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -1004,6 +1032,7 @@ export async function analyticsForPage(
       viewShare: totalViews > 0 ? Number(((r.views / totalViews) * 100).toFixed(1)) : 0,
       visitorShare: uniqueVisitors > 0 ? Number(((rVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
       cities: citiesList,
+      geoSource: deriveGeoSource(r.geoSources),
     };
   }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -1021,6 +1050,7 @@ export async function analyticsForPage(
       ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
       viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
       visitorShare: uniqueVisitors > 0 ? Number(((ctVisitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+      geoSource: deriveGeoSource(ct.geoSources),
     };
   }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 

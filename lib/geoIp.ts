@@ -9,27 +9,19 @@ export interface GeoLocationResult {
   ipHash: string;
   countryCode: string;
   country: string;
+  countryName?: string;
   regionCode: string;
   region: string;
+  regionName?: string;
   city: string;
   location: string;
   timezone: string;
   browserTimezone: string;
-  geoSource: "ip_geo" | "cdn_header" | "unknown";
+  geoSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
 }
 
-export type GeoIpHealthStatus = "active" | "missing" | "error";
-
-export interface GeoIpHealth {
-  status: GeoIpHealthStatus;
-  database: "Loaded" | "Missing" | "Error";
-  reader: "Healthy" | "Unavailable" | "Error";
-  configured: boolean;
-  pathConfigured: boolean;
-  pathHint: string;
-  lastUpdated: string | null;
-  error?: string;
-}
+import type { GeoIpHealth, GeoIpHealthStatus } from "./types";
+export type { GeoIpHealth, GeoIpHealthStatus };
 
 const SERVER_SALT = process.env.GEO_HASH_SALT || process.env.ADMIN_SESSION_SECRET || "smartlink_geo_salt_v1";
 const databasePath = () => path.resolve((process.env.GEOIP_DB_PATH || process.env.GEOIP_DATABASE_PATH || "data/GeoLite2-City.mmdb").trim());
@@ -40,6 +32,7 @@ let loading: Promise<MMDBReader | null> | null = null;
 let retryAfter = 0;
 let loggedMissingDb = false;
 let mmdbError: string | null = null;
+let lastSuccessfulCityLookup: string | null = null;
 
 // In-memory bounded LRU cache (5,000 items)
 const memoryGeoCache = new Map<string, { result: GeoLocationResult; expiresAt: number }>();
@@ -53,6 +46,7 @@ export function _resetGeoIpStateForTesting() {
   loading = null;
   loggedMissingDb = false;
   mmdbError = null;
+  lastSuccessfulCityLookup = null;
   memoryGeoCache.clear();
 }
 
@@ -96,11 +90,12 @@ function safePathHint(filePath: string) {
   return base || "not configured";
 }
 
-export async function getGeoIpHealth(): Promise<GeoIpHealth> {
+export async function getGeoIpHealth(headers?: Headers): Promise<GeoIpHealth> {
   const pathConfigured = Boolean(process.env.GEOIP_DB_PATH || process.env.GEOIP_DATABASE_PATH);
   const GEOIP_DB_PATH = databasePath();
   const pathHint = safePathHint(GEOIP_DB_PATH);
   let lastUpdated: string | null = null;
+  const clientIpExtraction: "Healthy" | "Error" = headers ? (getTrustedClientIp(headers) ? "Healthy" : "Error") : "Healthy";
 
   try {
     let stats;
@@ -112,7 +107,11 @@ export async function getGeoIpHealth(): Promise<GeoIpHealth> {
       return {
         status: missing ? "missing" : "error",
         database: missing ? "Missing" : "Error",
+        databaseType: "City",
         reader: missing ? "Unavailable" : "Error",
+        lookupService: "Error",
+        clientIpExtraction,
+        lastSuccessfulCityLookup,
         configured: false,
         pathConfigured,
         pathHint,
@@ -128,7 +127,11 @@ export async function getGeoIpHealth(): Promise<GeoIpHealth> {
       return {
         status: "error",
         database: "Error",
+        databaseType: "City",
         reader: "Error",
+        lookupService: "Error",
+        clientIpExtraction,
+        lastSuccessfulCityLookup,
         configured: true,
         pathConfigured,
         pathHint,
@@ -137,10 +140,18 @@ export async function getGeoIpHealth(): Promise<GeoIpHealth> {
       };
     }
 
+    const testLookup = reader.lookup("81.2.69.160");
+    const lookupWorking = Boolean(testLookup?.countryCode || testLookup?.countryName);
+
     return {
       status: "active",
       database: "Loaded",
+      databaseType: reader.databaseType || "City",
+      edition: reader.databaseType,
       reader: "Healthy",
+      lookupService: lookupWorking ? "Healthy" : "Error",
+      clientIpExtraction,
+      lastSuccessfulCityLookup,
       configured: true,
       pathConfigured,
       pathHint,
@@ -150,7 +161,11 @@ export async function getGeoIpHealth(): Promise<GeoIpHealth> {
     return {
       status: "error",
       database: "Error",
+      databaseType: "City",
       reader: "Error",
+      lookupService: "Error",
+      clientIpExtraction,
+      lastSuccessfulCityLookup,
       configured: false,
       pathConfigured,
       pathHint,
@@ -216,9 +231,36 @@ export function anonymizeIp(ip: string): string {
 }
 
 /**
+ * Checks whether an IP matches any configured server or proxy IP address.
+ */
+export function isServerOrProxyIp(ip: string): boolean {
+  const clean = normalizeIp(ip);
+  if (!clean) return false;
+  const configuredServers = [
+    process.env.CUSTOM_DOMAIN_SERVER_IP,
+    process.env.SERVER_IP,
+    process.env.HOST_IP,
+  ]
+    .filter(Boolean)
+    .map((s) => normalizeIp(s!));
+  return configuredServers.includes(clean);
+}
+
+/**
  * Extracts the trusted client IP address following standard reverse proxy / CDN infrastructure precedence.
  */
 export function getTrustedClientIp(headers: Headers, remoteAddress?: string): string {
+  return getClientIpInfo(headers, remoteAddress).ip;
+}
+
+/**
+ * Details the source and classification of the extracted client IP.
+ */
+export function getClientIpInfo(headers: Headers, remoteAddress?: string): {
+  ip: string;
+  source: "custom_header" | "cf-connecting-ip" | "true-client-ip" | "x-forwarded-for" | "x-real-ip" | "remote_address" | "fallback";
+  type: "ipv4_public" | "ipv6_public" | "private" | "unknown";
+} {
   // 1. Explicit configured custom IP header (supports SUBSCRIBER_IP_HEADER, CLIENT_IP_HEADER, TRUSTED_IP_HEADER)
   const customHeader = (
     process.env.SUBSCRIBER_IP_HEADER ||
@@ -229,35 +271,142 @@ export function getTrustedClientIp(headers: Headers, remoteAddress?: string): st
   if (customHeader) {
     const raw = headers.get(customHeader) || "";
     const ip = normalizeIp(raw.split(",")[0].trim());
-    if (ip) return ip;
+    if (ip && !isPrivateIp(ip) && !isServerOrProxyIp(ip)) {
+      return { ip, source: "custom_header", type: ip.includes(":") ? "ipv6_public" : "ipv4_public" };
+    }
   }
 
   // 2. Cloudflare Proxy
   const cfIp = normalizeIp(headers.get("cf-connecting-ip") || "");
-  if (cfIp && !isPrivateIp(cfIp)) return cfIp;
+  if (cfIp && !isPrivateIp(cfIp) && !isServerOrProxyIp(cfIp)) {
+    return { ip: cfIp, source: "cf-connecting-ip", type: cfIp.includes(":") ? "ipv6_public" : "ipv4_public" };
+  }
 
-  // 3. Nginx / reverse proxy X-Real-IP
-  const realIp = normalizeIp(headers.get("x-real-ip") || "");
-  if (realIp && !isPrivateIp(realIp)) return realIp;
+  // 3. True-Client-IP / X-Client-IP (Akamai, Cloudflare Enterprise, various CDNs)
+  const trueClientIp = normalizeIp(headers.get("true-client-ip") || headers.get("x-client-ip") || "");
+  if (trueClientIp && !isPrivateIp(trueClientIp) && !isServerOrProxyIp(trueClientIp)) {
+    return { ip: trueClientIp, source: "true-client-ip", type: trueClientIp.includes(":") ? "ipv6_public" : "ipv4_public" };
+  }
 
-  // 4. X-Forwarded-For: parse chain from left to right, picking the first valid public IP
+  // 4. X-Forwarded-For: parse chain from left to right, picking the first valid public client IP
   const forwarded = headers.get("x-forwarded-for");
   if (forwarded) {
     const ips = forwarded.split(",").map((s) => normalizeIp(s.trim())).filter(Boolean);
     for (const ip of ips) {
-      if (!isPrivateIp(ip)) return ip;
+      if (!isPrivateIp(ip) && !isServerOrProxyIp(ip)) {
+        return { ip, source: "x-forwarded-for", type: ip.includes(":") ? "ipv6_public" : "ipv4_public" };
+      }
     }
-    // If all are private (e.g., local dev), return the first one
-    if (ips[0]) return ips[0];
   }
 
-  // 5. Direct connection remote socket address
+  // 5. Nginx / reverse proxy X-Real-IP (fallback when X-Forwarded-For contains no public client IP)
+  const realIp = normalizeIp(headers.get("x-real-ip") || "");
+  if (realIp && !isPrivateIp(realIp) && !isServerOrProxyIp(realIp)) {
+    return { ip: realIp, source: "x-real-ip", type: realIp.includes(":") ? "ipv6_public" : "ipv4_public" };
+  }
+
+  // 6. If X-Forwarded-For had only private IPs (e.g., local dev / container bridge), use the first one
+  if (forwarded) {
+    const ips = forwarded.split(",").map((s) => normalizeIp(s.trim())).filter(Boolean);
+    if (ips[0]) {
+      return { ip: ips[0], source: "x-forwarded-for", type: "private" };
+    }
+  }
+
+  // 7. Direct connection remote socket address
   if (remoteAddress) {
     const directIp = normalizeIp(remoteAddress);
-    if (directIp) return directIp;
+    if (directIp) {
+      return {
+        ip: directIp,
+        source: "remote_address",
+        type: isPrivateIp(directIp) ? "private" : (directIp.includes(":") ? "ipv6_public" : "ipv4_public"),
+      };
+    }
   }
 
-  return "127.0.0.1";
+  return { ip: "127.0.0.1", source: "fallback", type: "private" };
+}
+
+/**
+ * Masks an IP address for privacy in logs and non-sensitive diagnostics.
+ */
+export function maskIp(ip: string): string {
+  if (!ip) return "";
+  if (ip.includes(":")) {
+    const parts = ip.split(":");
+    return parts.slice(0, 3).join(":") + ":****:****";
+  }
+  const parts = ip.split(".");
+  if (parts.length === 4) {
+    return `${parts[0]}.${parts[1]}.***.***`;
+  }
+  return "***";
+}
+
+export interface RequestGeoDiagnostic {
+  clientIpSource: string;
+  clientIpType: "ipv4_public" | "ipv6_public" | "private" | "unknown";
+  maskedIp: string;
+  countrySource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
+  regionSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
+  citySource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
+  geoSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
+  geoDbLoaded: boolean;
+  geoDbType: string;
+  lookupSucceeded: boolean;
+  rawMmdb: {
+    countryIso?: string;
+    countryName?: string;
+    subdivisionIso?: string;
+    subdivisionName?: string;
+    cityName?: string;
+    timezone?: string;
+  } | null;
+  resolved: GeoLocationResult;
+}
+
+export async function diagnoseRequestGeo(
+  headers: Headers,
+  body?: { timezone?: string },
+  remoteAddress?: string,
+): Promise<RequestGeoDiagnostic> {
+  const ipInfo = getClientIpInfo(headers, remoteAddress);
+  const health = await getGeoIpHealth(headers);
+  const reader = await getMMDBInstance();
+  const rawData = reader && !isPrivateIp(ipInfo.ip) ? reader.rawLookup(ipInfo.ip) : null;
+  const resolved = await resolveIpLocation(ipInfo.ip, headers, body?.timezone);
+
+  let rawMmdb: RequestGeoDiagnostic["rawMmdb"] = null;
+  if (rawData) {
+    rawMmdb = {
+      countryIso: rawData.country?.iso_code || rawData.registered_country?.iso_code,
+      countryName: rawData.country?.names?.en || rawData.registered_country?.names?.en,
+      subdivisionIso: rawData.subdivisions?.[0]?.iso_code,
+      subdivisionName: rawData.subdivisions?.[0]?.names?.en,
+      cityName: rawData.city?.names?.en,
+      timezone: rawData.location?.time_zone,
+    };
+  }
+
+  const countrySource = rawMmdb?.countryName ? "ip_geo" : (resolved.geoSource === "cdn_header" ? "cdn_header" : "unknown");
+  const regionSource = rawMmdb?.subdivisionName ? "ip_geo" : (resolved.geoSource === "cdn_header" && resolved.region !== "Unknown" ? "cdn_header" : "unknown");
+  const citySource = rawMmdb?.cityName ? "ip_geo" : (resolved.geoSource === "cdn_header" && resolved.city !== "Unknown" ? "cdn_header" : "unknown");
+
+  return {
+    clientIpSource: ipInfo.source,
+    clientIpType: ipInfo.type,
+    maskedIp: maskIp(ipInfo.ip),
+    countrySource,
+    regionSource,
+    citySource,
+    geoSource: resolved.geoSource,
+    geoDbLoaded: health.database === "Loaded",
+    geoDbType: health.databaseType,
+    lookupSucceeded: Boolean(rawMmdb && (rawMmdb.countryName || rawMmdb.cityName)),
+    rawMmdb,
+    resolved,
+  };
 }
 
 /**
@@ -294,7 +443,7 @@ export async function resolveIpLocation(
   }
 
   let geoData: MMDBLocationRecord | null = null;
-  let geoSource: "ip_geo" | "cdn_header" | "unknown" = "unknown";
+  let geoSource: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown" = "unknown";
 
   // 1. Try MMDB lookup if valid public IP
   if (cleanIp && !isPrivateIp(cleanIp)) {
@@ -305,10 +454,9 @@ export async function resolveIpLocation(
         geoSource = "ip_geo";
       }
     }
-
   }
 
-  // 3. Fallback to Cloudflare / CDN headers
+  // 2. Fallback to Cloudflare / CDN headers
   let countryCode = geoData?.countryCode || "";
   let country = geoData?.countryName || "";
   let regionCode = geoData?.regionCode || "";
@@ -346,7 +494,7 @@ export async function resolveIpLocation(
     }
   }
 
-  // 4. Default Unknowns
+  // 3. Default Unknowns
   if (!countryCode && !country) {
     country = "Unknown";
     countryCode = "";
@@ -369,12 +517,18 @@ export async function resolveIpLocation(
     location = country;
   }
 
+  if (geoSource === "ip_geo" && city !== "Unknown") {
+    lastSuccessfulCityLookup = new Date().toISOString();
+  }
+
   const result: GeoLocationResult = {
     ipHash,
     countryCode,
     country,
+    countryName: country,
     regionCode,
     region,
+    regionName: region,
     city,
     location,
     timezone,
@@ -414,10 +568,16 @@ function resolveCountryDisplayName(countryCode: string): string {
  * Shared helper for API routes: extracts trusted client IP and performs geo resolution.
  */
 export async function resolveRequestGeo(
-  headers: Headers,
+  requestOrHeaders: Headers | { headers: Headers } | Request,
   body?: { country?: string; city?: string; timezone?: string },
   remoteAddress?: string,
 ): Promise<GeoLocationResult> {
+  const headers =
+    requestOrHeaders instanceof Headers
+      ? requestOrHeaders
+      : "headers" in requestOrHeaders && requestOrHeaders.headers instanceof Headers
+      ? requestOrHeaders.headers
+      : new Headers();
   const ip = getTrustedClientIp(headers, remoteAddress);
   const browserTimezone = body?.timezone;
   return resolveIpLocation(ip, headers, browserTimezone);

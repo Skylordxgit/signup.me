@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.toLowerCase();
   const countries = searchParams.getAll("country");
+  const regions = searchParams.getAll("region");
   const cities = searchParams.getAll("city");
   const devices = searchParams.getAll("device") as ("mobile" | "desktop" | "tablet")[];
   const status = (searchParams.get("status") as "active" | "inactive" | "all") || "all";
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     locations: {
       includeCountries: countries,
       excludeCountries: [],
-      includeRegions: [],
+      includeRegions: regions,
       excludeRegions: [],
       includeCities: cities,
       excludeCities: [],
@@ -54,6 +55,7 @@ export async function GET(request: NextRequest) {
     subscribers = subscribers.filter(
       (s) =>
         (s.details?.city && s.details.city.toLowerCase().includes(search)) ||
+        (s.details?.region && s.details.region.toLowerCase().includes(search)) ||
         (s.details?.country && s.details.country.toLowerCase().includes(search)) ||
         (s.details?.browser && s.details.browser.toLowerCase().includes(search)) ||
         (s.details?.device && s.details.device.toLowerCase().includes(search)) ||
@@ -69,8 +71,13 @@ export async function GET(request: NextRequest) {
     slug: s.slug,
     status: s.isActive ? "active" : "inactive",
     country: s.details?.country || "Unknown",
+    countryCode: s.details?.countryCode,
+    countryName: s.details?.countryName || s.details?.country || "Unknown",
     region: s.details?.region || "",
+    regionCode: s.details?.regionCode,
+    regionName: s.details?.regionName || s.details?.region || "",
     city: s.details?.city || "Unknown",
+    geoSource: s.details?.geoSource || "unknown",
     device: s.details?.device || "Desktop",
     browser: s.details?.browser || "Browser",
     subscribedAt: s.createdAt,

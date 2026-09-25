@@ -1,20 +1,22 @@
 import { NextRequest } from "next/server";
 import { masterJson } from "@/lib/auth";
-import { getGeoIpHealth, isPrivateIp, normalizeIp, resolveIpLocation } from "@/lib/geoIp";
+import { getGeoIpHealth, isPrivateIp, normalizeIp, resolveIpLocation, diagnoseRequestGeo } from "@/lib/geoIp";
 
 export async function GET(request: NextRequest) {
   return masterJson(async () => {
-    const health = await getGeoIpHealth();
+    const health = await getGeoIpHealth(request.headers);
+    const diagnostic = await diagnoseRequestGeo(request.headers);
     const ipParam = request.nextUrl.searchParams.get("ip") || "";
     const ip = normalizeIp(ipParam);
 
     if (!ipParam) {
-      return { health };
+      return { health, diagnostic };
     }
 
     if (!ip || isPrivateIp(ip)) {
       return {
         health,
+        diagnostic,
         lookup: {
           ok: false,
           error: "Enter a valid public IPv4 or IPv6 address.",
@@ -25,6 +27,7 @@ export async function GET(request: NextRequest) {
     const result = await resolveIpLocation(ip);
     return {
       health,
+      diagnostic,
       lookup: {
         ok: result.geoSource !== "unknown",
         country: result.country,

@@ -227,6 +227,7 @@ export type LocationMetric = {
   ctr?: number;
   viewShare?: number;
   visitorShare?: number;
+  geoSource?: string;
 };
 
 export type LinkClickLocation = {
@@ -237,6 +238,7 @@ export type LinkClickLocation = {
   region?: string;
   city: string;
   clicks: number;
+  geoSource?: string;
 };
 
 export type CityDetailMetric = {
@@ -251,6 +253,7 @@ export type CityDetailMetric = {
   ctr: number;
   viewShare?: number;
   visitorShare?: number;
+  geoSource?: string;
   topLinks: { blockId: number; blockTitle: string; url?: string; clicks: number }[];
 };
 
@@ -265,6 +268,7 @@ export type RegionDetailMetric = {
   ctr: number;
   viewShare?: number;
   visitorShare?: number;
+  geoSource?: string;
   cities: CityDetailMetric[];
 };
 
@@ -278,6 +282,7 @@ export type CountryDetailMetric = {
   ctr: number;
   viewShare?: number;
   visitorShare?: number;
+  geoSource?: string;
   regions?: RegionDetailMetric[];
   cities: CityDetailMetric[];
 };
@@ -391,6 +396,7 @@ export type SubscriberDetails = {
   regionName?: string;
   city: string;
   timezone: string;
+  geoSource?: "ip_geo" | "cdn_header" | "legacy_timezone" | "unknown";
   lastActiveAt?: string;
   source?: string;
   utmSource?: string;
@@ -558,3 +564,21 @@ export type NotificationTemplate = {
   createdAt: string;
   updatedAt: string;
 };
+
+export type GeoIpHealthStatus = "active" | "missing" | "error";
+
+export interface GeoIpHealth {
+  status: GeoIpHealthStatus;
+  database: "Loaded" | "Missing" | "Error";
+  databaseType: string;
+  edition?: string;
+  reader: "Healthy" | "Unavailable" | "Error";
+  lookupService: "Healthy" | "Error";
+  clientIpExtraction: "Healthy" | "Error";
+  lastSuccessfulCityLookup: string | null;
+  configured: boolean;
+  pathConfigured: boolean;
+  pathHint: string;
+  lastUpdated: string | null;
+  error?: string;
+}

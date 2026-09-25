@@ -37,9 +37,11 @@ import {
   getGeoIpHealth,
   resolveIpLocation,
   resolveRequestGeo,
+  diagnoseRequestGeo,
+  getClientIpInfo,
   _resetGeoIpStateForTesting,
 } from "../lib/geoIp";
-import { formatLocation, collectSubscriberDetails } from "../lib/subscriberDetails";
+import { formatLocation, collectSubscriberDetails, subscriberListItem } from "../lib/subscriberDetails";
 import {
   createPage,
   createBlock,
@@ -257,4 +259,176 @@ test("Analytics aggregation: calculates EXACT unique visitors and subscriber met
   // Verify 'Direct / Local' is never listed as a country or city
   assert.ok(!report.countries?.some((c) => c.countryName === "Direct / Local" || c.countryName === "Direct"));
   assert.ok(!report.locations?.some((l) => l.city === "Direct" || l.city === "Direct / Local"));
+});
+
+test("MMDB normalization: parses complete CityResponse for Mumbai, India", () => {
+  const rawCityResponse = {
+    country: { iso_code: "IN", names: { en: "India" } },
+    subdivisions: [{ iso_code: "MH", names: { en: "Maharashtra" } }],
+    city: { names: { en: "Mumbai" } },
+    location: { time_zone: "Asia/Kolkata" },
+  };
+
+  const formatted = MMDBReader.formatRecord(rawCityResponse as any);
+  assert.ok(formatted);
+  assert.equal(formatted.countryCode, "IN");
+  assert.equal(formatted.countryName, "India");
+  assert.equal(formatted.regionCode, "MH");
+  assert.equal(formatted.regionName, "Maharashtra");
+  assert.equal(formatted.city, "Mumbai");
+  assert.equal(formatted.timezone, "Asia/Kolkata");
+});
+
+test("MMDB normalization: handles country-only response (e.g. CDN edge datacenter)", () => {
+  const datacenterResponse = {
+    country: { iso_code: "IN", names: { en: "India" } },
+    subdivisions: [],
+    city: undefined,
+  };
+
+  const formatted = MMDBReader.formatRecord(datacenterResponse as any);
+  assert.ok(formatted);
+  assert.equal(formatted.countryCode, "IN");
+  assert.equal(formatted.countryName, "India");
+  assert.equal(formatted.regionCode, undefined);
+  assert.equal(formatted.regionName, undefined);
+  assert.equal(formatted.city, undefined);
+});
+
+test("MMDB normalization: falls back to registered_country if country is missing", () => {
+  const registeredOnlyResponse = {
+    registered_country: { iso_code: "IN", names: { en: "India" } },
+  };
+
+  const formatted = MMDBReader.formatRecord(registeredOnlyResponse as any);
+  assert.ok(formatted);
+  assert.equal(formatted.countryCode, "IN");
+  assert.equal(formatted.countryName, "India");
+});
+
+test("MMDB normalization: handles missing city with known region", () => {
+  const regionOnlyResponse = {
+    country: { iso_code: "IN", names: { en: "India" } },
+    subdivisions: [{ iso_code: "MH", names: { en: "Maharashtra" } }],
+  };
+
+  const formatted = MMDBReader.formatRecord(regionOnlyResponse as any);
+  assert.ok(formatted);
+  assert.equal(formatted.countryCode, "IN");
+  assert.equal(formatted.countryName, "India");
+  assert.equal(formatted.regionName, "Maharashtra");
+  assert.equal(formatted.city, undefined);
+});
+
+test("MMDB normalization: returns null for empty or invalid data", () => {
+  assert.equal(MMDBReader.formatRecord(null), null);
+  assert.equal(MMDBReader.formatRecord(undefined), null);
+  assert.equal(MMDBReader.formatRecord({} as any), null);
+});
+
+test("Proxy chain: Hostinger CDN edge precedence test", () => {
+  // Visitor is 103.21.244.1, Hostinger CDN edge is 88.222.243.172
+  const headers = new Headers({
+    "x-forwarded-for": "103.21.244.1, 88.222.243.172",
+    "x-real-ip": "88.222.243.172",
+  });
+
+  const ip = getTrustedClientIp(headers);
+  assert.equal(ip, "103.21.244.1");
+
+  const info = getClientIpInfo(headers);
+  assert.equal(info.ip, "103.21.244.1");
+  assert.equal(info.source, "x-forwarded-for");
+  assert.equal(info.type, "ipv4_public");
+});
+
+test("Proxy chain: skips known SERVER_IP in X-Forwarded-For", () => {
+  const prevServerIp = process.env.SERVER_IP;
+  try {
+    process.env.SERVER_IP = "88.222.243.172";
+    const headers = new Headers({
+      "x-forwarded-for": "88.222.243.172, 103.21.244.5",
+    });
+    assert.equal(getTrustedClientIp(headers), "103.21.244.5");
+  } finally {
+    if (prevServerIp === undefined) delete process.env.SERVER_IP;
+    else process.env.SERVER_IP = prevServerIp;
+  }
+});
+
+test("Proxy chain: IPv6 client address extraction", () => {
+  const headers = new Headers({
+    "x-forwarded-for": "2001:db8:85a3::8a2e:370:7334, 192.168.1.1",
+  });
+  const info = getClientIpInfo(headers);
+  assert.equal(info.ip, "2001:db8:85a3::8a2e:370:7334");
+  assert.equal(info.type, "ipv6_public");
+});
+
+test("Request diagnostics: diagnoseRequestGeo reports full diagnostic payload", async () => {
+  _resetGeoIpStateForTesting();
+
+  const headers = new Headers({
+    "x-forwarded-for": "103.21.244.1, 88.222.243.172",
+    "x-real-ip": "88.222.243.172",
+  });
+
+  const diag = await diagnoseRequestGeo(headers);
+  assert.equal(diag.clientIpSource, "x-forwarded-for");
+  assert.equal(diag.clientIpType, "ipv4_public");
+  assert.ok("countrySource" in diag);
+  assert.ok("regionSource" in diag);
+  assert.ok("citySource" in diag);
+  assert.ok("geoSource" in diag);
+  assert.ok("geoDbLoaded" in diag);
+  assert.ok("lookupSucceeded" in diag);
+});
+
+test("Subscriber details: persists geoSource and handles subscriber list item mapping", () => {
+  const headers = new Headers({
+    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+    "x-forwarded-for": "103.21.244.1",
+  });
+
+  const mockGeo = {
+    country: "India",
+    countryCode: "IN",
+    countryName: "India",
+    region: "Maharashtra",
+    regionCode: "MH",
+    regionName: "Maharashtra",
+    city: "Mumbai",
+    location: "Mumbai, Maharashtra, India",
+    geoSource: "ip_geo" as const,
+  };
+
+  const details = collectSubscriberDetails(headers, { timezone: "Asia/Kolkata" }, mockGeo);
+  assert.equal(details.country, "India");
+  assert.equal(details.countryCode, "IN");
+  assert.equal(details.countryName, "India");
+  assert.equal(details.region, "Maharashtra");
+  assert.equal(details.regionCode, "MH");
+  assert.equal(details.regionName, "Maharashtra");
+  assert.equal(details.city, "Mumbai");
+  assert.equal(details.geoSource, "ip_geo");
+  assert.ok(details.timezone === "Asia/Kolkata" || details.timezone === "Asia/Calcutta");
+
+  const item = subscriberListItem({
+    id: 42,
+    pageId: 1,
+    slug: "mumbai-page",
+    createdAt: "2026-09-25T10:00:00Z",
+    userAgent: headers.get("user-agent") || "",
+    details,
+  });
+
+  assert.equal(item.id, 42);
+  assert.equal(item.country, "India");
+  assert.equal(item.countryCode, "IN");
+  assert.equal(item.countryName, "India");
+  assert.equal(item.region, "Maharashtra");
+  assert.equal(item.regionCode, "MH");
+  assert.equal(item.regionName, "Maharashtra");
+  assert.equal(item.city, "Mumbai");
+  assert.equal(item.geoSource, "ip_geo");
 });

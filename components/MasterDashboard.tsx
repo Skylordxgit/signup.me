@@ -35,6 +35,7 @@ import { workspacePermissions, type WorkspacePermission, type WorkspaceRole } fr
 import { adminApi } from "@/lib/admin";
 import { defaultBranding, type BrandingSettings } from "@/lib/brandingConstants";
 import type { CustomDomain, DomainVerificationConfig } from "@/lib/domains";
+import type { GeoIpHealth } from "@/lib/types";
 import { ImageUploader } from "./ImageUploader";
 import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, SectionHeading } from "./admin/AdminUI";
 import "./admin/admin.css";
@@ -58,16 +59,7 @@ type Payload = { workspaces: MasterWorkspace[]; defaultWorkspaceId: string };
 type DomainsPayload = { domains: CustomDomain[]; verification: DomainVerificationConfig };
 type SignupSettings = { enabled: boolean };
 type GeoIpHealthPayload = {
-  health: {
-    status: "active" | "missing" | "error";
-    database: "Loaded" | "Missing" | "Error";
-    reader: "Healthy" | "Unavailable" | "Error";
-    configured: boolean;
-    pathConfigured: boolean;
-    pathHint: string;
-    lastUpdated: string | null;
-    error?: string;
-  };
+  health: GeoIpHealth;
 };
 type MasterView = "overview" | "workspaces" | "domains" | "users" | "branding" | "signup";
 type DomainModal = "add" | { action: "edit" | "assign" | "delete"; domain: CustomDomain } | null;
@@ -550,9 +542,26 @@ export function MasterDashboard({ email, initialView }: { email: string; initial
               <article><span className="masterMetricIcon masterToneGreen"><Globe2 size={20} /></span><div><small>Push audience</small><strong>{totals.subscribers}</strong><em>subscribers</em></div></article>
               <article>
                 <span className={`masterMetricIcon ${geoIp?.status === "active" ? "masterToneGreen" : geoIp?.status === "error" ? "masterToneAmber" : "masterToneViolet"}`}><Globe2 size={20} /></span>
-                <div><small>GeoIP City DB</small><strong>{geoIp?.database || "Unknown"}</strong><em>{geoIp?.lastUpdated ? `updated ${formatDate(geoIp.lastUpdated)}` : geoIp?.reader || "health unavailable"}</em></div>
+                <div><small>GeoIP ({geoIp?.databaseType || "City"} DB)</small><strong>{geoIp?.database || "Unknown"}</strong><em>{geoIp?.lastSuccessfulCityLookup ? `last match ${formatDate(geoIp.lastSuccessfulCityLookup)}` : geoIp?.lastUpdated ? `updated ${formatDate(geoIp.lastUpdated)}` : geoIp?.reader || "health unavailable"}</em></div>
               </article>
             </div>
+            {geoIp && (
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", fontSize: "12px", color: "var(--c-muted)", margin: "8px 0 16px 4px" }}>
+                <span>Database: <strong style={{ color: geoIp.database === "Loaded" ? "var(--c-success, #16a34a)" : "inherit" }}>{geoIp.database}</strong></span>
+                <span>•</span>
+                <span>Type: <strong>{geoIp.databaseType || "City"}</strong></span>
+                <span>•</span>
+                <span>Lookup: <strong style={{ color: geoIp.lookupService === "Healthy" ? "var(--c-success, #16a34a)" : "inherit" }}>{geoIp.lookupService || "Healthy"}</strong></span>
+                <span>•</span>
+                <span>Client IP: <strong style={{ color: geoIp.clientIpExtraction === "Healthy" ? "var(--c-success, #16a34a)" : "inherit" }}>{geoIp.clientIpExtraction || "Healthy"}</strong></span>
+                {geoIp.lastSuccessfulCityLookup && (
+                  <>
+                    <span>•</span>
+                    <span>Last Match: <strong>{formatDate(geoIp.lastSuccessfulCityLookup)}</strong></span>
+                  </>
+                )}
+              </div>
+            )}
             {geoIp && geoIp.status !== "active" && <p className="admSetupNote masterNotice" role="status">GeoIP database is {geoIp.database.toLowerCase()}. {geoIp.error} Environment variable: {geoIp.pathConfigured ? "set" : "not set"}. Expected file: <code>{geoIp.pathHint}</code>.</p>}
             <section className="masterPanel">
               <SectionHeading title="Recent workspaces">

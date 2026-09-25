@@ -249,8 +249,8 @@ export function getWorkspaceDistinctLocations(subscribers: NotificationSubscribe
   const hierarchy: Record<string, { regions: Set<string>; cities: Set<string> }> = {};
 
   for (const s of subscribers) {
-    const country = (s.details?.country || "").trim();
-    const region = (s.details?.region || "").trim();
+    const country = (s.details?.countryName || s.details?.country || "").trim();
+    const region = (s.details?.regionName || s.details?.region || "").trim();
     const city = (s.details?.city || "").trim();
 
     if (country && country.toLowerCase() !== "direct / local" && country.toLowerCase() !== "unknown") {

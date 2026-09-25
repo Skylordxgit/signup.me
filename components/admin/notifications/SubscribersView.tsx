@@ -32,6 +32,7 @@ export function SubscribersView({
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+  const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<string[]>([]);
   const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("all");
@@ -61,6 +62,7 @@ export function SubscribersView({
       });
       if (search) params.set("search", search);
       selectedCountries.forEach((c) => params.append("country", c));
+      selectedRegions.forEach((r) => params.append("region", r));
       selectedCities.forEach((c) => params.append("city", c));
       selectedDevices.forEach((d) => params.append("device", d));
 
@@ -85,7 +87,7 @@ export function SubscribersView({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [search, selectedCountries, selectedCities, selectedDevices, statusFilter, offset, refreshKey]);
+  }, [search, selectedCountries, selectedRegions, selectedCities, selectedDevices, statusFilter, offset, refreshKey]);
 
   const fetchSubscribers = () => {
     setOffset(0);
@@ -96,12 +98,14 @@ export function SubscribersView({
     const params = new URLSearchParams({ format: "csv" });
     if (search) params.set("search", search);
     selectedCountries.forEach((c) => params.append("country", c));
+    selectedRegions.forEach((r) => params.append("region", r));
     selectedCities.forEach((c) => params.append("city", c));
     selectedDevices.forEach((d) => params.append("device", d));
     window.location.href = `/api/admin/notifications/subscribers?${params.toString()}`;
   };
 
   const countryOptions = locations?.countries || ["Bangladesh", "India", "United States", "United Kingdom"];
+  const regionOptions = locations?.regions || [];
   const cityOptions = locations?.cities || ["Dhaka", "Chattogram", "Sylhet", "Mumbai", "Delhi", "Kolkata"];
 
   return (
@@ -165,6 +169,17 @@ export function SubscribersView({
             selected={selectedCountries}
             onChange={(sel) => {
               setSelectedCountries(sel);
+              setOffset(0);
+            }}
+          />
+
+          <MultiSelectDropdown
+            label="Filter Regions / States"
+            placeholder="All states / regions..."
+            options={regionOptions}
+            selected={selectedRegions}
+            onChange={(sel) => {
+              setSelectedRegions(sel);
               setOffset(0);
             }}
           />

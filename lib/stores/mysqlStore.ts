@@ -963,15 +963,16 @@ export async function analyticsForPage(
     region: string | null;
     region_code: string | null;
     city: string | null;
+    geo_source: string | null;
     views: number;
     visitors: number;
   }[]>(
-    `SELECT country, country_code, region, region_code, city,
+    `SELECT country, country_code, region, region_code, city, geo_source,
             COUNT(*) AS views,
             COUNT(DISTINCT visitor_hash) AS visitors
      FROM page_views
      WHERE page_id = ? AND created_at >= ? AND created_at <= ?
-     GROUP BY country, country_code, region, region_code, city`,
+     GROUP BY country, country_code, region, region_code, city, geo_source`,
     [pageId, startDate, endDateTime],
   );
 
@@ -982,13 +983,32 @@ export async function analyticsForPage(
     region: string | null;
     region_code: string | null;
     city: string | null;
+    geo_source: string | null;
     count: number;
   }[]>(
-    `SELECT block_id, country, country_code, region, region_code, city,
+    `SELECT block_id, country, country_code, region, region_code, city, geo_source,
             COUNT(*) AS count
      FROM link_clicks
      WHERE page_id = ? AND created_at >= ? AND created_at <= ?
-     GROUP BY block_id, country, country_code, region, region_code, city`,
+     GROUP BY block_id, country, country_code, region, region_code, city, geo_source`,
+    [pageId, startDate, endDateTime],
+  );
+
+  const customHtmlClickLocationRows = await mysqlQuery<{
+    href: string;
+    country: string | null;
+    country_code: string | null;
+    region: string | null;
+    region_code: string | null;
+    city: string | null;
+    geo_source: string | null;
+    count: number;
+  }[]>(
+    `SELECT href, country, country_code, region, region_code, city, geo_source,
+            COUNT(*) AS count
+     FROM custom_html_link_clicks
+     WHERE page_id = ? AND created_at >= ? AND created_at <= ?
+     GROUP BY href, country, country_code, region, region_code, city, geo_source`,
     [pageId, startDate, endDateTime],
   );
 
@@ -1037,6 +1057,7 @@ export async function analyticsForPage(
     subscribers: number;
     visitors: number;
     links: Map<number, { blockId: number; blockTitle: string; clicks: number }>;
+    geoSources: Set<string>;
   };
 
   type RegionAcc = {
@@ -1048,6 +1069,7 @@ export async function analyticsForPage(
     subscribers: number;
     visitors: number;
     cities: Map<string, CityAcc>;
+    geoSources: Set<string>;
   };
 
   type CountryAcc = {
@@ -1059,6 +1081,7 @@ export async function analyticsForPage(
     visitors: number;
     regions: Map<string, RegionAcc>;
     cities: Map<string, CityAcc>;
+    geoSources: Set<string>;
   };
 
   const countriesAcc = new Map<string, CountryAcc>();
@@ -1077,6 +1100,7 @@ export async function analyticsForPage(
         visitors: 0,
         regions: new Map(),
         cities: new Map(),
+        geoSources: new Set(),
       };
       countriesAcc.set(geo.country, cItem);
     }
@@ -1099,6 +1123,7 @@ export async function analyticsForPage(
         subscribers: 0,
         visitors: 0,
         cities: new Map(),
+        geoSources: new Set(),
       };
       cItem.regions.set(geo.region, rItem);
       regionsAcc.set(regKey, rItem);
@@ -1120,12 +1145,20 @@ export async function analyticsForPage(
         subscribers: 0,
         visitors: 0,
         links: new Map(),
+        geoSources: new Set(),
       };
       cItem.cities.set(geo.city, ctItem);
       rItem.cities.set(geo.city, ctItem);
       flatCitiesAcc.set(cityKey, ctItem);
     }
     return ctItem;
+  }
+
+  function deriveGeoSource(sources: Set<string>): string {
+    if (sources.has('ip_geo')) return 'ip_geo';
+    if (sources.has('cdn_header')) return 'cdn_header';
+    if (sources.has('legacy_timezone')) return 'legacy_timezone';
+    return sources.values().next().value || 'unknown';
   }
 
   for (const row of viewLocationRows) {
@@ -1135,6 +1168,7 @@ export async function analyticsForPage(
       region: row.region,
       regionCode: row.region_code,
       city: row.city,
+      geoSource: row.geo_source,
     });
     const cItem = getOrInitCountry(geo);
     const rItem = getOrInitRegion(cItem, geo);
@@ -1145,12 +1179,15 @@ export async function analyticsForPage(
 
     cItem.views += vCount;
     cItem.visitors += visCount;
+    cItem.geoSources.add(geo.geoSource);
 
     rItem.views += vCount;
     rItem.visitors += visCount;
+    rItem.geoSources.add(geo.geoSource);
 
     ctItem.views += vCount;
     ctItem.visitors += visCount;
+    ctItem.geoSources.add(geo.geoSource);
   }
 
   for (const row of clickLocationRows) {
@@ -1160,6 +1197,7 @@ export async function analyticsForPage(
       region: row.region,
       regionCode: row.region_code,
       city: row.city,
+      geoSource: row.geo_source,
     });
     const cItem = getOrInitCountry(geo);
     const rItem = getOrInitRegion(cItem, geo);
@@ -1169,12 +1207,37 @@ export async function analyticsForPage(
     cItem.clicks += cCount;
     rItem.clicks += cCount;
     ctItem.clicks += cCount;
+    cItem.geoSources.add(geo.geoSource);
+    rItem.geoSources.add(geo.geoSource);
+    ctItem.geoSources.add(geo.geoSource);
 
     const block = page.blocks.find(b => b.id === row.block_id);
     const blockTitle = block?.title || `Block #${row.block_id}`;
     const linkItem = ctItem.links.get(row.block_id) || { blockId: row.block_id, blockTitle, clicks: 0 };
     linkItem.clicks += cCount;
     ctItem.links.set(row.block_id, linkItem);
+  }
+
+  for (const row of customHtmlClickLocationRows) {
+    const geo = normalizeGeoRecord({
+      country: row.country,
+      countryCode: row.country_code,
+      region: row.region,
+      regionCode: row.region_code,
+      city: row.city,
+      geoSource: row.geo_source,
+    });
+    const cItem = getOrInitCountry(geo);
+    const rItem = getOrInitRegion(cItem, geo);
+    const ctItem = getOrInitCity(cItem, rItem, geo);
+
+    const cCount = Number(row.count || 0);
+    cItem.clicks += cCount;
+    rItem.clicks += cCount;
+    ctItem.clicks += cCount;
+    cItem.geoSources.add(geo.geoSource);
+    rItem.geoSources.add(geo.geoSource);
+    ctItem.geoSources.add(geo.geoSource);
   }
 
   for (const sub of subscriberRows) {
@@ -1188,6 +1251,7 @@ export async function analyticsForPage(
       region: details.regionName || details.region,
       regionCode: details.regionCode,
       city: details.city,
+      geoSource: details.geoSource,
     });
     const cItem = getOrInitCountry(geo);
     const rItem = getOrInitRegion(cItem, geo);
@@ -1196,6 +1260,9 @@ export async function analyticsForPage(
     cItem.subscribers += 1;
     rItem.subscribers += 1;
     ctItem.subscribers += 1;
+    cItem.geoSources.add(geo.geoSource);
+    rItem.geoSources.add(geo.geoSource);
+    ctItem.geoSources.add(geo.geoSource);
   }
 
   const countriesResult: CountryDetailMetric[] = [...countriesAcc.values()].map(c => {
@@ -1213,6 +1280,7 @@ export async function analyticsForPage(
         viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
         visitorShare: uniqueVisitors > 0 ? Number(((ct.visitors / uniqueVisitors) * 100).toFixed(1)) : 0,
         topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+        geoSource: deriveGeoSource(ct.geoSources),
       })).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
       return {
@@ -1227,6 +1295,7 @@ export async function analyticsForPage(
         viewShare: totalViews > 0 ? Number(((r.views / totalViews) * 100).toFixed(1)) : 0,
         visitorShare: uniqueVisitors > 0 ? Number(((r.visitors / uniqueVisitors) * 100).toFixed(1)) : 0,
         cities: citiesList,
+        geoSource: deriveGeoSource(r.geoSources),
       };
     }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -1243,6 +1312,7 @@ export async function analyticsForPage(
       viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
       visitorShare: uniqueVisitors > 0 ? Number(((ct.visitors / uniqueVisitors) * 100).toFixed(1)) : 0,
       topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+      geoSource: deriveGeoSource(ct.geoSources),
     })).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
     return {
@@ -1257,6 +1327,7 @@ export async function analyticsForPage(
       visitorShare: uniqueVisitors > 0 ? Number(((c.visitors / uniqueVisitors) * 100).toFixed(1)) : 0,
       regions: regionsList,
       cities: allCitiesInCountry,
+      geoSource: deriveGeoSource(c.geoSources),
     };
   }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -1274,6 +1345,7 @@ export async function analyticsForPage(
       viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
       visitorShare: uniqueVisitors > 0 ? Number(((ct.visitors / uniqueVisitors) * 100).toFixed(1)) : 0,
       topLinks: [...ct.links.values()].sort((a, b) => b.clicks - a.clicks),
+      geoSource: deriveGeoSource(ct.geoSources),
     })).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
     return {
@@ -1288,6 +1360,7 @@ export async function analyticsForPage(
       viewShare: totalViews > 0 ? Number(((r.views / totalViews) * 100).toFixed(1)) : 0,
       visitorShare: uniqueVisitors > 0 ? Number(((r.visitors / uniqueVisitors) * 100).toFixed(1)) : 0,
       cities: citiesList,
+      geoSource: deriveGeoSource(r.geoSources),
     };
   }).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
@@ -1303,6 +1376,7 @@ export async function analyticsForPage(
     ctr: ct.views > 0 ? Number(((ct.clicks / ct.views) * 100).toFixed(1)) : (ct.clicks > 0 ? 100 : 0),
     viewShare: totalViews > 0 ? Number(((ct.views / totalViews) * 100).toFixed(1)) : 0,
     visitorShare: uniqueVisitors > 0 ? Number(((ct.visitors / uniqueVisitors) * 100).toFixed(1)) : 0,
+    geoSource: deriveGeoSource(ct.geoSources),
   })).sort((a, b) => (b.views + b.clicks) - (a.views + a.clicks));
 
   const linkLocationsMap = new Map<string, { blockId: number; blockTitle: string; location: string; country: string; city: string; clicks: number }>();
