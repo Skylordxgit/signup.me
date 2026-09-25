@@ -352,6 +352,20 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-25: Required notification popups now center in the viewport on desktop
+  and mobile, overriding saved corner placement. Uses auto margins without
+  transforms so shake animations keep their center; tall content scrolls within
+  viewport margins. Optional notification widgets retain their saved position.
+
+- 2026-09-25: Fixed production GeoIP configuration in Hostinger. The user
+  uploaded the verified GeoLite2 City database into the site's private `geoip/`
+  directory, alongside `public_html/`. Hostinger's FTP directory field confirmed
+  the site root; GEOIP_DB_PATH now points to
+  `/home/u333297810/domains/signup888.shop/geoip/GeoLite2-City.mmdb`.
+  Applied the environment change and verified the completed deployment and live
+  Master Admin health indicator: `GEOIP CITY DB Loaded updated 25 Sept 2026`.
+  The database remains outside Git and public_html; no code change was needed.
+
 - 2026-09-25: Fixed login remaining stuck after network/proxy failures. Added
   client-safe login transport with a 30-second timeout, confirmed JSON success,
   actionable errors, and form loading-state recovery plus duplicate submission
