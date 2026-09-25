@@ -99,13 +99,64 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
       }
     }
 
-    if (mode === 'supported' && Notification.permission === 'granted' && preference(slug) === 'saved-v2') {
-      // Only returning subscribers wait for a check; new visitors see the prompt immediately.
-      void navigator.serviceWorker.getRegistration('/').then(async registration => {
-        if (registration) void registration.update().catch(() => {});
-        const existing = await registration?.pushManager.getSubscription();
-        if (!existing) show();
-      }).catch(show);
+    async function syncSubscription() {
+      try {
+        const { registration, publicKey } = await preparePush();
+        const decodedKey = decodePublicKey(publicKey);
+        const existing = await registration.pushManager.getSubscription();
+
+        let subscription = existing;
+        let shouldSave = false;
+
+        if (existing) {
+          const existingKey = existing.options?.applicationServerKey;
+          const keysMatch = Boolean(existingKey && keysEqual(existingKey, decodedKey));
+          if (!keysMatch) {
+            // Active VAPID key was changed on server! Silently renew subscription with current key
+            try {
+              await existing.unsubscribe();
+            } catch {}
+            subscription = await registration.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: decodedKey,
+            });
+            shouldSave = true;
+          }
+        } else {
+          // Permission is granted but push subscription object is missing in browser
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: decodedKey,
+          });
+          shouldSave = true;
+        }
+
+        if (subscription && (shouldSave || preference(slug) !== 'saved-v2')) {
+          await timedFetch('/api/notifications/subscribe', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              slug,
+              subscription: subscription.toJSON(),
+              deviceHints: {
+                touchPoints: navigator.maxTouchPoints || 0,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                permission: Notification.permission,
+              },
+            }),
+          }, 15000);
+          preference(slug, 'saved-v2');
+        }
+      } catch {
+        // If silent sync encounters any issue, only show dialog if user hasn't saved preference
+        if (preference(slug) !== 'saved-v2') {
+          show();
+        }
+      }
+    }
+
+    if (mode === 'supported' && Notification.permission === 'granted') {
+      void syncSubscription();
     } else {
       void Promise.resolve().then(show);
     }

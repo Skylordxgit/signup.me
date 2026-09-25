@@ -10,8 +10,10 @@ import {
   getVapidDiagnostic,
   isGonePushError,
   isAuthPushError,
+  isWebPushConfigured,
   webpush,
 } from '../lib/push';
+import { invalidatePushConfigCache } from '../lib/pushConfig';
 import { isNotificationUrl } from '../lib/notificationUrl';
 
 test('notification destinations accept HTTPS custom links and local paths', () => {
@@ -188,4 +190,59 @@ test('push error helpers correctly classify HTTP status codes', () => {
   assert.equal(isAuthPushError({ statusCode: 403 }), true);
   assert.equal(isAuthPushError({ statusCode: 410 }), false);
   assert.equal(isAuthPushError({ statusCode: 500 }), false);
+});
+
+test('isWebPushConfigured detects configured state from active or env keys', async () => {
+  const origPub = process.env.WEB_PUSH_PUBLIC_KEY;
+  const origPriv = process.env.WEB_PUSH_PRIVATE_KEY;
+  try {
+    process.env.WEB_PUSH_PUBLIC_KEY = 'test-pub';
+    process.env.WEB_PUSH_PRIVATE_KEY = 'test-priv';
+    invalidatePushConfigCache();
+    assert.equal(await isWebPushConfigured(), true);
+
+    process.env.WEB_PUSH_PUBLIC_KEY = '';
+    process.env.WEB_PUSH_PRIVATE_KEY = '';
+    invalidatePushConfigCache();
+    assert.equal(await isWebPushConfigured(), false);
+  } finally {
+    process.env.WEB_PUSH_PUBLIC_KEY = origPub;
+    process.env.WEB_PUSH_PRIVATE_KEY = origPriv;
+    invalidatePushConfigCache();
+  }
+});
+
+test('sendPushBatchDetailed provides explicit vapidDetails in sendNotification options when configured', async (t) => {
+  const origPub = process.env.WEB_PUSH_PUBLIC_KEY;
+  const origPriv = process.env.WEB_PUSH_PRIVATE_KEY;
+  let passedVapid: unknown = null;
+
+  try {
+    const keys = webpush.generateVAPIDKeys();
+    process.env.WEB_PUSH_PUBLIC_KEY = keys.publicKey;
+    process.env.WEB_PUSH_PRIVATE_KEY = keys.privateKey;
+    invalidatePushConfigCache();
+
+    t.mock.method(webpush, 'sendNotification', async (_sub: unknown, _payload: unknown, options: { vapidDetails?: unknown }) => {
+      passedVapid = options.vapidDetails;
+      return { statusCode: 201 };
+    });
+
+    const recipient = {
+      id: 10,
+      endpointHash: 'hash-vapid-test',
+      subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/test', keys: { auth: 'a', p256dh: 'p' } },
+      pageSlug: 'test-page',
+      details: { country: 'India', city: 'Mumbai' },
+    };
+
+    const { result } = await sendPushBatchDetailed([recipient], '{"title":"Test"}');
+    assert.equal(result.sent, 1);
+    assert.ok(passedVapid, 'vapidDetails should be explicitly passed in options');
+    assert.equal((passedVapid as { publicKey?: string }).publicKey, keys.publicKey);
+  } finally {
+    process.env.WEB_PUSH_PUBLIC_KEY = origPub;
+    process.env.WEB_PUSH_PRIVATE_KEY = origPriv;
+    invalidatePushConfigCache();
+  }
 });

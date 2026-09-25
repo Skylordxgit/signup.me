@@ -125,6 +125,7 @@ type CampaignRow = {
   clicked: number;
   failed: number;
   removed: number;
+  failure_reason?: string | null;
   created_at: string | Date;
   updated_at: string | Date;
 };
@@ -410,6 +411,7 @@ function ensureCampaignTable() {
       clicked INT UNSIGNED NOT NULL DEFAULT 0,
       failed INT UNSIGNED NOT NULL DEFAULT 0,
       removed INT UNSIGNED NOT NULL DEFAULT 0,
+      failure_reason VARCHAR(255) NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       INDEX idx_campaign_workspace_created (workspace_id, created_at),
@@ -432,6 +434,7 @@ function ensureCampaignTable() {
       { name: 'delivered', sql: 'ALTER TABLE notification_campaigns ADD COLUMN delivered INT UNSIGNED NOT NULL DEFAULT 0' },
       { name: 'seen', sql: 'ALTER TABLE notification_campaigns ADD COLUMN seen INT UNSIGNED NOT NULL DEFAULT 0' },
       { name: 'clicked', sql: 'ALTER TABLE notification_campaigns ADD COLUMN clicked INT UNSIGNED NOT NULL DEFAULT 0' },
+      { name: 'failure_reason', sql: 'ALTER TABLE notification_campaigns ADD COLUMN failure_reason VARCHAR(255) NULL' },
     ]) {
       const columns = await mysqlQuery<{ Field: string }[]>(`SHOW COLUMNS FROM notification_campaigns LIKE '${name}'`);
       if (!columns.length) {
@@ -1805,6 +1808,7 @@ function mapCampaign(row: CampaignRow): NotificationCampaign {
     clicks: Number(row.clicked),
     failed,
     removed: Number(row.removed),
+    failureReason: row.failure_reason || null,
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
@@ -2180,7 +2184,7 @@ export async function trackNotificationCampaignClick(campaignId: number) {
 }
 
 export async function sendPushNotification(input: NotificationSendInput): Promise<NotificationSendResult> {
-  configureWebPush();
+  await configureWebPush().catch(() => {});
   await ensurePushTable();
   await ensureCampaignTable();
   await ensureDeliveryLogsTable();
@@ -2321,6 +2325,18 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
     );
   }
 
+  let failureReason: string | null = null;
+  if (result.failed > 0) {
+    if (authFailed.length > 0) {
+      failureReason = `${authFailed.length} recipient${authFailed.length > 1 ? "s" : ""} rejected with HTTP 401/403 (VAPID key mismatch: subscriber registered before key rotation/sync)`;
+    } else if (expired.length > 0 && result.sent === 0) {
+      failureReason = `${expired.length} recipient${expired.length > 1 ? "s" : ""} expired / unsubscribed (HTTP 410)`;
+    } else {
+      const firstError = items.find((i) => i.errorReason)?.errorReason;
+      failureReason = firstError ? firstError.slice(0, 250) : `${result.failed} recipient${result.failed > 1 ? "s" : ""} failed delivery`;
+    }
+  }
+
   let finalStatus: CampaignStatus = "completed";
   if (result.attempted === 0) finalStatus = "completed";
   else if (result.sent === 0 && result.failed > 0) finalStatus = "failed";
@@ -2329,9 +2345,9 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
 
   await mysqlQuery(
     `UPDATE notification_campaigns
-     SET attempted = ?, sent = ?, removed = ?, failed = ?, status = ?, completed_at = CURRENT_TIMESTAMP, location_stats = ?, device_stats = ?
+     SET attempted = ?, sent = ?, removed = ?, failed = ?, status = ?, completed_at = CURRENT_TIMESTAMP, location_stats = ?, device_stats = ?, failure_reason = ?
      WHERE id = ?`,
-    [result.attempted, result.sent, result.removed, result.failed, finalStatus, JSON.stringify(locationStats), JSON.stringify(deviceStats), campaignId],
+    [result.attempted, result.sent, result.removed, result.failed, finalStatus, JSON.stringify(locationStats), JSON.stringify(deviceStats), failureReason, campaignId],
   );
 
   const campaigns = await mysqlQuery<CampaignRow[]>("SELECT * FROM notification_campaigns WHERE id = ?", [campaignId]);

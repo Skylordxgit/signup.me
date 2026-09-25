@@ -526,6 +526,7 @@ export type NotificationCampaign = {
   completedAt?: string | null;
   locationStats?: Record<string, { sent: number; clicked: number; delivered: number }>;
   deviceStats?: Record<string, { sent: number; clicked: number; delivered: number }>;
+  failureReason?: string | null;
   createdAt: string;
   updatedAt: string;
 };

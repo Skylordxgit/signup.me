@@ -1486,7 +1486,7 @@ export async function trackNotificationCampaignClick(campaignId: number, subscri
 }
 
 async function sendPushNotificationUnlocked(input: NotificationSendInput): Promise<NotificationSendResult> {
-  configureWebPush();
+  await configureWebPush().catch(() => {});
   const db = await readJsonDb();
   const page = input.pageId ? db.pages.find(item => item.id === input.pageId) : undefined;
   
@@ -1632,6 +1632,18 @@ async function sendPushNotificationUnlocked(input: NotificationSendInput): Promi
     db.notificationDeliveryLogs = db.notificationDeliveryLogs.slice(-5000);
   }
 
+  let failureReason: string | null = null;
+  if (result.failed > 0) {
+    if (authFailed.length > 0) {
+      failureReason = `${authFailed.length} recipient${authFailed.length > 1 ? "s" : ""} rejected with HTTP 401/403 (VAPID key mismatch: subscriber registered before key rotation/sync)`;
+    } else if (expired.length > 0 && result.sent === 0) {
+      failureReason = `${expired.length} recipient${expired.length > 1 ? "s" : ""} expired / unsubscribed (HTTP 410)`;
+    } else {
+      const firstError = items.find((i) => i.errorReason)?.errorReason;
+      failureReason = firstError ? firstError.slice(0, 250) : `${result.failed} recipient${result.failed > 1 ? "s" : ""} failed delivery`;
+    }
+  }
+
   let finalStatus: CampaignStatus = "completed";
   if (result.attempted === 0) finalStatus = "completed";
   else if (result.sent === 0 && result.failed > 0) finalStatus = "failed";
@@ -1650,6 +1662,7 @@ async function sendPushNotificationUnlocked(input: NotificationSendInput): Promi
     stored.completedAt = nowIso();
     stored.locationStats = locationStats;
     stored.deviceStats = deviceStats;
+    stored.failureReason = failureReason;
     stored.updatedAt = nowIso();
   }
   const deactivations = new Set([...expired, ...authFailed].map(subscriptionHash));

@@ -96,6 +96,12 @@ import { configureWebPushFromActive, getActiveWebPushConfig, getRuntimePushPubli
 
 export { getActiveWebPushConfig, getRuntimePushPublicConfig };
 
+export async function isWebPushConfigured(): Promise<boolean> {
+  const active = await getActiveWebPushConfig().catch(() => null);
+  if (active && active.publicKey && active.privateKey) return true;
+  return Boolean(webPushPublicKey() && webPushPrivateKey());
+}
+
 export async function configureWebPush() {
   const configured = await configureWebPushFromActive();
   if (configured) return;
@@ -159,7 +165,30 @@ export async function sendPushBatchDetailed(
     priority?: "normal" | "high" | "urgent";
   }
 ) {
-  await configureWebPush().catch(() => {});
+  // Resolve active VAPID credentials
+  const active = await getActiveWebPushConfig().catch(() => null);
+  let resolvedVapid: { subject: string; publicKey: string; privateKey: string } | undefined;
+
+  if (active && active.publicKey && active.privateKey) {
+    resolvedVapid = {
+      subject: active.subject,
+      publicKey: active.publicKey,
+      privateKey: active.privateKey,
+    };
+    try {
+      webpush.setVapidDetails(active.subject, active.publicKey, active.privateKey);
+    } catch {}
+  } else {
+    const pub = webPushPublicKey();
+    const priv = webPushPrivateKey();
+    if (pub && priv) {
+      resolvedVapid = { subject: contact, publicKey: pub, privateKey: priv };
+      try {
+        webpush.setVapidDetails(contact, pub, priv);
+      } catch {}
+    }
+  }
+
   const summary = { attempted: recipients.length, sent: 0, removed: 0, failed: 0 };
   const expiredHashes: string[] = [];
   const authFailedHashes: string[] = [];
@@ -180,11 +209,20 @@ export async function sendPushBatchDetailed(
         const browser = details.browser || "Browser";
 
         try {
-          const response = await webpush.sendNotification(recipient.subscription, payload, {
+          const sendOptions: Record<string, unknown> = {
             TTL: options?.TTL ?? 86400,
             urgency,
             timeout: 10000,
-          });
+          };
+          if (resolvedVapid) {
+            sendOptions.vapidDetails = resolvedVapid;
+          }
+
+          const response = await webpush.sendNotification(
+            recipient.subscription,
+            payload,
+            sendOptions as any
+          );
           const statusCode =
             response && typeof response === "object" && "statusCode" in response
               ? Number((response as { statusCode?: unknown }).statusCode)
@@ -273,7 +311,16 @@ export async function sendPushBatchDetailed(
 }
 
 export async function sendPushBatch(subscriptions: PushSubscriptionRecord[], payload: string) {
-  await configureWebPush().catch(() => {});
+  const active = await getActiveWebPushConfig().catch(() => null);
+  let resolvedVapid: { subject: string; publicKey: string; privateKey: string } | undefined;
+  if (active && active.publicKey && active.privateKey) {
+    resolvedVapid = { subject: active.subject, publicKey: active.publicKey, privateKey: active.privateKey };
+    try { webpush.setVapidDetails(active.subject, active.publicKey, active.privateKey); } catch {}
+  } else if (webPushPublicKey() && webPushPrivateKey()) {
+    resolvedVapid = { subject: contact, publicKey: webPushPublicKey(), privateKey: webPushPrivateKey() };
+    try { webpush.setVapidDetails(contact, webPushPublicKey(), webPushPrivateKey()); } catch {}
+  }
+
   const result = { attempted: subscriptions.length, sent: 0, removed: 0, failed: 0 };
   const expired: string[] = [];
   let next = 0;
@@ -282,7 +329,9 @@ export async function sendPushBatch(subscriptions: PushSubscriptionRecord[], pay
       while (next < subscriptions.length) {
         const subscription = subscriptions[next++];
         try {
-          await webpush.sendNotification(subscription, payload, { TTL: 86400, urgency: "normal", timeout: 10000 });
+          const sendOpts: Record<string, unknown> = { TTL: 86400, urgency: "normal", timeout: 10000 };
+          if (resolvedVapid) sendOpts.vapidDetails = resolvedVapid;
+          await webpush.sendNotification(subscription, payload, sendOpts as any);
           result.sent += 1;
         } catch (error) {
           if (isGonePushError(error)) {

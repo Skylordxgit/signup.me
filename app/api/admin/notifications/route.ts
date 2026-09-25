@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { listNotificationCampaigns, listPushSubscribers, listSubscriberSegments } from "@/lib/store";
-import { webPushConfigured } from "@/lib/push";
+import { isWebPushConfigured } from "@/lib/push";
 import { getWorkspaceDistinctLocations } from "@/lib/audienceTargeting";
 
 export async function GET() {
   const session = await requireAdmin('notifications');
   if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  const [subscribersSummary, campaigns, segments] = await Promise.all([
+  const [subscribersSummary, campaigns, segments, configured] = await Promise.all([
     listPushSubscribers(session.workspaceId),
     listNotificationCampaigns(session.workspaceId),
     listSubscriberSegments(session.workspaceId),
+    isWebPushConfigured(),
   ]);
 
   // Extract distinct locations available in this workspace
@@ -29,7 +30,7 @@ export async function GET() {
   })));
 
   return NextResponse.json({
-    configured: webPushConfigured(),
+    configured,
     subscribers: subscribersSummary,
     campaigns,
     locations,

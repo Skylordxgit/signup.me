@@ -248,6 +248,77 @@ export function CampaignDetailView({
         </SectionCard>
       </div>
 
+      {/* Delivery Failure Diagnosis Card */}
+      {campaign.failed > 0 && (
+        <SectionCard
+          title="Delivery Failure Diagnosis"
+          description="Detailed breakdown of rejected push notifications and resolution steps."
+        >
+          <div style={{ display: "grid", gap: "var(--sp-3)", fontSize: "var(--text-xs)" }}>
+            <div
+              style={{
+                padding: "12px 14px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--c-danger-soft, #fee2e2)",
+                border: "1px solid var(--c-danger, #ef4444)",
+                color: "#991b1b",
+              }}
+            >
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", fontWeight: 700, fontSize: "var(--text-sm)" }}>
+                <AlertTriangle size={16} />
+                <span>
+                  {campaign.failed} of {campaign.attempted} recipient{campaign.attempted > 1 ? "s" : ""} failed delivery
+                </span>
+              </div>
+              <p style={{ margin: "6px 0 0", lineHeight: 1.45, fontSize: "var(--text-xs)" }}>
+                {campaign.failureReason ||
+                  (logs.some((l) => l.statusCode === 401 || l.statusCode === 403)
+                    ? "VAPID key mismatch: Recipients were registered under an older VAPID key before key rotation or synchronization in Master Admin."
+                    : logs.some((l) => l.statusCode === 410 || l.statusCode === 404)
+                    ? "Subscription expired: Browser push tokens were unregistered or expired by the push service."
+                    : "Push service rejected one or more notification requests.")}
+              </p>
+            </div>
+
+            {Boolean(
+              campaign.failureReason?.includes("VAPID key mismatch") ||
+              logs.some((l) => l.statusCode === 401 || l.statusCode === 403)
+            ) && (
+              <div
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--c-surface-sunken, #f8fafc)",
+                  border: "1px solid var(--c-line)",
+                  display: "grid",
+                  gap: "8px",
+                }}
+              >
+                <strong style={{ color: "var(--c-ink)", fontSize: "var(--text-sm)" }}>Why did this happen?</strong>
+                <p style={{ margin: 0, color: "var(--c-text)", lineHeight: 1.45 }}>
+                  The Web Push specification cryptographically locks every subscription endpoint to the specific VAPID public key presented when the user opted in. When server VAPID keys change, push providers (Google FCM / Apple / Mozilla) reject dispatches signed with the new private key until the subscriber renews their subscription.
+                </p>
+                <div style={{ marginTop: "4px", display: "grid", gap: "6px" }}>
+                  <span style={{ color: "var(--c-ink)", fontWeight: 600 }}>Resolution:</span>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "flex-start" }}>
+                    <span style={{ color: "var(--c-success, #16a34a)", fontWeight: 700 }}>•</span>
+                    <span><strong>Auto-Renewal:</strong> Returning visitors will automatically have their push subscriptions upgraded to the active VAPID key in the background upon visiting your site.</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "flex-start" }}>
+                    <span style={{ color: "var(--c-success, #16a34a)", fontWeight: 700 }}>•</span>
+                    <span><strong>New Subscribers:</strong> All new opt-ins immediately use the active key pair and deliver reliably.</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", alignItems: "flex-start" }}>
+                    <span style={{ color: "var(--c-accent, #4f46e5)", fontWeight: 700 }}>•</span>
+                    <span><strong>Verify Now:</strong> Navigate to <strong>Master Admin → Web Push</strong>, click &quot;Register This Browser as Test Device&quot;, and dispatch an instant live push to verify that the active key delivers 100% successfully.</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </SectionCard>
+      )}
+
       {/* Location Performance Breakdown */}
       {locationEntries.length > 0 && (
         <SectionCard title="Location Performance" description="Breakdown of delivery and clicks across subscriber cities.">

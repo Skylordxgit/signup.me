@@ -574,6 +574,7 @@ export async function sendTestPushToDevice(
   adminEmail: string
 ): Promise<{
   ok: boolean;
+  success: boolean;
   statusCode?: number;
   message: string;
   error?: string;
@@ -602,6 +603,11 @@ export async function sendTestPushToDevice(
       TTL: 60,
       urgency: "high",
       timeout: 10000,
+      vapidDetails: {
+        subject: active.subject,
+        publicKey: active.publicKey,
+        privateKey: active.privateKey,
+      },
     });
 
     const statusCode =
@@ -618,6 +624,7 @@ export async function sendTestPushToDevice(
 
     return {
       ok: true,
+      success: true,
       statusCode,
       message: `Test push accepted by push service (HTTP ${statusCode}) and dispatched to test device.`,
       device: {
@@ -647,6 +654,7 @@ export async function sendTestPushToDevice(
 
     return {
       ok: false,
+      success: false,
       statusCode,
       message: "Push delivery failed",
       error: safeError,

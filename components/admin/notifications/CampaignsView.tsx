@@ -45,6 +45,11 @@ export function CampaignsView({
   const [actionBusy, setActionBusy] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<NotificationCampaign | null>(null);
   const [error, setError] = useState("");
+  const [hideVapidBanner, setHideVapidBanner] = useState(false);
+
+  const hasVapidMismatch = campaigns.some(
+    (c) => c.failureReason?.includes("VAPID key mismatch") || (c.status === "failed" && c.failed > 0 && c.delivered === 0)
+  );
 
   const fetchCampaigns = async () => {
     setLoading(true);
@@ -180,6 +185,48 @@ export function CampaignsView({
         </div>
       )}
 
+      {hasVapidMismatch && !hideVapidBanner && (
+        <div
+          style={{
+            padding: "14px 18px",
+            borderRadius: "var(--radius-md)",
+            background: "var(--c-warning-soft, #fef3c7)",
+            border: "1px solid var(--c-warning, #f59e0b)",
+            color: "#92400e",
+            fontSize: "13px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "12px",
+          }}
+        >
+          <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+            <AlertCircle size={18} style={{ flexShrink: 0, marginTop: "2px", color: "var(--c-warning, #d97706)" }} />
+            <div>
+              <strong style={{ fontSize: "14px", display: "block" }}>
+                Notice: Why did campaigns fail delivery after VAPID synchronization?
+              </strong>
+              <p style={{ margin: "4px 0 0", lineHeight: 1.45 }}>
+                Browser push services (Google FCM / Apple) cryptographically bind each subscriber to the specific VAPID key pair used during initial opt-in. Subscriptions created prior to key synchronization cannot receive notifications signed with the new key (HTTP 401/403: Key Mismatch).
+              </p>
+              <div style={{ marginTop: "8px", display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "12px" }}>
+                <span>✅ <strong>Automatic Renewal:</strong> Returning subscribers are silently renewed in the background upon their next visit.</span>
+                <span>✅ <strong>New Subscribers:</strong> All new opt-ins automatically use the active key with 100% compatibility.</span>
+                <span>👉 <strong>Test Now:</strong> Open Master Admin → Web Push to register a test device and dispatch an instant live push.</span>
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHideVapidBanner(true)}
+            style={{ border: 0, background: "transparent", cursor: "pointer", color: "inherit", opacity: 0.7 }}
+            aria-label="Dismiss banner"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header & Filter Bar */}
       <div
         style={{
@@ -290,9 +337,31 @@ export function CampaignsView({
                         </strong>
                         <small style={{ color: "var(--c-muted)" }}>of {c.attempted.toLocaleString()}</small>
                         {c.failed > 0 && (
-                          <small style={{ color: "var(--c-danger)", display: "block", fontSize: "11px", fontWeight: 600 }}>
-                            {c.failed} failed
-                          </small>
+                          <div>
+                            <small style={{ color: "var(--c-danger)", display: "block", fontSize: "11px", fontWeight: 600 }}>
+                              {c.failed} failed
+                            </small>
+                            {c.failureReason && (
+                              <small
+                                style={{
+                                  color: "var(--c-danger)",
+                                  display: "block",
+                                  fontSize: "10px",
+                                  lineHeight: 1.25,
+                                  maxWidth: "160px",
+                                  marginTop: "2px",
+                                  wordBreak: "break-word",
+                                }}
+                                title={c.failureReason}
+                              >
+                                {c.failureReason.includes("VAPID key mismatch")
+                                  ? "⚠️ Key mismatch (pre-sync subscriber)"
+                                  : c.failureReason.includes("expired")
+                                  ? "⚠️ Token expired / unsubscribed"
+                                  : c.failureReason}
+                              </small>
+                            )}
+                          </div>
                         )}
                       </div>
                     </td>

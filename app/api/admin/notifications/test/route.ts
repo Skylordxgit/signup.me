@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import webpush from "web-push";
 import { requireAdmin } from "@/lib/auth";
 import { getPushSubscriberForTest, deactivatePushSubscription } from "@/lib/store";
-import { notificationPayload, configureWebPush, webPushConfigured, isAuthPushError, isGonePushError } from "@/lib/push";
+import { notificationPayload, configureWebPush, isWebPushConfigured, isAuthPushError, isGonePushError, getActiveWebPushConfig } from "@/lib/push";
 
 interface TestPushInput {
   title?: string;
@@ -16,7 +16,8 @@ export async function POST(request: NextRequest) {
   const session = await requireAdmin("notifications");
   if (!session) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
 
-  if (!webPushConfigured()) {
+  const configured = await isWebPushConfigured();
+  if (!configured) {
     return NextResponse.json(
       { ok: false, error: "Browser push notifications are not configured with VAPID keys yet." },
       { status: 400 }
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
     const message = input.body?.trim() || "This is a real test push notification from your workspace.";
     const url = input.url?.trim() || "/";
 
-    configureWebPush();
+    await configureWebPush().catch(() => {});
 
     const target = await getPushSubscriberForTest(session.workspaceId, {
       subscriberId: input.subscriberId,
@@ -52,12 +53,20 @@ export async function POST(request: NextRequest) {
       url,
     });
 
+    const active = await getActiveWebPushConfig().catch(() => null);
+    const resolvedVapid = active && active.publicKey && active.privateKey
+      ? { subject: active.subject, publicKey: active.publicKey, privateKey: active.privateKey }
+      : undefined;
+
     try {
-      const response = await webpush.sendNotification(target.subscription, payload, {
+      const sendOptions: Record<string, unknown> = {
         TTL: 60,
         urgency: "high",
         timeout: 10000,
-      });
+      };
+      if (resolvedVapid) sendOptions.vapidDetails = resolvedVapid;
+
+      const response = await webpush.sendNotification(target.subscription, payload, sendOptions as any);
 
       const statusCode =
         response && typeof response === "object" && "statusCode" in response
