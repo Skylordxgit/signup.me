@@ -332,6 +332,25 @@ force-push `main`.
   smoke-tested against a copy of production when schema changes are large.
 - YouTube age-restricted videos cannot be fixed by code; YouTube itself blocks
   embedded playback.
+- 2026-09-25: Builder save/summary regression. `GET /api/pages` returns
+  `PageSummary[]` (summaries never carry blocks). A block-mutation refresh
+  passed those summaries back through `summarizePage()`, which does
+  `page.blocks.reduce(...)`, throwing `Cannot read properties of undefined
+  (reading 'reduce')` even though the block write had succeeded. Fix:
+  refresh paths consume `PageSummary[]` directly via
+  `adminApi<PageSummary[]>("/api/pages")`; `PageSummary.blocks` was removed
+  from `lib/types.ts` and `summarizePage()` now has an explicit
+  `: PageSummary` return type so the compiler forbids mixing the two.
+  `components/admin/usePageEditor.ts` save() separates Phase 1 persistence
+  errors ("Page changes could not be saved.") from Phase 2 page-list sync
+  errors ("Page was saved, but the page list could not refresh.").
+  `app/admin/(dashboard)/pages/[id]/edit/page.tsx` `mutateBlocks()` splits
+  mutation failure vs post-mutation reload/list-refresh failure the same way.
+  Publish (status select) saves immediately and reverts the optimistic
+  status if persistence fails, so "Published" is only shown after confirmed
+  save. Regression test: `tests/builderSummaryRegression.test.tsx`.
+  Never call `summarizePage()` on a `PageSummary`; never add
+  `(page.blocks || [])` fallbacks to `summarizePage()` — keep it strict.
 
 ## Required Handoff Update After Every Task
 

@@ -192,6 +192,8 @@ export type SmartPage = {
   customHtml?: CustomHtmlSettings;
 };
 
+/** Summary row for page lists. Summaries never carry blocks — they are
+ *  produced by summarizePage() and must never be passed back into it. */
 export type PageSummary = {
   id: number;
   name: string;
@@ -203,7 +205,6 @@ export type PageSummary = {
   clicks: number;
   ctr?: number;
   updatedAt: string;
-  blocks?: Pick<PageBlock, "id" | "pageId" | "type" | "title" | "clicks" | "isActive" | "sortOrder">[];
   pageType?: PageType;
 };
 

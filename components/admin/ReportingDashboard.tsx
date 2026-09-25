@@ -31,9 +31,13 @@ import {
   User,
   Users,
 } from "lucide-react";
-import type { AnalyticsReport, PageSummary } from "@/lib/types";
+import type { AnalyticsReport, PageBlock, PageSummary } from "@/lib/types";
 import { Button, Dialog, EmptyState, Field, IconButton, LoadingState, PageHeader, SectionCard } from "./AdminUI";
 import { DateRangeFilterControl, getCountryFlag, RecentActivityFeed, TrafficChart } from "./DashboardViews";
+
+export type ReportingPageItem = PageSummary & {
+  blocks?: Pick<PageBlock, "id" | "pageId" | "type" | "title" | "clicks" | "isActive" | "sortOrder">[];
+};
 
 const number = (value: number) => value.toLocaleString();
 
@@ -63,7 +67,7 @@ export function ReportingDashboard({
   onOpen,
   onNavigate,
 }: {
-  pages: PageSummary[];
+  pages: ReportingPageItem[];
   analytics: AnalyticsReport | null;
   dateRange?: string;
   startDate?: string;

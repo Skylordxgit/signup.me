@@ -8,7 +8,7 @@ import type { PageBlock, SmartPage } from "@/lib/types";
 import type { WorkspaceBranding } from "@/lib/workspaceBrandingConstants";
 import { buildSmartUrl, publicPageUrl, readableTextColor } from "@/lib/utils";
 import { resolveAlignment, resolveButtonStyle, resolveProfileLayout, resolveSurface, themeCssVariables } from "@/lib/themes";
-import { resolveBlockIcon } from "./blockIcons";
+import { resolveBlockIcon } from "@/components/blockIcons";
 
 export { resolveBlockIcon };
 

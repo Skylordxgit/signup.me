@@ -101,6 +101,34 @@ async function main() {
       body: JSON.stringify({ type: "link" }),
     });
     assert.equal(blockCreate.status, 200);
+    const youtubeCreate = await fetchHttp(`/api/pages/${stdPageId}/blocks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ type: "youtube" }),
+    });
+    assert.equal(youtubeCreate.status, 200);
+    const standardSave = await fetchHttp(`/api/pages/${stdPageId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ title: "Persisted Standard profile", status: "draft" }),
+    });
+    assert.equal(standardSave.status, 200);
+    const standardPublish = await fetchHttp(`/api/pages/${stdPageId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: cookie },
+      body: JSON.stringify({ status: "published" }),
+    });
+    assert.equal(standardPublish.status, 200);
+    const standardReload = await fetchHttp(`/api/pages/${stdPageId}`, { headers: { Cookie: cookie } });
+    assert.equal(standardReload.status, 200);
+    assert.equal(standardReload.json.title, "Persisted Standard profile");
+    assert.equal(standardReload.json.status, "published");
+    assert.deepEqual(standardReload.json.blocks.map(block => block.type), ["link", "youtube"]);
+    const standardSummaries = await fetchHttp('/api/pages', { headers: { Cookie: cookie } });
+    const summary = standardSummaries.json.find(page => page.id === stdPageId);
+    assert.equal('blocks' in summary, false, 'List response is a summary, not a SmartPage');
+    assert.equal(typeof summary.clicks, 'number');
+    console.log("✔ Standard save, publish, reload and summary response contract verified.");
     console.log("✔ Standard page created and verified without interference.\n");
 
     // ----------------------------------------------------

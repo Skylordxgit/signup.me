@@ -172,11 +172,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const updated: number[] = [];
     const editor = activeEditorRef.current;
     if (editor && editor.hasUnsavedChanges?.()) {
-      try {
-        await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
-      } catch {
-        // continue
-      }
+      await editor.save();
     }
     const failed: string[] = [];
     for (const id of ids) {
@@ -200,11 +196,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const exportPages = useCallback(async (ids: number[]) => {
     const editor = activeEditorRef.current;
     if (editor && editor.hasUnsavedChanges?.()) {
-      try {
-        await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
-      } catch {
-        // continue
-      }
+      await editor.save();
     }
     const response = await fetch("/api/pages/export", {
       method: "POST",
@@ -233,11 +225,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
   const duplicatePage = useCallback(async (id: number) => {
     const editor = activeEditorRef.current;
     if (editor && editor.hasUnsavedChanges?.()) {
-      try {
-        await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
-      } catch {
-        // continue
-      }
+      await editor.save();
     }
     const duplicated = await adminApi<SmartPage>("/api/pages/" + id + "/duplicate", { method: "POST" });
     await refreshPages();
@@ -252,11 +240,7 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     try {
       const editor = activeEditorRef.current;
       if (editor && editor.hasUnsavedChanges?.()) {
-        try {
-          await Promise.race([editor.save(), new Promise((resolve) => setTimeout(resolve, 1500))]);
-        } catch {
-          // continue
-        }
+        await editor.save();
       }
       await adminApi("/api/pages/" + id, { method: "DELETE" });
       setDeleteTarget(null);
@@ -273,12 +257,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const destination = `/admin/pages/${id}/edit${tab ? `?tab=${tab}` : ""}`;
     const editor = activeEditorRef.current;
     if (editor && editor.hasUnsavedChanges?.()) {
-      void Promise.race([
-        editor.save(),
-        new Promise((resolve) => setTimeout(resolve, 1500)),
-      ]).finally(() => {
+      void editor.save().then(() => {
         router.push(destination);
-      });
+      }).catch(() => {});
     } else {
       router.push(destination);
     }
@@ -289,12 +270,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const editor = activeEditorRef.current;
     if (editor && editor.hasUnsavedChanges?.()) {
       try {
-        await Promise.race([
-          editor.save(),
-          new Promise((resolve) => setTimeout(resolve, 1500)),
-        ]);
+        await editor.save();
       } catch {
-        // Continue navigation
+        return;
       }
     }
     router.push(href);
@@ -304,12 +282,9 @@ export function AdminProvider({ children }: { children: React.ReactNode }) {
     const editor = activeEditorRef.current;
     if (editor && editor.hasUnsavedChanges?.()) {
       try {
-        await Promise.race([
-          editor.save(),
-          new Promise((resolve) => setTimeout(resolve, 1500)),
-        ]);
+        await editor.save();
       } catch {
-        // proceed
+        return;
       }
     }
     await adminApi("/api/auth/logout", { method: "POST" });

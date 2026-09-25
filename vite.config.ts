@@ -46,10 +46,10 @@ export default defineConfig(async () => {
 
   return {
     css: { postcss: { plugins: [tailwindcss()] } },
-    ssr: { external: ['mysql2', 'mysql2/promise'] },
+    ssr: { external: ['mysql2', 'mysql2/promise', 'maxmind'] },
     environments: {
-      rsc: { optimizeDeps: { exclude: ['mysql2', 'mysql2/promise'] } },
-      ssr: { optimizeDeps: { exclude: ['mysql2', 'mysql2/promise'] } },
+      rsc: { optimizeDeps: { exclude: ['mysql2', 'mysql2/promise', 'maxmind'] } },
+      ssr: { optimizeDeps: { exclude: ['mysql2', 'mysql2/promise', 'maxmind'] } },
     },
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }

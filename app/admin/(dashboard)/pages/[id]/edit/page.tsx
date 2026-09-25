@@ -9,7 +9,7 @@ import { CustomHtmlEditor } from "@/components/admin/CustomHtmlEditor";
 import { Button, Dialog, IconButton, LoadingState } from "@/components/admin/AdminUI";
 import { usePageEditor } from "@/components/admin/usePageEditor";
 import { adminApi } from "@/lib/admin";
-import type { BlockType, PageBlock, SmartPage } from "@/lib/types";
+import type { BlockType, PageBlock, PageSummary, SmartPage } from "@/lib/types";
 import { summarizePage } from "@/lib/utils";
 
 const socialPreset = [
@@ -94,18 +94,35 @@ export default function EditPageBuilderRoute() {
 
   async function mutateBlocks(action: () => Promise<unknown>) {
     if (!editor.page) return;
+    const pageId = editor.page.id;
     setBusy(true);
+    setError("");
     try {
       await editor.save();
       await action();
-      editor.adopt(await adminApi<SmartPage>("/api/pages/" + editor.page.id));
-      const items = await adminApi<SmartPage[]>("/api/pages");
-      setPages(items.map(summarizePage));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not update block.");
-    } finally {
+      console.error("[Standard Builder] Block update failed", cause);
+      setError("Could not save the block change. Please try again.");
       setBusy(false);
+      return;
     }
+    // The block mutation already succeeded, so a refresh failure below is a
+    // secondary UI sync issue and must not be reported as a save failure.
+    try {
+      editor.adopt(await adminApi<SmartPage>("/api/pages/" + pageId));
+    } catch (cause) {
+      console.error("[Standard Builder] Page reload failed after block update", cause);
+      setError("The block change was saved, but the page could not be reloaded. Reload the page to see the latest state.");
+      setBusy(false);
+      return;
+    }
+    try {
+      setPages(await adminApi<PageSummary[]>("/api/pages"));
+    } catch (cause) {
+      console.error("[Standard Builder] Page-list refresh failed after block update", cause);
+      setError("The block change was saved, but the page list could not refresh.");
+    }
+    setBusy(false);
   }
 
   function addBlock(type: BlockType) {
@@ -195,7 +212,16 @@ export default function EditPageBuilderRoute() {
             className={`admStatusSelect admBadge-${editor.page.status}`}
             aria-label="Publishing status"
             value={editor.page.status}
-            onChange={(event) => editor.edit({ status: event.target.value as SmartPage["status"] })}
+            onChange={(event) => {
+              const next = event.target.value as SmartPage["status"];
+              const previous = editor.page?.status;
+              editor.edit({ status: next });
+              // Persist immediately so "Published" is only shown after the
+              // server confirms it. Revert the optimistic change on failure.
+              void editor.save().catch(() => {
+                if (previous && editor.page?.status === next) editor.edit({ status: previous });
+              });
+            }}
           >
             <option value="published">Published</option>
             <option value="draft">Draft</option>
@@ -243,7 +269,7 @@ export default function EditPageBuilderRoute() {
                 try {
                   await editor.save();
                 } catch {
-                  // continue
+                  return;
                 }
                 setShowUnsavedModal(false);
                 router.push(pendingDestination);

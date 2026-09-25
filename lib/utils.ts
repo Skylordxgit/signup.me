@@ -1,4 +1,4 @@
-import type { BlockType, PageBlock, SmartPage, ThemeSettings } from "./types";
+import type { BlockType, PageBlock, PageSummary, SmartPage, ThemeSettings } from "./types";
 
 export const blockTypes: { value: BlockType; label: string }[] = [
   { value: "link", label: "Link Button" },
@@ -198,7 +198,9 @@ export function emptyBlock(pageId: number, type: BlockType, sortOrder: number): 
   };
 }
 
-export function summarizePage(page: SmartPage) {
+/** Builds a PageSummary from a full SmartPage. Summaries never carry blocks,
+ *  so only ever pass a complete SmartPage here — never a PageSummary. */
+export function summarizePage(page: SmartPage): PageSummary {
   return {
     id: page.id,
     name: page.name,

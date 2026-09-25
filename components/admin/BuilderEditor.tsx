@@ -7,7 +7,7 @@ import { blockTypes, slugify, slugifyDraft } from "@/lib/utils";
 import { applyThemeDefinition, resolveAlignment, resolveButtonStyle, resolveProfileLayout, themeLibrary } from "@/lib/themes";
 import { ImageUploader } from "../ImageUploader";
 import { PageRenderer } from "../PageRenderer";
-import { resolveBlockIcon } from "../blockIcons";
+import { resolveBlockIcon } from "@/components/blockIcons";
 import { PhoneFrame } from "../PhoneFrame";
 import { Button, Dialog, EmptyState, Field, IconButton, SectionHeading } from "./AdminUI";
 import {

@@ -303,9 +303,9 @@ function AdminShell({ children }: { children: React.ReactNode }) {
                     ? `${account.platformOrigin}/admin/master/workspaces`
                     : "/admin/master/workspaces";
                   if (activeEditor) {
-                    void activeEditor.save().finally(() => {
+                    void activeEditor.save().then(() => {
                       window.location.assign(targetUrl);
-                    });
+                    }).catch(() => {});
                   } else {
                     window.location.assign(targetUrl);
                   }
@@ -347,7 +347,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
                   aria-label="Save page"
                   title="Save page"
                   disabled={busy || activeEditor.status === "Saving"}
-                  onClick={() => void activeEditor.save()}
+                  onClick={() => void activeEditor.save().catch(() => {})}
                 >
                   <Save size={16} aria-hidden="true" />
                   <span>Save</span>
@@ -433,10 +433,10 @@ function AdminShell({ children }: { children: React.ReactNode }) {
               variant="primary"
               onClick={() => {
                 const destination = pendingNavigation;
-                void activeEditor.save().finally(() => {
+                void activeEditor.save().then(() => {
                   router.push(destination);
                   setPendingNavigation(null);
-                });
+                }).catch(() => {});
               }}
             >
               Save and leave
