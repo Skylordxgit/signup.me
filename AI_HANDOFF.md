@@ -352,6 +352,16 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-25: Fixed login remaining stuck after network/proxy failures. Added
+  client-safe login transport with a 30-second timeout, confirmed JSON success,
+  actionable errors, and form loading-state recovery plus duplicate submission
+  protection. Malformed login request bodies now return JSON validation errors.
+  Added regression coverage for login transport failures, redirects, timeout,
+  and malformed requests. Successful master/workspace destinations are preserved.
+  Validation: 134 tests passed (2 skipped), TypeScript and production build passed.
+  Full lint remains blocked by existing issues outside the changed login files.
+
+
 - 2026-09-21: Added visual Location Graph (`LocationChart`) and Date Range filtering to Workspace Overview Dashboard and Analytics.
   - Built `LocationChart` component rendering interactive comparative horizontal visual bars for Views vs Clicks per geographic location with CTR percentage badges.
   - Integrated `LocationChart` into Workspace Overview (`DashboardHome`) and Analytics screen (`AnalyticsView`).

@@ -496,3 +496,16 @@ test('master admin can create multiple workspaces and their data never mixes', a
     if (oldHash === undefined) delete process.env.MASTER_ADMIN_PASSWORD_HASH; else process.env.MASTER_ADMIN_PASSWORD_HASH = oldHash;
   }
 }));
+
+
+test('login rejects malformed request bodies with JSON validation errors', async () => {
+  for (const body of ['{', 'null', '[]', '{}', '{"email":12,"password":"test"}']) {
+    const response = await auth.POST(new NextRequest('http://localhost/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-forwarded-for': '192.0.2.199' },
+      body,
+    }));
+    assert.equal(response.status, 400);
+    assert.equal(typeof ((await response.json()) as { error: unknown }).error, 'string');
+  }
+});

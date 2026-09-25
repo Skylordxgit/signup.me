@@ -1,7 +1,8 @@
 "use client";
 
 /* eslint-disable @next/next/no-html-link-for-pages -- Auth navigation must survive the production RSC Link failure. */
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { submitLogin } from "@/lib/loginClient";
 
 export function LoginForm({
   signupEnabled,
@@ -18,24 +19,17 @@ export function LoginForm({
 }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const submitting = useRef(false);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setLoading(true);
     setError("");
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        email: form.get("email"),
-        password: form.get("password"),
-      }),
-    });
-
-    if (response.ok) {
-      // A master admin session has no workspace, so it goes to its own area.
-      const { redirect } = (await response.json()) as { redirect?: string };
+    try {
+      const { redirect } = await submitLogin({ email: form.get("email"), password: form.get("password") });
       if (redirect === "/admin/master") {
         window.location.replace(redirect);
         return;
@@ -46,12 +40,12 @@ export function LoginForm({
         ? `/admin/pages/new?slug=${encodeURIComponent(slug)}`
         : "/admin/dashboard";
       window.location.replace(target);
-      return;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Sign in failed. Please try again.");
+    } finally {
+      submitting.current = false;
+      setLoading(false);
     }
-
-    const data = (await response.json()) as { error?: string };
-    setError(data.error || "Login failed");
-    setLoading(false);
   }
 
   return (

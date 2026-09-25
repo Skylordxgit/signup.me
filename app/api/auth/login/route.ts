@@ -12,7 +12,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many login attempts. Try again later." }, { status: 429, headers: { 'Retry-After': String(limit.resetInSeconds) } });
   }
 
-  const { email, password } = (await request.json()) as { email?: string; password?: string };
+  const body: unknown = await request.json().catch(() => null);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ error: 'Enter your email and password.' }, { status: 400 });
+  }
+  const { email, password } = body as { email?: unknown; password?: unknown };
+  if (typeof email !== 'string' || !email.trim() || email.length > 254 || typeof password !== 'string' || !password || password.length > 256) {
+    return NextResponse.json({ error: 'Enter a valid email and password.' }, { status: 400 });
+  }
   const master = masterAdmin();
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const usable = typeof password === 'string' && password.length <= 256;
