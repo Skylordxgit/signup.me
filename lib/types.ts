@@ -442,7 +442,16 @@ export type AudienceFilters = {
   segmentId?: string | null;
 };
 
-export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'completed' | 'paused' | 'cancelled' | 'failed';
+export type CampaignStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'queued'
+  | 'sending'
+  | 'completed'
+  | 'completed_with_failures'
+  | 'paused'
+  | 'cancelled'
+  | 'failed';
 
 export type NotificationSendInput = {
   name?: string;
@@ -533,10 +542,35 @@ export type NotificationDeliveryLog = {
   city: string;
   device: string;
   browser: string;
-  status: 'sent' | 'delivered' | 'clicked' | 'failed';
+  status: 'sent' | 'delivered' | 'clicked' | 'failed' | 'expired';
+  statusCode?: number | null;
   errorReason?: string | null;
   sentAt: string;
   clickedAt?: string | null;
+};
+
+export type PushRecipient = {
+  id: number;
+  endpointHash: string;
+  subscription: PushSubscriptionRecord;
+  pageSlug?: string | null;
+  userAgent?: string;
+  details?: Partial<SubscriberDetails> | null;
+};
+
+export type PushDeliveryItemResult = {
+  recipientId: number;
+  endpoint: string;
+  endpointHash: string;
+  status: 'sent' | 'failed' | 'expired';
+  statusCode?: number;
+  errorReason?: string;
+  pageSlug?: string | null;
+  country: string;
+  region?: string;
+  city: string;
+  device: string;
+  browser: string;
 };
 
 export type SubscriberSegment = {

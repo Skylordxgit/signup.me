@@ -25,6 +25,16 @@ function decodePublicKey(value: string) {
   return Uint8Array.from([...raw].map(char => char.charCodeAt(0)));
 }
 
+function keysEqual(buffer: ArrayBuffer | null | undefined, key: Uint8Array): boolean {
+  if (!buffer) return false;
+  const a = new Uint8Array(buffer);
+  if (a.length !== key.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== key[i]) return false;
+  }
+  return true;
+}
+
 async function preparePush() {
   const response = await timedFetch('/api/notifications/vapid-public-key', { cache: 'no-store' });
   const data = await response.json() as { enabled?: boolean; publicKey?: string };
@@ -138,15 +148,42 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
         return;
       }
       const { registration, publicKey } = await preparePush();
+      const decodedKey = decodePublicKey(publicKey);
       const existing = await registration.pushManager.getSubscription();
-      const subscription = existing || await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: decodePublicKey(publicKey),
-      });
+
+      let subscription = existing;
+      if (existing) {
+        const existingKey = existing.options?.applicationServerKey;
+        const keysMatch = Boolean(existingKey && keysEqual(existingKey, decodedKey));
+        if (!keysMatch) {
+          try {
+            await existing.unsubscribe();
+          } catch {
+            // Ignore error during unsubscribe
+          }
+          subscription = null;
+        }
+      }
+
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: decodedKey,
+        });
+      }
+
       const response = await timedFetch('/api/notifications/subscribe', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ slug, subscription: subscription.toJSON(), deviceHints: { touchPoints: navigator.maxTouchPoints || 0, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone } }),
+        body: JSON.stringify({
+          slug,
+          subscription: subscription.toJSON(),
+          deviceHints: {
+            touchPoints: navigator.maxTouchPoints || 0,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            permission: Notification.permission,
+          },
+        }),
       }, 15000);
       if (!response.ok) throw new Error('Your subscription was not saved. Please try again.');
       preference(slug, 'saved-v2');

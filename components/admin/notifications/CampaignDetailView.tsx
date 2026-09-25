@@ -90,6 +90,23 @@ export function CampaignDetailView({
   const locationEntries = Object.entries(campaign.locationStats || {});
   const deviceEntries = Object.entries(campaign.deviceStats || {});
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <span className="admBadge admBadge-published">Completed</span>;
+      case "completed_with_failures":
+        return <span className="admBadge" style={{ background: "var(--c-warning-soft, #fef3c7)", color: "var(--c-warning, #d97706)" }}>Partial Delivery</span>;
+      case "failed":
+        return <span className="admBadge" style={{ background: "var(--c-danger-soft, #fee2e2)", color: "var(--c-danger, #dc2626)" }}>Failed</span>;
+      case "sending":
+        return <span className="admBadge" style={{ background: "var(--c-accent-soft)", color: "var(--c-accent)" }}>Sending...</span>;
+      case "scheduled":
+        return <span className="admBadge" style={{ background: "var(--c-warning-soft)", color: "var(--c-warning)" }}>Scheduled</span>;
+      default:
+        return <span className="admBadge" style={{ textTransform: "capitalize" }}>{status}</span>;
+    }
+  };
+
   return (
     <div className="admCampaignDetailView" style={{ display: "grid", gap: "var(--sp-6)", width: "100%" }}>
       {/* Top Header */}
@@ -111,9 +128,7 @@ export function CampaignDetailView({
         </div>
 
         <div style={{ display: "flex", gap: "var(--sp-2)" }}>
-          <span className="admBadge admBadge-published" style={{ textTransform: "capitalize" }}>
-            {campaign.status}
-          </span>
+          {getStatusBadge(campaign.status)}
         </div>
       </div>
 
@@ -279,25 +294,64 @@ export function CampaignDetailView({
                   <th scope="col">Location</th>
                   <th scope="col">Device / Browser</th>
                   <th scope="col">Status</th>
+                  <th scope="col">HTTP / Reason</th>
                   <th scope="col">Sent Time</th>
                 </tr>
               </thead>
               <tbody>
-                {logs.slice(0, 20).map((log) => (
+                {logs.slice(0, 50).map((log) => (
                   <tr key={log.id}>
                     <td>
                       <code>sub#{log.subscriberId}</code>
                     </td>
                     <td>
-                      <span>{log.city ? `${log.city}, ${log.country}` : log.country}</span>
+                      <span>{log.city && log.city !== "Unknown" ? `${log.city}, ${log.country}` : log.country || "Unknown"}</span>
                     </td>
                     <td>
                       <small>{log.device} • {log.browser}</small>
                     </td>
                     <td>
-                      <span className={`admBadge ${log.status === "clicked" ? "admBadge-published" : ""}`}>
-                        {log.status}
-                      </span>
+                      {log.status === "failed" || log.status === "expired" ? (
+                        <span className="admBadge" style={{ background: "var(--c-danger-soft, #fee2e2)", color: "var(--c-danger, #dc2626)" }}>
+                          {log.status}
+                        </span>
+                      ) : log.status === "clicked" ? (
+                        <span className="admBadge admBadge-published">clicked</span>
+                      ) : (
+                        <span className="admBadge" style={{ background: "var(--c-accent-soft, #e0e7ff)", color: "var(--c-accent, #4f46e5)" }}>
+                          {log.status}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {log.statusCode ? (
+                        <div style={{ fontSize: "var(--text-xs)" }}>
+                          <code style={{ color: log.statusCode >= 400 ? "var(--c-danger)" : "inherit" }}>
+                            HTTP {log.statusCode}
+                          </code>
+                          {log.errorReason && (
+                            <small
+                              style={{
+                                display: "block",
+                                color: "var(--c-danger)",
+                                maxWidth: "260px",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                              title={log.errorReason}
+                            >
+                              {log.errorReason}
+                            </small>
+                          )}
+                        </div>
+                      ) : log.errorReason ? (
+                        <small style={{ color: "var(--c-danger)", display: "block", maxWidth: "260px" }}>
+                          {log.errorReason}
+                        </small>
+                      ) : (
+                        <small style={{ color: "var(--c-muted)" }}>Accepted</small>
+                      )}
                     </td>
                     <td>
                       <small>{new Date(log.sentAt).toLocaleTimeString()}</small>

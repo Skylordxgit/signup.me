@@ -137,6 +137,7 @@ export function NotificationComposer({
   const [testTarget, setTestTarget] = useState<"my_device" | "sample_subscriber" | "test_group">("my_device");
   const [sendingTest, setSendingTest] = useState(false);
   const [testSuccessMessage, setTestSuccessMessage] = useState("");
+  const [testErrorMessage, setTestErrorMessage] = useState("");
 
   // Common UI states
   const [busy, setBusy] = useState(false);
@@ -235,13 +236,14 @@ export function NotificationComposer({
   // Test Push Sender
   const handleSendTestPush = async () => {
     if (!title.trim() || !body.trim()) {
-      alert("Please enter a title and message first.");
+      setTestErrorMessage("Please enter a title and message first.");
       return;
     }
     try {
       setSendingTest(true);
       setTestSuccessMessage("");
-      const res = await adminApi<{ ok: boolean; message: string }>("/api/admin/notifications/test", {
+      setTestErrorMessage("");
+      const res = await adminApi<{ ok: boolean; message: string; error?: string }>("/api/admin/notifications/test", {
         method: "POST",
         body: JSON.stringify({
           title: title.trim(),
@@ -253,9 +255,13 @@ export function NotificationComposer({
           ctaText: ctaText.trim() || null,
         }),
       });
-      setTestSuccessMessage(res.message || "Test push notification dispatched successfully.");
+      if (res.ok) {
+        setTestSuccessMessage(res.message || "Test push notification dispatched successfully.");
+      } else {
+        setTestErrorMessage(res.error || res.message || "Test push failed.");
+      }
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Test push failed");
+      setTestErrorMessage(err instanceof Error ? err.message : "Test push failed");
     } finally {
       setSendingTest(false);
     }
@@ -1491,7 +1497,7 @@ export function NotificationComposer({
             {testSuccessMessage && (
               <div
                 style={{
-                  padding: "10px",
+                  padding: "10px 12px",
                   borderRadius: "6px",
                   background: "rgba(16, 185, 129, 0.1)",
                   border: "1px solid rgba(16, 185, 129, 0.2)",
@@ -1501,6 +1507,23 @@ export function NotificationComposer({
                 }}
               >
                 ✓ {testSuccessMessage}
+              </div>
+            )}
+
+            {testErrorMessage && (
+              <div
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: "6px",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                  color: "#991b1b",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  lineHeight: 1.4,
+                }}
+              >
+                ✕ {testErrorMessage}
               </div>
             )}
 

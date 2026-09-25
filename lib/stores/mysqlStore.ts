@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "crypto";
-import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
+import type { AnalyticsReport, AudienceFilters, BlockType, CampaignStatus, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushRecipient, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
 import { defaultTheme, seedTemplates } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify } from "../utils";
 import { mysqlQuery, withTransaction } from "../mysql";
-import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
+import { configureWebPush, isPushSubscription, notificationPayload, sendPushBatch, sendPushBatchDetailed } from "../push";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem, mergeSubscriberDetails } from '../subscriberDetails';
 import { DEFAULT_WORKSPACE_ID } from '../workspaces';
@@ -72,12 +72,24 @@ type PushRow = {
 type CampaignRow = {
   id: number;
   workspace_id: string;
+  name: string | null;
   page_id: number | null;
   page_slug: string | null;
   title: string;
   body: string;
   url: string;
+  image: string | null;
+  icon: string | null;
+  badge: string | null;
+  cta_text: string | null;
   audience: string;
+  status: CampaignStatus | null;
+  scheduled_at: string | Date | null;
+  started_at: string | Date | null;
+  completed_at: string | Date | null;
+  target_filters: unknown;
+  location_stats: unknown;
+  device_stats: unknown;
   attempted: number;
   sent: number;
   delivered: number;
@@ -87,6 +99,26 @@ type CampaignRow = {
   removed: number;
   created_at: string | Date;
   updated_at: string | Date;
+};
+
+type DeliveryLogRow = {
+  id: string;
+  campaign_id: number;
+  workspace_id: string;
+  campaign_name: string;
+  subscriber_id: number;
+  endpoint_hash: string;
+  page_slug: string | null;
+  country: string;
+  region: string;
+  city: string;
+  device: string;
+  browser: string;
+  status: 'sent' | 'delivered' | 'clicked' | 'failed' | 'expired';
+  status_code: number | null;
+  error_reason: string | null;
+  sent_at: string | Date;
+  clicked_at: string | Date | null;
 };
 
 function toIso(value: string | Date) {
@@ -239,17 +271,59 @@ function ensurePushTable() {
   return pushTableReady;
 }
 
+let deliveryLogsTableReady: Promise<void> | null = null;
+
+function ensureDeliveryLogsTable() {
+  deliveryLogsTableReady ??= mysqlQuery(
+    `CREATE TABLE IF NOT EXISTS notification_delivery_logs (
+      id VARCHAR(64) PRIMARY KEY,
+      campaign_id BIGINT UNSIGNED NOT NULL,
+      workspace_id VARCHAR(80) NOT NULL,
+      campaign_name VARCHAR(120) NOT NULL,
+      subscriber_id BIGINT UNSIGNED NOT NULL,
+      endpoint_hash CHAR(64) NOT NULL,
+      page_slug VARCHAR(120) NULL,
+      country VARCHAR(80) NOT NULL DEFAULT 'Unknown',
+      region VARCHAR(80) NOT NULL DEFAULT '',
+      city VARCHAR(80) NOT NULL DEFAULT 'Unknown',
+      device VARCHAR(50) NOT NULL DEFAULT 'Desktop',
+      browser VARCHAR(50) NOT NULL DEFAULT 'Browser',
+      status VARCHAR(25) NOT NULL,
+      status_code INT NULL,
+      error_reason TEXT NULL,
+      sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      clicked_at TIMESTAMP NULL,
+      INDEX idx_delivery_campaign (campaign_id),
+      INDEX idx_delivery_workspace (workspace_id, sent_at),
+      INDEX idx_delivery_subscriber (subscriber_id)
+    )`,
+  ).then(() => {}).catch(error => { deliveryLogsTableReady = null; throw error; });
+  return deliveryLogsTableReady;
+}
+
 function ensureCampaignTable() {
   campaignTableReady ??= mysqlQuery(
     `CREATE TABLE IF NOT EXISTS notification_campaigns (
       id BIGINT UNSIGNED PRIMARY KEY AUTO_INCREMENT,
       workspace_id VARCHAR(80) NOT NULL,
+      name VARCHAR(120) NULL,
       page_id BIGINT UNSIGNED NULL,
       page_slug VARCHAR(120) NULL,
       title VARCHAR(120) NOT NULL,
       body VARCHAR(255) NOT NULL,
       url VARCHAR(700) NOT NULL,
+      image VARCHAR(700) NULL,
+      icon VARCHAR(700) NULL,
+      badge VARCHAR(700) NULL,
+      cta_text VARCHAR(120) NULL,
       audience VARCHAR(190) NOT NULL,
+      status VARCHAR(30) NOT NULL DEFAULT 'draft',
+      scheduled_at TIMESTAMP NULL,
+      started_at TIMESTAMP NULL,
+      completed_at TIMESTAMP NULL,
+      target_filters JSON NULL,
+      location_stats JSON NULL,
+      device_stats JSON NULL,
       attempted INT UNSIGNED NOT NULL DEFAULT 0,
       sent INT UNSIGNED NOT NULL DEFAULT 0,
       delivered INT UNSIGNED NOT NULL DEFAULT 0,
@@ -264,6 +338,18 @@ function ensureCampaignTable() {
     )`,
   ).then(async () => {
     for (const { name, sql } of [
+      { name: 'name', sql: 'ALTER TABLE notification_campaigns ADD COLUMN name VARCHAR(120) NULL' },
+      { name: 'status', sql: "ALTER TABLE notification_campaigns ADD COLUMN status VARCHAR(30) NOT NULL DEFAULT 'draft'" },
+      { name: 'image', sql: 'ALTER TABLE notification_campaigns ADD COLUMN image VARCHAR(700) NULL' },
+      { name: 'icon', sql: 'ALTER TABLE notification_campaigns ADD COLUMN icon VARCHAR(700) NULL' },
+      { name: 'badge', sql: 'ALTER TABLE notification_campaigns ADD COLUMN badge VARCHAR(700) NULL' },
+      { name: 'cta_text', sql: 'ALTER TABLE notification_campaigns ADD COLUMN cta_text VARCHAR(120) NULL' },
+      { name: 'scheduled_at', sql: 'ALTER TABLE notification_campaigns ADD COLUMN scheduled_at TIMESTAMP NULL' },
+      { name: 'started_at', sql: 'ALTER TABLE notification_campaigns ADD COLUMN started_at TIMESTAMP NULL' },
+      { name: 'completed_at', sql: 'ALTER TABLE notification_campaigns ADD COLUMN completed_at TIMESTAMP NULL' },
+      { name: 'target_filters', sql: 'ALTER TABLE notification_campaigns ADD COLUMN target_filters JSON NULL' },
+      { name: 'location_stats', sql: 'ALTER TABLE notification_campaigns ADD COLUMN location_stats JSON NULL' },
+      { name: 'device_stats', sql: 'ALTER TABLE notification_campaigns ADD COLUMN device_stats JSON NULL' },
       { name: 'delivered', sql: 'ALTER TABLE notification_campaigns ADD COLUMN delivered INT UNSIGNED NOT NULL DEFAULT 0' },
       { name: 'seen', sql: 'ALTER TABLE notification_campaigns ADD COLUMN seen INT UNSIGNED NOT NULL DEFAULT 0' },
       { name: 'clicked', sql: 'ALTER TABLE notification_campaigns ADD COLUMN clicked INT UNSIGNED NOT NULL DEFAULT 0' },
@@ -1517,25 +1603,101 @@ export async function listPushSubscribers(workspaceId?: string): Promise<Notific
   };
 }
 
+export async function getPushSubscriberForTest(
+  workspaceId: string,
+  criteria?: { subscriberId?: number; endpointHash?: string }
+): Promise<{ id: number; endpointHash: string; subscription: PushSubscriptionRecord; browser: string; device: string; location: string } | null> {
+  await ensurePushTable();
+  const conditions = ["ps.workspace_id = ?", "ps.is_active = 1"];
+  const params: unknown[] = [workspaceId];
+
+  if (criteria?.subscriberId) {
+    conditions.push("ps.id = ?");
+    params.push(criteria.subscriberId);
+  }
+  if (criteria?.endpointHash) {
+    conditions.push("ps.endpoint_hash = ?");
+    params.push(criteria.endpointHash);
+  }
+
+  const rows = await mysqlQuery<PushRow[]>(
+    `SELECT ps.*, p.slug FROM push_subscriptions ps
+     INNER JOIN pages p ON p.id = ps.page_id
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY ps.id DESC LIMIT 1`,
+    params
+  );
+  const row = rows[0];
+  if (!row) return null;
+
+  const sub = toJson<PushSubscriptionRecord | null>(row.subscription_json, null);
+  if (!isPushSubscription(sub)) return null;
+
+  const details = toJson<Partial<SubscriberDetails>>(row.client_details, {});
+  const browser = details.browser || "Browser";
+  const device = details.device || "Device";
+  const location = details.city && details.city !== "Unknown" ? `${details.city}, ${details.country || ""}` : details.country || "Unknown Location";
+
+  return {
+    id: Number(row.id),
+    endpointHash: row.endpoint_hash,
+    subscription: sub,
+    browser,
+    device,
+    location,
+  };
+}
+
+export async function deactivatePushSubscription(workspaceId: string, endpointHash: string): Promise<void> {
+  await ensurePushTable();
+  await mysqlQuery(
+    "UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE workspace_id = ? AND endpoint_hash = ?",
+    [workspaceId, endpointHash]
+  );
+}
+
 function mapCampaign(row: CampaignRow): NotificationCampaign {
+  const attempted = Number(row.attempted);
+  const sent = Number(row.sent);
+  const failed = Number(row.failed);
+
+  let status: CampaignStatus = row.status || 'draft';
+  if (!row.status || row.status === 'draft') {
+    if (attempted === 0) status = 'draft';
+    else if (sent > 0 && failed === 0) status = 'completed';
+    else if (sent > 0 && failed > 0) status = 'completed_with_failures';
+    else if (sent === 0 && failed > 0) status = 'failed';
+    else if (attempted > 0) status = 'completed';
+  }
+
   return {
     id: Number(row.id),
     workspaceId: row.workspace_id,
-    name: row.title,
-    status: (Number(row.sent) > 0 || Number(row.attempted) > 0) ? 'completed' : 'draft',
+    name: row.name || row.title,
+    status,
     pageId: row.page_id == null ? null : Number(row.page_id),
     pageSlug: row.page_slug,
     title: row.title,
     body: row.body,
     url: row.url,
+    image: row.image,
+    icon: row.icon,
+    badge: row.badge,
+    ctaText: row.cta_text,
+    scheduledAt: row.scheduled_at ? toIso(row.scheduled_at) : null,
+    startedAt: row.started_at ? toIso(row.started_at) : null,
+    completedAt: row.completed_at ? toIso(row.completed_at) : null,
+    targetFilters: toJson(row.target_filters, {}),
+    locationStats: toJson(row.location_stats, {}),
+    deviceStats: toJson(row.device_stats, {}),
     audience: row.audience,
-    attempted: Number(row.attempted),
-    sent: Number(row.sent),
+    attempted,
+    sent,
     delivered: Number(row.delivered),
     seen: Number(row.seen),
     clicked: Number(row.clicked),
     clicks: Number(row.clicked),
-    failed: Number(row.failed),
+    failed,
     removed: Number(row.removed),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
@@ -1565,10 +1727,28 @@ export async function getNotificationCampaignById(id: number, workspaceId?: stri
 
 export async function createNotificationCampaign(input: NotificationSendInput): Promise<NotificationCampaign> {
   await ensureCampaignTable();
+  const audience = input.name || 'Targeted';
+  const status: CampaignStatus = input.status || (input.scheduledAt ? 'scheduled' : 'draft');
   const inserted = await mysqlQuery<{ insertId: number }>(
-    `INSERT INTO notification_campaigns (workspace_id, page_id, page_slug, title, body, url, audience, attempted)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-    [input.workspaceId || DEFAULT_WORKSPACE_ID, input.pageId ?? null, null, input.title.trim().slice(0, 120), input.body.trim().slice(0, 255), (input.url.trim() || '/').slice(0, 700), input.name || 'Targeted'],
+    `INSERT INTO notification_campaigns (workspace_id, name, page_id, page_slug, title, body, url, image, icon, badge, cta_text, audience, status, scheduled_at, target_filters, attempted)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    [
+      input.workspaceId || DEFAULT_WORKSPACE_ID,
+      (input.name || input.title).slice(0, 120),
+      input.pageId ?? null,
+      null,
+      input.title.trim().slice(0, 120),
+      input.body.trim().slice(0, 255),
+      (input.url.trim() || '/').slice(0, 700),
+      input.image || null,
+      input.icon || null,
+      input.badge || null,
+      input.ctaText || null,
+      audience,
+      status,
+      input.scheduledAt ? new Date(input.scheduledAt) : null,
+      input.targetFilters ? JSON.stringify(input.targetFilters) : null,
+    ],
   );
   const campaignId = Number(inserted.insertId);
   const rows = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
@@ -1578,10 +1758,21 @@ export async function createNotificationCampaign(input: NotificationSendInput): 
 
 export async function updateNotificationCampaign(id: number, patch: Partial<NotificationCampaign>, workspaceId?: string): Promise<NotificationCampaign | null> {
   await ensureCampaignTable();
-  if (patch.title || patch.body || patch.url) {
+  const updates: string[] = [];
+  const params: unknown[] = [];
+
+  if (patch.name !== undefined) { updates.push('name = ?'); params.push(patch.name); }
+  if (patch.title !== undefined) { updates.push('title = ?'); params.push(patch.title); }
+  if (patch.body !== undefined) { updates.push('body = ?'); params.push(patch.body); }
+  if (patch.url !== undefined) { updates.push('url = ?'); params.push(patch.url); }
+  if (patch.status !== undefined) { updates.push('status = ?'); params.push(patch.status); }
+  if (patch.scheduledAt !== undefined) { updates.push('scheduled_at = ?'); params.push(patch.scheduledAt ? new Date(patch.scheduledAt) : null); }
+  if (patch.targetFilters !== undefined) { updates.push('target_filters = ?'); params.push(patch.targetFilters ? JSON.stringify(patch.targetFilters) : null); }
+
+  if (updates.length) {
     await mysqlQuery(
-      `UPDATE notification_campaigns SET title = COALESCE(?, title), body = COALESCE(?, body), url = COALESCE(?, url) WHERE id = ? ${workspaceId ? 'AND workspace_id = ?' : ''}`,
-      [patch.title ?? null, patch.body ?? null, patch.url ?? null, id, ...(workspaceId ? [workspaceId] : [])],
+      `UPDATE notification_campaigns SET ${updates.join(', ')} WHERE id = ? ${workspaceId ? 'AND workspace_id = ?' : ''}`,
+      [...params, id, ...(workspaceId ? [workspaceId] : [])],
     );
   }
   return getNotificationCampaignById(id, workspaceId);
@@ -1596,25 +1787,84 @@ export async function deleteNotificationCampaign(id: number, workspaceId?: strin
   return Number(result.affectedRows) > 0;
 }
 
+function mapDeliveryLog(row: DeliveryLogRow): NotificationDeliveryLog {
+  return {
+    id: row.id,
+    campaignId: Number(row.campaign_id),
+    campaignName: row.campaign_name,
+    subscriberId: Number(row.subscriber_id),
+    endpointHash: row.endpoint_hash,
+    pageSlug: row.page_slug ?? undefined,
+    country: row.country,
+    region: row.region,
+    city: row.city,
+    device: row.device,
+    browser: row.browser,
+    status: row.status,
+    statusCode: row.status_code == null ? null : Number(row.status_code),
+    errorReason: row.error_reason,
+    sentAt: toIso(row.sent_at),
+    clickedAt: row.clicked_at ? toIso(row.clicked_at) : null,
+  };
+}
+
 export async function listNotificationHistory(
   workspaceId?: string,
-  filters?: { campaignId?: number; limit?: number; offset?: number; search?: string }
-): Promise<{ items: import('../types').NotificationDeliveryLog[]; total: number }> {
-  // MySQL fallback: returns recent campaign activity logs
-  const campaigns = await listNotificationCampaigns(workspaceId);
-  const items: import('../types').NotificationDeliveryLog[] = campaigns.map(c => ({
-    id: `log-${c.id}`,
-    campaignId: c.id,
-    campaignName: c.name || c.title,
-    subscriberId: 1,
-    country: 'Various',
-    city: 'Various',
-    device: 'Desktop/Mobile',
-    browser: 'Browser',
-    status: c.delivered > 0 ? 'delivered' : c.failed > 0 ? 'failed' : 'sent',
-    sentAt: c.createdAt,
-  }));
-  return { items, total: items.length };
+  filters?: { campaignId?: number; limit?: number; offset?: number; search?: string; country?: string; city?: string; device?: string; status?: string }
+): Promise<{ items: NotificationDeliveryLog[]; total: number }> {
+  await ensureDeliveryLogsTable();
+  const limit = Math.min(200, Math.max(1, filters?.limit || 50));
+  const offset = Math.max(0, filters?.offset || 0);
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+
+  if (workspaceId) {
+    conditions.push("workspace_id = ?");
+    params.push(workspaceId);
+  }
+  if (filters?.campaignId) {
+    conditions.push("campaign_id = ?");
+    params.push(filters.campaignId);
+  }
+  if (filters?.status) {
+    conditions.push("status = ?");
+    params.push(filters.status);
+  }
+  if (filters?.country) {
+    conditions.push("LOWER(country) = LOWER(?)");
+    params.push(filters.country);
+  }
+  if (filters?.city) {
+    conditions.push("LOWER(city) = LOWER(?)");
+    params.push(filters.city);
+  }
+  if (filters?.device) {
+    conditions.push("LOWER(device) = LOWER(?)");
+    params.push(filters.device);
+  }
+  if (filters?.search) {
+    conditions.push("(campaign_name LIKE ? OR error_reason LIKE ? OR city LIKE ? OR country LIKE ?)");
+    const q = `%${filters.search}%`;
+    params.push(q, q, q, q);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const countRows = await mysqlQuery<{ total: number }[]>(
+    `SELECT COUNT(*) AS total FROM notification_delivery_logs ${where}`,
+    params
+  );
+  const total = Number(countRows[0]?.total || 0);
+
+  const rows = await mysqlQuery<DeliveryLogRow[]>(
+    `SELECT * FROM notification_delivery_logs ${where} ORDER BY sent_at DESC LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
+
+  return {
+    items: rows.map(mapDeliveryLog),
+    total,
+  };
 }
 
 type SubscriberSegmentRow = {
@@ -1827,36 +2077,161 @@ export async function sendPushNotification(input: NotificationSendInput): Promis
   configureWebPush();
   await ensurePushTable();
   await ensureCampaignTable();
+  await ensureDeliveryLogsTable();
+
   const rows = await mysqlQuery<PushRow[]>(
     `SELECT ps.*, p.slug FROM push_subscriptions ps
      INNER JOIN pages p ON p.id = ps.page_id
      WHERE ps.is_active = 1 AND (? IS NULL OR ps.page_id = ?) AND (? IS NULL OR p.workspace_id = ?)`,
     [input.pageId ?? null, input.pageId ?? null, input.workspaceId ?? null, input.workspaceId ?? null],
   );
-  const subscriptions = rows.map(row => toJson<PushSubscriptionRecord>(row.subscription_json, { endpoint: "", keys: { p256dh: "", auth: "" } }));
-  const pageSlug = input.pageId ? rows.find(row => row.page_id === input.pageId)?.slug ?? null : null;
-  const audience = input.pageId && pageSlug ? `/${pageSlug}` : 'All subscribers';
-  const inserted = await mysqlQuery<{ insertId: number }>(
-    `INSERT INTO notification_campaigns (workspace_id, page_id, page_slug, title, body, url, audience, attempted)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [input.workspaceId || DEFAULT_WORKSPACE_ID, input.pageId ?? null, pageSlug, input.title.trim().slice(0, 120), input.body.trim().slice(0, 255), (input.url.trim() || '/').slice(0, 700), audience, subscriptions.length],
-  );
-  const campaignId = Number(inserted.insertId);
-  const { result, expired } = await sendPushBatch(subscriptions, notificationPayload({ ...input, campaignId }));
-  if (expired.length) {
-    const hashes = expired.map(subscriptionHash);
-    await mysqlQuery(`UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE workspace_id = ? AND endpoint_hash IN (${hashes.map(() => '?').join(',')})`, [input.workspaceId || DEFAULT_WORKSPACE_ID, ...hashes]);
+
+  const validRecipients: PushRecipient[] = [];
+  const invalidHashes: string[] = [];
+  for (const row of rows) {
+    const sub = toJson<PushSubscriptionRecord | null>(row.subscription_json, null);
+    if (isPushSubscription(sub)) {
+      validRecipients.push({
+        id: Number(row.id),
+        endpointHash: row.endpoint_hash,
+        subscription: sub,
+        pageSlug: row.slug,
+        userAgent: row.user_agent || "",
+        details: toJson<Partial<SubscriberDetails>>(row.client_details, {}),
+      });
+    } else {
+      invalidHashes.push(row.endpoint_hash);
+    }
   }
+
+  if (invalidHashes.length) {
+    await mysqlQuery(
+      `UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE workspace_id = ? AND endpoint_hash IN (${invalidHashes.map(() => "?").join(",")})`,
+      [input.workspaceId || DEFAULT_WORKSPACE_ID, ...invalidHashes]
+    );
+  }
+
+  // Filter recipients based on audience target filters
+  const targetSubscribers = validRecipients.filter((r) => {
+    const sub: import("../types").NotificationSubscriber = {
+      id: r.id,
+      workspaceId: input.workspaceId || DEFAULT_WORKSPACE_ID,
+      pageId: input.pageId || 0,
+      slug: r.pageSlug || "",
+      endpointHash: r.endpointHash,
+      userAgent: r.userAgent || "",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      isActive: true,
+      details: r.details as SubscriberDetails | undefined,
+    };
+    return matchSubscriber(sub, input.targetFilters || {});
+  });
+
+  const pageSlug = input.pageId ? rows.find((row) => row.page_id === input.pageId)?.slug ?? null : null;
+  const audience = input.name || (input.pageId && pageSlug ? `/${pageSlug}` : "All subscribers");
+
+  let campaignId = input.campaignId;
+  if (campaignId) {
+    await mysqlQuery(
+      `UPDATE notification_campaigns SET status = 'sending', started_at = CURRENT_TIMESTAMP, attempted = ? WHERE id = ?`,
+      [targetSubscribers.length, campaignId]
+    );
+  } else {
+    const inserted = await mysqlQuery<{ insertId: number }>(
+      `INSERT INTO notification_campaigns (workspace_id, name, page_id, page_slug, title, body, url, image, icon, badge, cta_text, audience, status, started_at, attempted)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sending', CURRENT_TIMESTAMP, ?)`,
+      [
+        input.workspaceId || DEFAULT_WORKSPACE_ID,
+        (input.name || input.title).slice(0, 120),
+        input.pageId ?? null,
+        pageSlug,
+        input.title.trim().slice(0, 120),
+        input.body.trim().slice(0, 255),
+        (input.url.trim() || "/").slice(0, 700),
+        input.image || null,
+        input.icon || null,
+        input.badge || null,
+        input.ctaText || null,
+        audience,
+        targetSubscribers.length,
+      ],
+    );
+    campaignId = Number(inserted.insertId);
+  }
+
+  const { result, expired, authFailed, items } = await sendPushBatchDetailed(
+    targetSubscribers,
+    notificationPayload({ ...input, campaignId }),
+    { concurrency: input.batchSize || 10, priority: input.priority }
+  );
+
+  const deactivations = [...new Set([...expired, ...authFailed])];
+  if (deactivations.length) {
+    await mysqlQuery(
+      `UPDATE push_subscriptions SET is_active = 0, last_failed_at = CURRENT_TIMESTAMP WHERE workspace_id = ? AND endpoint_hash IN (${deactivations.map(() => "?").join(",")})`,
+      [input.workspaceId || DEFAULT_WORKSPACE_ID, ...deactivations]
+    );
+  }
+
+  // Calculate location and device stats
+  const locationStats: Record<string, { sent: number; clicked: number; delivered: number }> = {};
+  const deviceStats: Record<string, { sent: number; clicked: number; delivered: number }> = {};
+  for (const item of items) {
+    const locKey = item.city && item.city !== "Unknown" ? `${item.city}, ${item.country}` : item.country || "Unknown";
+    const devKey = item.device || "Desktop";
+    if (!locationStats[locKey]) locationStats[locKey] = { sent: 0, clicked: 0, delivered: 0 };
+    if (!deviceStats[devKey]) deviceStats[devKey] = { sent: 0, clicked: 0, delivered: 0 };
+
+    if (item.status === "sent") {
+      locationStats[locKey].sent += 1;
+      deviceStats[devKey].sent += 1;
+    }
+  }
+
+  // Batch insert delivery logs
+  for (const item of items) {
+    await mysqlQuery(
+      `INSERT INTO notification_delivery_logs
+       (id, campaign_id, workspace_id, campaign_name, subscriber_id, endpoint_hash, page_slug, country, region, city, device, browser, status, status_code, error_reason, sent_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      [
+        randomUUID(),
+        campaignId,
+        input.workspaceId || DEFAULT_WORKSPACE_ID,
+        (input.name || input.title).slice(0, 120),
+        item.recipientId,
+        item.endpointHash,
+        item.pageSlug ?? null,
+        item.country,
+        item.region || "",
+        item.city,
+        item.device,
+        item.browser,
+        item.status,
+        item.statusCode ?? null,
+        item.errorReason ?? null,
+      ]
+    );
+  }
+
+  let finalStatus: CampaignStatus = "completed";
+  if (result.attempted === 0) finalStatus = "completed";
+  else if (result.sent === 0 && result.failed > 0) finalStatus = "failed";
+  else if (result.sent > 0 && result.failed > 0) finalStatus = "completed_with_failures";
+  else finalStatus = "completed";
+
   await mysqlQuery(
     `UPDATE notification_campaigns
-     SET attempted = ?, sent = ?, removed = ?, failed = ?
+     SET attempted = ?, sent = ?, removed = ?, failed = ?, status = ?, completed_at = CURRENT_TIMESTAMP, location_stats = ?, device_stats = ?
      WHERE id = ?`,
-    [result.attempted, result.sent, result.removed, result.failed, campaignId],
+    [result.attempted, result.sent, result.removed, result.failed, finalStatus, JSON.stringify(locationStats), JSON.stringify(deviceStats), campaignId],
   );
-  const campaigns = await mysqlQuery<CampaignRow[]>('SELECT * FROM notification_campaigns WHERE id = ?', [campaignId]);
-  if (!campaigns[0]) throw new Error("Campaign could not be created.");
 
-  return { ...result, campaignId, campaign: campaigns[0] ? mapCampaign(campaigns[0]) : undefined };
+  const campaigns = await mysqlQuery<CampaignRow[]>("SELECT * FROM notification_campaigns WHERE id = ?", [campaignId]);
+  if (!campaigns[0]) throw new Error("Campaign could not be updated.");
+
+  return { ...result, campaignId, campaign: mapCampaign(campaigns[0]) };
 }
 
 export async function recordNotificationCampaignEvent(campaignId: number, event: 'delivered' | 'seen' | 'clicked') {

@@ -51,3 +51,5 @@ export const deleteSubscriberSegment: typeof jsonStore.deleteSubscriberSegment =
 export const listNotificationTemplates: typeof jsonStore.listNotificationTemplates = (...args) => store().listNotificationTemplates(...args);
 export const saveNotificationTemplate: typeof jsonStore.saveNotificationTemplate = (...args) => store().saveNotificationTemplate(...args);
 export const deleteNotificationTemplate: typeof jsonStore.deleteNotificationTemplate = (...args) => store().deleteNotificationTemplate(...args);
+export const getPushSubscriberForTest: typeof jsonStore.getPushSubscriberForTest = (...args) => store().getPushSubscriberForTest(...args);
+export const deactivatePushSubscription: typeof jsonStore.deactivatePushSubscription = (...args) => store().deactivatePushSubscription(...args);

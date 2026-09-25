@@ -150,6 +150,8 @@ export function CampaignsView({
     switch (status) {
       case "completed":
         return <span className="admBadge admBadge-published">Completed</span>;
+      case "completed_with_failures":
+        return <span className="admBadge" style={{ background: "var(--c-warning-soft, #fef3c7)", color: "var(--c-warning, #d97706)" }}>Partial Delivery</span>;
       case "sending":
         return <span className="admBadge" style={{ background: "var(--c-accent-soft)", color: "var(--c-accent)" }}>Sending...</span>;
       case "scheduled":
@@ -161,7 +163,7 @@ export function CampaignsView({
       case "cancelled":
         return <span className="admBadge admBadge-disabled">Cancelled</span>;
       case "failed":
-        return <span className="admBadge" style={{ background: "var(--c-danger-soft)", color: "var(--c-danger)" }}>Failed</span>;
+        return <span className="admBadge" style={{ background: "var(--c-danger-soft, #fee2e2)", color: "var(--c-danger, #dc2626)" }}>Failed</span>;
       default:
         return <span className="admBadge">{status}</span>;
     }
@@ -206,6 +208,8 @@ export function CampaignsView({
           >
             <option value="all">All Statuses</option>
             <option value="completed">Completed</option>
+            <option value="completed_with_failures">Partial Delivery</option>
+            <option value="failed">Failed</option>
             <option value="scheduled">Scheduled</option>
             <option value="sending">Sending</option>
             <option value="draft">Drafts</option>
@@ -252,7 +256,7 @@ export function CampaignsView({
                 <th scope="col">Campaign</th>
                 <th scope="col">Status</th>
                 <th scope="col">Audience / Target</th>
-                <th scope="col">Delivered</th>
+                <th scope="col">Sent / Accepted</th>
                 <th scope="col">Clicks (CTR)</th>
                 <th scope="col">Created / Scheduled</th>
                 <th scope="col" style={{ textAlign: "right" }}>Actions</th>
@@ -281,8 +285,15 @@ export function CampaignsView({
                     </td>
                     <td>
                       <div className="admTableNumber">
-                        <strong>{c.delivered.toLocaleString()}</strong>
+                        <strong style={{ color: c.status === "failed" ? "var(--c-danger)" : (c.delivered === 0 && c.attempted > 0) ? "var(--c-danger)" : "inherit" }}>
+                          {c.delivered.toLocaleString()}
+                        </strong>
                         <small style={{ color: "var(--c-muted)" }}>of {c.attempted.toLocaleString()}</small>
+                        {c.failed > 0 && (
+                          <small style={{ color: "var(--c-danger)", display: "block", fontSize: "11px", fontWeight: 600 }}>
+                            {c.failed} failed
+                          </small>
+                        )}
                       </div>
                     </td>
                     <td>

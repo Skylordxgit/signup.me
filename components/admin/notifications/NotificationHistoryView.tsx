@@ -248,13 +248,31 @@ export function NotificationHistoryView({
                           ? "admBadge-published"
                           : log.status === "clicked"
                           ? "admBadge-published"
-                          : log.status === "failed"
+                          : log.status === "failed" || log.status === "expired"
                           ? "admBadge-disabled"
                           : ""
                       }`}
+                      style={log.status === "failed" || log.status === "expired" ? { background: "var(--c-danger-soft, #fee2e2)", color: "var(--c-danger, #dc2626)" } : undefined}
                     >
                       {log.status}
                     </span>
+                    {log.errorReason && (
+                      <small
+                        style={{
+                          display: "block",
+                          color: "var(--c-danger)",
+                          fontSize: "11px",
+                          maxWidth: "220px",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          marginTop: "2px",
+                        }}
+                        title={log.errorReason}
+                      >
+                        {log.statusCode ? `[HTTP ${log.statusCode}] ` : ""}{log.errorReason}
+                      </small>
+                    )}
                   </td>
                   <td>
                     {log.clickedAt ? (

@@ -2,7 +2,16 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { notificationPayload, sendPushBatch, webpush } from '../lib/push';
+import {
+  notificationPayload,
+  sendPushBatch,
+  sendPushBatchDetailed,
+  validateVapidKeys,
+  getVapidDiagnostic,
+  isGonePushError,
+  isAuthPushError,
+  webpush,
+} from '../lib/push';
 import { isNotificationUrl } from '../lib/notificationUrl';
 
 test('notification destinations accept HTTPS custom links and local paths', () => {
@@ -67,4 +76,116 @@ test('push batches bound concurrency and distinguish expired and failed subscrip
   assert.equal(seen.size, 12);
   assert.equal(peak, 5);
   assert.deepEqual((await sendPushBatch([], 'message')).result, { attempted: 0, sent: 0, removed: 0, failed: 0 });
+});
+
+test('VAPID key validator detects valid pairs, mismatches, and malformed keys', () => {
+  const generated = webpush.generateVAPIDKeys();
+  const validResult = validateVapidKeys(generated.publicKey, generated.privateKey);
+  assert.equal(validResult.valid, true);
+  assert.equal(validResult.keysMatch, true);
+  assert.equal(validResult.error, null);
+
+  // Mismatched keys from two different key generations
+  const second = webpush.generateVAPIDKeys();
+  const mismatchResult = validateVapidKeys(generated.publicKey, second.privateKey);
+  assert.equal(mismatchResult.valid, false);
+  assert.equal(mismatchResult.keysMatch, false);
+  assert.match(mismatchResult.error || '', /do not match/);
+
+  // Invalid base64 or corrupt key
+  const invalidResult = validateVapidKeys('invalid-key', generated.privateKey);
+  assert.equal(invalidResult.valid, false);
+  assert.match(invalidResult.error || '', /invalid|length/i);
+});
+
+test('sendPushBatchDetailed captures status codes, separates auth errors from expired, and logs errors', async t => {
+  t.mock.method(webpush, 'sendNotification', async (subscription: { endpoint: string }) => {
+    if (subscription.endpoint.endsWith('/201')) {
+      return { statusCode: 201 };
+    }
+    if (subscription.endpoint.endsWith('/403')) {
+      throw { statusCode: 403, body: 'VAPID credentials do not match applicationServerKey' };
+    }
+    if (subscription.endpoint.endsWith('/410')) {
+      throw { statusCode: 410, body: 'push subscription has unsubscribed or expired' };
+    }
+    if (subscription.endpoint.endsWith('/500')) {
+      throw { statusCode: 500, body: 'Internal push server error' };
+    }
+    return { statusCode: 201 };
+  });
+
+  const recipients = [
+    {
+      id: 1,
+      endpointHash: 'hash-ok',
+      subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/201', keys: { auth: 'a', p256dh: 'p' } },
+      pageSlug: 'landing',
+      details: { country: 'India', city: 'Mumbai', device: 'Mobile', browser: 'Chrome' },
+    },
+    {
+      id: 2,
+      endpointHash: 'hash-auth-mismatch',
+      subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/403', keys: { auth: 'a', p256dh: 'p' } },
+      pageSlug: 'landing',
+      details: { country: 'India', city: 'Delhi', device: 'Desktop', browser: 'Chrome' },
+    },
+    {
+      id: 3,
+      endpointHash: 'hash-expired',
+      subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/410', keys: { auth: 'a', p256dh: 'p' } },
+      pageSlug: 'landing',
+      details: { country: 'Bangladesh', city: 'Dhaka', device: 'Mobile', browser: 'Firefox' },
+    },
+    {
+      id: 4,
+      endpointHash: 'hash-server-err',
+      subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/500', keys: { auth: 'a', p256dh: 'p' } },
+      pageSlug: 'landing',
+      details: { country: 'Unknown', city: 'Unknown', device: 'Desktop', browser: 'Edge' },
+    },
+  ];
+
+  const { result, expired, authFailed, items } = await sendPushBatchDetailed(recipients, '{"title":"Test"}');
+
+  assert.equal(result.attempted, 4);
+  assert.equal(result.sent, 1);
+  assert.equal(result.removed, 1); // 410 counted as removed
+  assert.equal(result.failed, 2); // 403 + 500 counted as failed
+
+  assert.deepEqual(expired, ['hash-expired']);
+  assert.deepEqual(authFailed, ['hash-auth-mismatch']);
+
+  assert.equal(items.length, 4);
+
+  const okItem = items.find(i => i.recipientId === 1);
+  assert.equal(okItem?.status, 'sent');
+  assert.equal(okItem?.statusCode, 201);
+  assert.equal(okItem?.city, 'Mumbai');
+
+  const authItem = items.find(i => i.recipientId === 2);
+  assert.equal(authItem?.status, 'failed');
+  assert.equal(authItem?.statusCode, 403);
+  assert.match(authItem?.errorReason || '', /VAPID credentials/);
+
+  const expiredItem = items.find(i => i.recipientId === 3);
+  assert.equal(expiredItem?.status, 'expired');
+  assert.equal(expiredItem?.statusCode, 410);
+
+  const serverErrItem = items.find(i => i.recipientId === 4);
+  assert.equal(serverErrItem?.status, 'failed');
+  assert.equal(serverErrItem?.statusCode, 500);
+});
+
+test('push error helpers correctly classify HTTP status codes', () => {
+  assert.equal(isGonePushError({ statusCode: 410 }), true);
+  assert.equal(isGonePushError({ statusCode: 404 }), true);
+  assert.equal(isGonePushError({ statusCode: 401 }), false);
+  assert.equal(isGonePushError({ statusCode: 403 }), false);
+  assert.equal(isGonePushError({ statusCode: 500 }), false);
+
+  assert.equal(isAuthPushError({ statusCode: 401 }), true);
+  assert.equal(isAuthPushError({ statusCode: 403 }), true);
+  assert.equal(isAuthPushError({ statusCode: 410 }), false);
+  assert.equal(isAuthPushError({ statusCode: 500 }), false);
 });

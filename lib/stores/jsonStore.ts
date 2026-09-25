@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "crypto";
 import { promises as fs } from "fs";
 import path from "path";
-import type { AnalyticsReport, AudienceFilters, BlockType, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
+import type { AnalyticsReport, AudienceFilters, BlockType, CampaignStatus, CityDetailMetric, CountryDetailMetric, CustomHtmlLinkMetric, CustomHtmlSettings, LocationMetric, NotificationCampaign, NotificationDeliveryLog, NotificationSendInput, NotificationSendResult, NotificationSubscriber, NotificationSubscriberSummary, NotificationTemplate, PageBlock, PageStatus, PushRecipient, PushSubscriptionRecord, RecentActivityItem, RegionDetailMetric, SmartPage, SubscriberSegment } from "../types";
 import type { SubscriberDetails } from '../types';
 import { subscriberListItem, mergeSubscriberDetails } from '../subscriberDetails';
 import { defaultTheme, seedPages, seedTemplates } from "../defaults";
 import { detectDevice, emptyBlock, isValidSlug, isValidImageUrl, isValidUrl, nowIso, safeReferrer, slugify, summarizePage } from "../utils";
-import { configureWebPush, notificationPayload, sendPushBatch } from "../push";
+import { configureWebPush, isPushSubscription, notificationPayload, sendPushBatch, sendPushBatchDetailed } from "../push";
 import { DEFAULT_WORKSPACE_ID } from "../workspaces";
 import { matchSubscriber, summarizeAudience } from "../audienceTargeting";
 import { emptyCustomHtml } from "../customHtml";
@@ -107,6 +107,7 @@ export const saveSubscriberSegment = serialized(saveSubscriberSegmentUnlocked);
 export const deleteSubscriberSegment = serialized(deleteSubscriberSegmentUnlocked);
 export const saveNotificationTemplate = serialized(saveNotificationTemplateUnlocked);
 export const deleteNotificationTemplate = serialized(deleteNotificationTemplateUnlocked);
+export const deactivatePushSubscription = serialized(deactivatePushSubscriptionUnlocked);
 
 function dataFile() {
   return path.join(process.cwd(), "data", "db.json");
@@ -1244,6 +1245,54 @@ export async function listPushSubscribers(workspaceId?: string, filters?: Audien
   return { total: active.length, inactive: subscriptions.length - active.length, byPage: [...byPage.values()].sort((a, b) => b.subscribers - a.subscribers), recent };
 }
 
+export async function getPushSubscriberForTest(
+  workspaceId: string,
+  criteria?: { subscriberId?: number; endpointHash?: string }
+): Promise<{ id: number; endpointHash: string; subscription: PushSubscriptionRecord; browser: string; device: string; location: string } | null> {
+  const db = await readJsonDb();
+  let matches = db.pushSubscriptions.filter(s => (!workspaceId || s.workspaceId === workspaceId) && s.isActive !== false);
+
+  if (criteria?.subscriberId) {
+    matches = matches.filter(s => s.id === criteria.subscriberId);
+  }
+  if (criteria?.endpointHash) {
+    matches = matches.filter(s => s.endpointHash === criteria.endpointHash);
+  }
+
+  const found = matches.sort((a, b) => b.id - a.id)[0];
+  if (!found || !isPushSubscription(found.subscription)) return null;
+
+  const details = (found.details || {}) as Partial<SubscriberDetails>;
+  const browser = details.browser || "Browser";
+  const device = details.device || "Device";
+  const location = details.city && details.city !== "Unknown" ? `${details.city}, ${details.country || ""}` : details.country || "Unknown Location";
+
+  return {
+    id: found.id,
+    endpointHash: found.endpointHash,
+    subscription: found.subscription,
+    browser,
+    device,
+    location,
+  };
+}
+
+async function deactivatePushSubscriptionUnlocked(workspaceId: string, endpointHash: string): Promise<void> {
+  const db = await readJsonDb();
+  let updated = false;
+  const timestamp = new Date().toISOString();
+  db.pushSubscriptions = db.pushSubscriptions.map((item) => {
+    if ((!workspaceId || item.workspaceId === workspaceId) && item.endpointHash === endpointHash) {
+      updated = true;
+      return { ...item, isActive: false, lastFailedAt: timestamp, updatedAt: timestamp };
+    }
+    return item;
+  });
+  if (updated) {
+    await writeJsonDb(db);
+  }
+}
+
 function campaignAudience(input: NotificationSendInput, page?: SmartPage) {
   if (input.targetFilters) {
     return summarizeAudience(input.targetFilters, page?.slug);
@@ -1463,34 +1512,48 @@ async function sendPushNotificationUnlocked(input: NotificationSendInput): Promi
   const locationStats: Record<string, { sent: number; clicked: number; delivered: number }> = {};
   const deviceStats: Record<string, { sent: number; clicked: number; delivered: number }> = {};
 
-  const { result, expired } = await sendPushBatch(targetSubscribers.map(item => item.subscription), notificationPayload({ ...input, campaignId: campaign.id }));
-  
-  // Record delivery logs for targets
-  for (const s of targetSubscribers) {
-    const locKey = s.details?.city ? `${s.details.city}, ${s.details.country || ''}` : (s.details?.country || 'Unknown Location');
-    const devKey = s.details?.device || 'desktop';
-    
-    if (!locationStats[locKey]) locationStats[locKey] = { sent: 0, clicked: 0, delivered: 0 };
-    locationStats[locKey].sent += 1;
-    locationStats[locKey].delivered += 1;
+  const recipients: PushRecipient[] = targetSubscribers.map((item) => ({
+    id: item.id,
+    endpointHash: item.endpointHash,
+    subscription: item.subscription,
+    pageSlug: item.slug,
+    userAgent: item.userAgent,
+    details: item.details,
+  }));
 
+  const { result, expired, authFailed, items } = await sendPushBatchDetailed(
+    recipients,
+    notificationPayload({ ...input, campaignId: campaign.id }),
+    { concurrency: input.batchSize || 10, priority: input.priority }
+  );
+
+  for (const item of items) {
+    const locKey = item.city && item.city !== "Unknown" ? `${item.city}, ${item.country}` : item.country || "Unknown Location";
+    const devKey = item.device || "desktop";
+
+    if (!locationStats[locKey]) locationStats[locKey] = { sent: 0, clicked: 0, delivered: 0 };
     if (!deviceStats[devKey]) deviceStats[devKey] = { sent: 0, clicked: 0, delivered: 0 };
-    deviceStats[devKey].sent += 1;
-    deviceStats[devKey].delivered += 1;
+
+    if (item.status === "sent") {
+      locationStats[locKey].sent += 1;
+      deviceStats[devKey].sent += 1;
+    }
 
     db.notificationDeliveryLogs.push({
       id: randomUUID(),
       campaignId: campaign.id,
       campaignName: campaign.name || campaign.title,
-      subscriberId: s.id,
-      endpointHash: s.endpointHash,
-      pageSlug: s.slug,
-      country: s.details?.country || 'Unknown',
-      region: s.details?.region || '',
-      city: s.details?.city || 'Unknown',
-      device: s.details?.device || 'Desktop',
-      browser: s.details?.browser || 'Browser',
-      status: 'delivered',
+      subscriberId: item.recipientId,
+      endpointHash: item.endpointHash,
+      pageSlug: item.pageSlug || "",
+      country: item.country,
+      region: item.region || "",
+      city: item.city,
+      device: item.device,
+      browser: item.browser,
+      status: item.status,
+      statusCode: item.statusCode,
+      errorReason: item.errorReason,
       sentAt: timestamp,
     });
   }
@@ -1500,23 +1563,33 @@ async function sendPushNotificationUnlocked(input: NotificationSendInput): Promi
     db.notificationDeliveryLogs = db.notificationDeliveryLogs.slice(-5000);
   }
 
+  let finalStatus: CampaignStatus = "completed";
+  if (result.attempted === 0) finalStatus = "completed";
+  else if (result.sent === 0 && result.failed > 0) finalStatus = "failed";
+  else if (result.sent > 0 && result.failed > 0) finalStatus = "completed_with_failures";
+  else finalStatus = "completed";
+
   const latest = await readJsonDb();
-  const stored = latest.notificationCampaigns.find(item => item.id === campaign.id);
+  const stored = latest.notificationCampaigns.find((item) => item.id === campaign.id);
   if (stored) {
     stored.attempted = result.attempted;
     stored.sent = result.sent;
     stored.delivered = result.sent;
     stored.removed = result.removed;
     stored.failed = result.failed;
-    stored.status = result.failed > 0 && result.sent === 0 ? 'failed' : 'completed';
+    stored.status = finalStatus;
     stored.completedAt = nowIso();
     stored.locationStats = locationStats;
     stored.deviceStats = deviceStats;
     stored.updatedAt = nowIso();
   }
-  if (expired.length) {
-    const hashes = new Set(expired.map(subscriptionHash));
-    latest.pushSubscriptions = latest.pushSubscriptions.map(item => item.workspaceId === campaign.workspaceId && hashes.has(item.endpointHash) ? { ...item, isActive: false, lastFailedAt: timestamp, updatedAt: timestamp } : item);
+  const deactivations = new Set([...expired, ...authFailed].map(subscriptionHash));
+  if (deactivations.size) {
+    latest.pushSubscriptions = latest.pushSubscriptions.map((item) =>
+      item.workspaceId === campaign.workspaceId && deactivations.has(item.endpointHash)
+        ? { ...item, isActive: false, lastFailedAt: timestamp, updatedAt: timestamp }
+        : item
+    );
   }
   await writeJsonDb(latest);
 
