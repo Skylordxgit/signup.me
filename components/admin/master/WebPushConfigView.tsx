@@ -143,8 +143,8 @@ export function WebPushConfigView() {
       setAuditLoading(true);
       const res = await fetch("/api/master/push-config/audit-logs", { cache: "no-store" });
       if (res.ok) {
-        const data = (await res.json()) as { auditLogs: SystemPushAuditLog[] };
-        setAuditLogs(data.auditLogs || []);
+        const data = (await res.json()) as { auditLogs?: SystemPushAuditLog[]; logs?: SystemPushAuditLog[] };
+        setAuditLogs(data.auditLogs || data.logs || []);
       }
     } catch {
       // ignore
@@ -158,8 +158,8 @@ export function WebPushConfigView() {
     try {
       const res = await fetch("/api/master/push-config/test-device", { cache: "no-store" });
       if (res.ok) {
-        const data = (await res.json()) as { testDevice: SystemPushTestDevice | null };
-        setTestDevice(data.testDevice || null);
+        const data = (await res.json()) as { testDevice?: SystemPushTestDevice | null; device?: SystemPushTestDevice | null };
+        setTestDevice(data.testDevice || data.device || null);
       }
     } catch {
       // ignore
@@ -218,9 +218,10 @@ export function WebPushConfigView() {
       setBusy(true);
       setNotice(null);
       const res = await fetch("/api/master/push-config/scan-env", { method: "POST" });
-      const data = (await res.json()) as { envScan?: EnvPushScanResult; error?: string };
-      if (!res.ok || !data.envScan) throw new Error(data.error || "Scan failed");
-      setEnvScan(data.envScan);
+      const data = (await res.json()) as { envScan?: EnvPushScanResult; env?: EnvPushScanResult; error?: string };
+      const scanResult = data.envScan || data.env;
+      if (!res.ok || !scanResult) throw new Error(data.error || "Scan failed");
+      setEnvScan(scanResult);
       setNotice({ type: "success", message: "Environment scan completed successfully." });
     } catch (err: unknown) {
       setNotice({ type: "error", message: err instanceof Error ? err.message : "Scan failed" });
@@ -362,12 +363,13 @@ export function WebPushConfigView() {
         }),
       });
 
-      const regData = (await regRes.json()) as { testDevice?: SystemPushTestDevice; error?: string };
-      if (!regRes.ok || !regData.testDevice) {
+      const regData = (await regRes.json()) as { testDevice?: SystemPushTestDevice; device?: SystemPushTestDevice; error?: string };
+      const registeredDevice = regData.testDevice || regData.device;
+      if (!regRes.ok || !registeredDevice) {
         throw new Error(regData.error || "Failed to register test device on server");
       }
 
-      setTestDevice(regData.testDevice);
+      setTestDevice(registeredDevice);
       setNotice({ type: "success", message: "This browser was successfully registered as the active Test Device!" });
     } catch (err: unknown) {
       setNotice({ type: "error", message: err instanceof Error ? err.message : "Registration failed" });

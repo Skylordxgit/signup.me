@@ -12,15 +12,8 @@ export async function GET() {
     return {
       success: true,
       registered: Boolean(device),
-      device: device
-        ? {
-            id: device.id,
-            endpointHash: device.endpointHash,
-            userAgent: device.userAgent,
-            createdAt: device.createdAt,
-            updatedAt: device.updatedAt,
-          }
-        : null,
+      device,
+      testDevice: device,
     };
   });
 }
@@ -29,15 +22,19 @@ export async function POST(request: NextRequest) {
   return masterJson(async (session) => {
     const body = (await request.json().catch(() => ({}))) as {
       subscription?: unknown;
+      endpoint?: string;
+      keys?: { auth?: string; p256dh?: string };
       userAgent?: string;
     };
 
-    if (!isPushSubscription(body.subscription)) {
+    const sub = body.subscription || (body.endpoint && body.keys ? { endpoint: body.endpoint, keys: body.keys } : null);
+
+    if (!isPushSubscription(sub)) {
       throw new Error("Invalid push subscription record");
     }
 
     const saved = await registerTestDevice(
-      body.subscription,
+      sub,
       body.userAgent || request.headers.get("user-agent") || undefined,
       session.email
     );
@@ -45,11 +42,8 @@ export async function POST(request: NextRequest) {
     return {
       success: true,
       message: "Test device registered successfully.",
-      device: {
-        id: saved.id,
-        endpointHash: saved.endpointHash,
-        userAgent: saved.userAgent,
-      },
+      device: saved,
+      testDevice: saved,
     };
   });
 }

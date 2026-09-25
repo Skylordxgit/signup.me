@@ -9,6 +9,7 @@ export async function POST() {
     return {
       success: true,
       env: result,
+      envScan: result,
     };
   });
 }

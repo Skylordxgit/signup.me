@@ -9,6 +9,7 @@ export async function GET() {
     return {
       success: true,
       logs,
+      auditLogs: logs,
     };
   });
 }
