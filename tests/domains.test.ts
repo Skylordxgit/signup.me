@@ -80,6 +80,19 @@ test('DNS verification uses injected CNAME/A answers and SSL only activates afte
     const active = await updateDomainSslStatus(domain.id, 'active');
     assert.equal(active.status, 'active');
     assert.equal(active.sslStatus, 'active');
+    const rechecked = await verifyDomainDns(domain.id, { resolveCname: async () => [], resolve4: async () => [] });
+    assert.equal(rechecked.status, 'error');
+    assert.equal(rechecked.lastVerifiedAt, null);
+    await assert.rejects(updateDomainSslStatus(domain.id, 'active'), /Verify DNS/);
+
+    await assert.rejects(verifyDomainDns(domain.id, {
+      resolveCname: async () => {
+        await updateDomainHostname(domain.id, 'replacement-brand.com');
+        return ['edge.example.net'];
+      },
+      resolve4: async () => [],
+    }), /changed during verification/);
+    assert.equal((await getDomain(domain.id))?.status, 'pending_dns');
   } finally {
     restore('CUSTOM_DOMAIN_CNAME_TARGET', oldCname);
     restore('CUSTOM_DOMAIN_SERVER_IP', oldIp);

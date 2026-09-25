@@ -64,7 +64,7 @@ type DomainRow = {
   updatedAt: Date | string;
 };
 
-const publicResolver = new Resolver();
+const publicResolver = new Resolver({ timeout: 2000, tries: 2 });
 try {
   publicResolver.setServers(['1.1.1.1', '8.8.8.8', '1.0.0.1', '8.8.4.4']);
 } catch {
@@ -186,7 +186,7 @@ async function mutateData<T>(change: (data: DomainFile) => T | Promise<T>) {
     const temporary = `${target}.${randomUUID()}.tmp`;
     await writeFile(temporary, JSON.stringify(data, null, 2), { mode: 0o600 });
     await rename(temporary, target);
-    void invalidateDomainCache();
+    await invalidateDomainCache();
     return result;
   });
   queue = operation;
@@ -199,6 +199,13 @@ function event(action: DomainAuditAction, domain: Pick<CustomDomain, 'id' | 'hos
 
 async function insertEvent(query: TransactionQuery, item: DomainAuditEvent) {
   await query('INSERT INTO domain_audit_events (id, domain_id, hostname, workspace_id, action, actor_email, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', [item.id, item.domainId, item.hostname, item.workspaceId, item.action, item.actorEmail, new Date(item.createdAt)]);
+}
+
+async function domainTransaction<T>(operation: (query: TransactionQuery) => Promise<T>): Promise<T> {
+  const result = await withTransaction(operation);
+  // Invalidate after COMMIT so a concurrent read cannot cache the old assignment.
+  await invalidateDomainCache();
+  return result;
 }
 
 const columns = `id, hostname, workspace_id AS workspaceId, is_primary AS isPrimary, status,
@@ -242,12 +249,11 @@ export async function addDomain(value: unknown, actorEmail = 'system', workspace
     });
   }
   try {
-    await withTransaction(async query => {
+    await domainTransaction(async query => {
       await query('INSERT INTO custom_domains (id, hostname, workspace_id, is_primary, status, ssl_status) VALUES (?, ?, ?, ?, ?, ?)', [domain.id, domain.hostname, domain.workspaceId, domain.isPrimary, domain.status, domain.sslStatus]);
       await insertEvent(query, event('Domain Added', domain, actorEmail));
       if (workspaceId) await insertEvent(query, event('Domain Assigned', domain, actorEmail));
     });
-    void invalidateDomainCache();
   } catch (error) {
     if ((error as { code?: string }).code === 'ER_DUP_ENTRY') throw new Error(workspaceId ? 'Domain already exists or workspace already has a primary domain.' : 'Domain already exists.');
     throw error;
@@ -281,7 +287,7 @@ export async function updateDomainHostname(id: string, value: unknown, actorEmai
     });
   }
   try {
-    return await withTransaction(async query => {
+    return await domainTransaction(async query => {
       const rows = await query<DomainRow[]>(`SELECT ${columns} FROM custom_domains WHERE id = ? FOR UPDATE`, [id]);
       if (!rows[0]) throw new Error('Domain not found.');
       const domain = mapDomain(rows[0]);
@@ -290,7 +296,6 @@ export async function updateDomainHostname(id: string, value: unknown, actorEmai
         last_verified_at = NULL, verification_error = NULL, ssl_updated_at = NULL WHERE id = ?`, [hostname, id]);
       const updated = { ...domain, hostname, status: 'pending_dns' as DomainStatus, sslStatus: 'pending' as DomainSslStatus, lastCheckedAt: null, lastVerifiedAt: null, verificationError: null, sslUpdatedAt: null, updatedAt: timestamp };
       await insertEvent(query, event('Domain Updated', updated, actorEmail));
-      void invalidateDomainCache();
       return updated;
     });
   } catch (error) {
@@ -316,7 +321,7 @@ export async function assignDomain(id: string, workspaceId: string | null, actor
       return domain;
     });
   }
-  return withTransaction(async query => {
+  return domainTransaction(async query => {
     const rows = await query<DomainRow[]>(`SELECT ${columns} FROM custom_domains WHERE id = ? FOR UPDATE`, [id]);
     const domain = rows[0] ? mapDomain(rows[0]) : null;
     if (!domain) throw new Error('Domain not found.');
@@ -330,7 +335,6 @@ export async function assignDomain(id: string, workspaceId: string | null, actor
     await query('UPDATE custom_domains SET workspace_id = ?, is_primary = ? WHERE id = ?', [workspaceId, Boolean(workspaceId), id]);
     const updated = { ...domain, workspaceId, isPrimary: Boolean(workspaceId), updatedAt: new Date().toISOString() };
     await insertEvent(query, event(workspaceId ? 'Domain Assigned' : 'Domain Unassigned', updated, actorEmail, workspaceId || previousWorkspaceId));
-    void invalidateDomainCache();
     return updated;
   });
 }
@@ -352,7 +356,7 @@ export async function moveDomain(id: string, workspaceId: string | null, actorEm
       return domain;
     });
   }
-  return withTransaction(async query => {
+  return domainTransaction(async query => {
     const rows = await query<DomainRow[]>(`SELECT ${columns} FROM custom_domains WHERE id = ? FOR UPDATE`, [id]);
     const domain = rows[0] ? mapDomain(rows[0]) : null;
     if (!domain) throw new Error('Domain not found.');
@@ -366,7 +370,6 @@ export async function moveDomain(id: string, workspaceId: string | null, actorEm
     const updated = { ...domain, workspaceId, isPrimary: Boolean(workspaceId), updatedAt: new Date().toISOString() };
     if (previousWorkspaceId) await insertEvent(query, event('Domain Unassigned', updated, actorEmail, previousWorkspaceId));
     if (workspaceId) await insertEvent(query, event('Domain Assigned', updated, actorEmail));
-    void invalidateDomainCache();
     return updated;
   });
 }
@@ -398,7 +401,7 @@ export async function setWorkspacePrimaryDomain(workspaceId: string, domainId: s
       return next;
     });
   }
-  return withTransaction(async query => {
+  return domainTransaction(async query => {
     const rows = await query<DomainRow[]>(`SELECT ${columns} FROM custom_domains WHERE id IN (?, ?) FOR UPDATE`, [current.id, domainId]);
     const previous = rows.find(row => row.id === current.id);
     const nextRow = rows.find(row => row.id === domainId);
@@ -412,33 +415,34 @@ export async function setWorkspacePrimaryDomain(workspaceId: string, domainId: s
     const updated = { ...next, workspaceId, isPrimary: true, updatedAt: timestamp };
     await insertEvent(query, event('Domain Unassigned', removed, actorEmail, workspaceId));
     await insertEvent(query, event('Domain Assigned', updated, actorEmail));
-    void invalidateDomainCache();
     return updated;
   });
 }
 
-async function saveVerification(id: string, success: boolean, message: string | null, actorEmail: string) {
+async function saveVerification(id: string, hostname: string, success: boolean, message: string | null, actorEmail: string) {
   const timestamp = new Date().toISOString();
   if (!hasMysqlConfig()) {
     return mutateData(data => {
       const domain = data.domains.find(item => item.id === id);
       if (!domain) throw new Error('Domain not found.');
+      if (domain.hostname !== hostname || domain.status === 'disabled') throw new Error('Domain changed during verification. Run verification again.');
       domain.status = success ? (domain.sslStatus === 'active' ? 'active' : 'verified') : 'error';
       domain.lastCheckedAt = timestamp;
-      domain.lastVerifiedAt = success ? timestamp : domain.lastVerifiedAt;
+      domain.lastVerifiedAt = success ? timestamp : null;
       domain.verificationError = message;
       domain.updatedAt = timestamp;
       if (success) data.auditEvents.push(event('Domain Verified', domain, actorEmail));
       return domain;
     });
   }
-  return withTransaction(async query => {
+  return domainTransaction(async query => {
     const rows = await query<DomainRow[]>(`SELECT ${columns} FROM custom_domains WHERE id = ? FOR UPDATE`, [id]);
     if (!rows[0]) throw new Error('Domain not found.');
     const domain = mapDomain(rows[0]);
+    if (domain.hostname !== hostname || domain.status === 'disabled') throw new Error('Domain changed during verification. Run verification again.');
     const status: DomainStatus = success ? (domain.sslStatus === 'active' ? 'active' : 'verified') : 'error';
-    await query('UPDATE custom_domains SET status = ?, last_checked_at = ?, last_verified_at = IF(?, ?, last_verified_at), verification_error = ? WHERE id = ?', [status, new Date(timestamp), success, new Date(timestamp), message, id]);
-    const updated = { ...domain, status, lastCheckedAt: timestamp, lastVerifiedAt: success ? timestamp : domain.lastVerifiedAt, verificationError: message, updatedAt: timestamp };
+    await query('UPDATE custom_domains SET status = ?, last_checked_at = ?, last_verified_at = ?, verification_error = ? WHERE id = ?', [status, new Date(timestamp), success ? new Date(timestamp) : null, message, id]);
+    const updated = { ...domain, status, lastCheckedAt: timestamp, lastVerifiedAt: success ? timestamp : null, verificationError: message, updatedAt: timestamp };
     if (success) await insertEvent(query, event('Domain Verified', updated, actorEmail));
     return updated;
   });
@@ -447,6 +451,7 @@ async function saveVerification(id: string, success: boolean, message: string | 
 export async function verifyDomainDns(id: string, dns: DomainResolver = resolver, actorEmail = 'system') {
   const domain = await getDomain(id);
   if (!domain) throw new Error('Domain not found.');
+  if (domain.status === 'disabled') throw new Error('Enable the domain before verifying DNS.');
   const config = domainVerificationConfig();
   if (!config.record) throw new Error('Configure CUSTOM_DOMAIN_CNAME_TARGET or CUSTOM_DOMAIN_SERVER_IP before verification.');
   if (!hasMysqlConfig()) await mutateData(data => { const item = data.domains.find(row => row.id === id); if (item) { item.status = 'verifying'; item.updatedAt = new Date().toISOString(); } });
@@ -474,18 +479,18 @@ export async function verifyDomainDns(id: string, dns: DomainResolver = resolver
   }
 
   if (expectedCname && cnameAnswers.some(ans => ans === expectedCname)) {
-    return saveVerification(id, true, null, actorEmail);
+    return saveVerification(id, domain.hostname, true, null, actorEmail);
   }
 
   if (configuredIps.length > 0 && aAnswers.some(ans => configuredIps.includes(ans))) {
-    return saveVerification(id, true, null, actorEmail);
+    return saveVerification(id, domain.hostname, true, null, actorEmail);
   }
 
   if (expectedCname && aAnswers.length > 0) {
     try {
       const targetIps = (await dns.resolve4(expectedCname)).map(dnsTarget);
       if (targetIps.some(ip => aAnswers.includes(ip))) {
-        return saveVerification(id, true, null, actorEmail);
+        return saveVerification(id, domain.hostname, true, null, actorEmail);
       }
     } catch {
       // Ignore target IP resolution errors and fall through
@@ -502,19 +507,19 @@ export async function verifyDomainDns(id: string, dns: DomainResolver = resolver
     aAnswers.length > 0 ? `A: ${aAnswers.join(', ')}` : null,
   ].filter(Boolean).join('; ') || 'no DNS records found';
 
-  return saveVerification(id, false, `Expected ${expectedList || 'configured target'}, but DNS returned ${foundList}.`, actorEmail);
+  return saveVerification(id, domain.hostname, false, `Expected ${expectedList || 'configured target'}, but DNS returned ${foundList}.`, actorEmail);
 }
 
 export async function updateDomainSslStatus(id: string, sslStatus: DomainSslStatus) {
   if (!['pending', 'active', 'error', 'disabled'].includes(sslStatus)) throw new Error('Invalid SSL status.');
   const domain = await getDomain(id);
   if (!domain) throw new Error('Domain not found.');
-  if (sslStatus === 'active' && !domain.lastVerifiedAt) throw new Error('Verify DNS before marking SSL active.');
+  if (sslStatus === 'active' && (!domain.lastVerifiedAt || domain.verificationError || !['verified', 'ssl_pending', 'active'].includes(domain.status))) throw new Error('Verify DNS before marking SSL active.');
   const status: DomainStatus = sslStatus === 'active' ? 'active' : sslStatus === 'pending' && domain.lastVerifiedAt ? 'ssl_pending' : sslStatus === 'disabled' ? 'disabled' : sslStatus === 'error' ? 'error' : domain.status;
   const timestamp = new Date().toISOString();
   if (!hasMysqlConfig()) return mutateData(data => { const item = data.domains.find(row => row.id === id); if (!item) throw new Error('Domain not found.'); Object.assign(item, { sslStatus, status, sslUpdatedAt: timestamp, updatedAt: timestamp }); return item; });
   await mysqlQuery('UPDATE custom_domains SET ssl_status = ?, status = ?, ssl_updated_at = ? WHERE id = ?', [sslStatus, status, new Date(timestamp), id]);
-  void invalidateDomainCache();
+  await invalidateDomainCache();
   return (await getDomain(id))!;
 }
 
@@ -524,7 +529,7 @@ export async function setDomainDisabled(id: string, disabled: boolean) {
   const status: DomainStatus = disabled ? 'disabled' : domain.sslStatus === 'active' && domain.lastVerifiedAt ? 'active' : domain.lastVerifiedAt ? 'verified' : 'pending_dns';
   if (!hasMysqlConfig()) return mutateData(data => { const item = data.domains.find(row => row.id === id); if (!item) throw new Error('Domain not found.'); item.status = status; item.updatedAt = new Date().toISOString(); return item; });
   await mysqlQuery('UPDATE custom_domains SET status = ? WHERE id = ?', [status, id]);
-  void invalidateDomainCache();
+  await invalidateDomainCache();
   return (await getDomain(id))!;
 }
 
@@ -537,14 +542,13 @@ export async function deleteDomain(id: string, actorEmail = 'system') {
     data.auditEvents.push(event('Domain Deleted', domain, actorEmail));
     return true;
   });
-  return withTransaction(async query => {
+  return domainTransaction(async query => {
     const rows = await query<DomainRow[]>(`SELECT ${columns} FROM custom_domains WHERE id = ? FOR UPDATE`, [id]);
     if (!rows[0]) throw new Error('Domain not found.');
     const domain = mapDomain(rows[0]);
     if (domain.workspaceId) await insertEvent(query, event('Domain Unassigned', domain, actorEmail));
     await insertEvent(query, event('Domain Deleted', domain, actorEmail));
     await query('DELETE FROM custom_domains WHERE id = ?', [id]);
-    void invalidateDomainCache();
     return true;
   });
 }

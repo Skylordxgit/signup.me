@@ -41,6 +41,7 @@ test('raw Host parsing and platform classification ignore forwarded host', async
     assert.equal(requestHostname('Brand.Example:8443'), 'brand.example');
     assert.equal(requestHostname('brand.example/path'), null);
     assert.equal(requestHostname('ignored@brand.example'), null);
+    assert.equal((await resolvePublicHost('ignored@brand.example')).kind, 'unknown');
     assert.equal((await resolvePublicHost('localhost:3000')).kind, 'platform');
     assert.equal((await resolvePublicHost('admin.platform.test')).kind, 'master');
     assert.equal((await resolvePublicHost('app.platform.test')).kind, 'platform');
@@ -57,6 +58,7 @@ test('only active assigned domains with active workspaces resolve', async () => 
   assert.equal((await resolvePublicHost('pending.example.com')).kind, 'unknown');
   await activate('active.example.com', workspace.id);
   assert.deepEqual(await resolvePublicHost('active.example.com'), { kind: 'custom', hostname: 'active.example.com', workspaceId: workspace.id });
+  assert.deepEqual(await resolvePublicHost('www.active.example.com'), { kind: 'custom', hostname: 'www.active.example.com', workspaceId: workspace.id });
   await updateWorkspace(workspace.id, { status: 'disabled' });
   assert.equal((await resolvePublicHost('active.example.com')).kind, 'unknown');
 }));

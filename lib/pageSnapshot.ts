@@ -57,7 +57,8 @@ export async function getCachedPrimaryPublicPage(workspaceId?: string): Promise<
  */
 export async function getCachedPublicHost(rawHost: string | null): Promise<PublicHost> {
   const hostname = requestHostname(rawHost);
-  if (hostname === null || !hostname) return { kind: 'platform', hostname: '' };
+  if (hostname === null) return { kind: 'unknown', hostname: '' };
+  if (!hostname) return { kind: 'platform', hostname: '' };
   if (isPlatformHostname(hostname)) return { kind: 'platform', hostname };
 
   const key = domainCacheKey(hostname);
@@ -66,7 +67,7 @@ export async function getCachedPublicHost(rawHost: string | null): Promise<Publi
     async () => {
       try {
         const domainList = await listDomains();
-        const domain = domainList.find(item => item.hostname === hostname && item.workspaceId && item.status === 'active');
+        const domain = domainList.find(item => item.hostname === hostname.replace(/^www\./, '') && item.workspaceId && item.status === 'active');
         if (domain?.workspaceId && (await isWorkspaceActive(domain.workspaceId))) {
           return { kind: 'custom', hostname, workspaceId: domain.workspaceId };
         }

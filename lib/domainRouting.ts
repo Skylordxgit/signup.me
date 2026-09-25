@@ -43,7 +43,8 @@ export function isPlatformHostname(hostname: string) {
 
 export async function resolvePublicHost(rawHost: string | null): Promise<PublicHost> {
   const hostname = requestHostname(rawHost);
-  if (hostname === null || !hostname) return { kind: 'platform', hostname: '' };
+  if (hostname === null) return { kind: 'unknown', hostname: '' };
+  if (!hostname) return { kind: 'platform', hostname: '' };
   if (hostname && hostname === configuredHostname(process.env.MASTER_ADMIN_DOMAIN)) return { kind: 'master', hostname };
   if (isPlatformHostname(hostname)) return { kind: 'platform', hostname };
 
