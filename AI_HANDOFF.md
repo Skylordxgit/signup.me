@@ -371,6 +371,11 @@ At minimum, add a short note under this section:
 
 ### Last Task Notes
 
+- 2026-09-26: Centered all public notification popups, including optional
+  prompts with saved corner positions, and removed their Not now button.
+  This extends the prior required-only centering fix. Existing optional Escape
+  dismissal and subscription behavior remain intact.
+
 - 2026-09-25: Required notification popups now center in the viewport on desktop
   and mobile, overriding saved corner placement. Uses auto margins without
   transforms so shake animations keep their center; tall content scrolls within

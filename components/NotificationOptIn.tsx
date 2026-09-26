@@ -335,6 +335,5 @@ export function NotificationOptIn({ slug, title, settings }: { slug: string; tit
         {busy ? copy.busyLabel : error ? copy.retryLabel : copy.allowLabel}
       </button>
     )}
-    {!isGated && !unlocked && <button type="button" className="pushPromptDismiss" onClick={dismiss}>{theme.notNowLabel}</button>}
   </dialog>;
 }
